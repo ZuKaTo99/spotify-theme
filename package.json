@@ -1,0 +1,23 @@
+{
+  "name": "zukato-spicetify",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+"scripts": {
+  "check": "tsc --noEmit",
+  "build": "npm run check && node tools/build.mjs",
+  "install:spicetify": "npm run build && node tools/install.mjs"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.28.1",
+    "sass": "^1.101.3",
+    "typescript": "^7.0.2"
+  }
+}
