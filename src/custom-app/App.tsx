@@ -8,6 +8,14 @@ import {
 } from "../shared/i18n";
 
 import {
+  getFeatureTitle,
+} from "../shared/feature-titles";
+
+import {
+  ModulePage,
+} from "./components/ModulePage";
+
+import {
   FeatureManager,
 } from "./components/FeatureManager";
 
@@ -30,6 +38,13 @@ export function App(): ReactElement {
 
   const t =
     createTranslator(resolvedLocale);
+
+    const settingsTitle =
+  getFeatureTitle(
+    "settings",
+    settings.features.settings.customTitle,
+    t,
+  );
 
   const greeting =
     settings.showGreeting &&
@@ -67,22 +82,24 @@ export function App(): ReactElement {
         </p>
       </header>
 
-      <SettingsPanel
-        workspaceTitle={
-          settings.workspaceTitle
-        }
-        displayName={
-          settings.displayName
-        }
-        showGreeting={
-          settings.showGreeting
-        }
-        locale={
-          settings.locale
-        }
-        t={t}
-        onChange={update}
-      />
+<ModulePage title={settingsTitle}>
+  <SettingsPanel
+    workspaceTitle={
+      settings.workspaceTitle
+    }
+    displayName={
+      settings.displayName
+    }
+    showGreeting={
+      settings.showGreeting
+    }
+    locale={
+      settings.locale
+    }
+    t={t}
+    onChange={update}
+  />
+</ModulePage>
 
       <FeatureManager
         features={settings.features}
