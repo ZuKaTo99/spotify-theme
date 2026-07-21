@@ -1,10 +1,22 @@
+import {
+  createDefaultFeaturePreferences,
+  normalizeFeaturePreferences,
+} from "./feature-preferences";
+
+import type {
+  FeaturePreferences,
+} from "./feature-preferences";
+
 export const SETTINGS_CHANGED_EVENT =
   "spotify-toolkit:settings-changed";
 
 const SETTINGS_STORAGE_KEY =
   "spotify-toolkit.settings";
 
-const CURRENT_SCHEMA_VERSION = 1;
+/**
+ * Version 2 ergänzt konfigurierbare Module.
+ */
+const CURRENT_SCHEMA_VERSION = 2;
 
 export type AppLocale =
   | "auto"
@@ -21,20 +33,27 @@ export interface AppSettings {
 
   /**
    * Optionaler Name für persönliche Begrüßungen.
-   * Ein leerer Wert deaktiviert die persönliche Ansprache.
    */
   displayName: string;
 
   showGreeting: boolean;
   locale: AppLocale;
+
+  /**
+   * Einstellungen aller registrierten Module.
+   */
+  features: FeaturePreferences;
 }
 
-export const DEFAULT_SETTINGS: Readonly<AppSettings> = {
+export const DEFAULT_SETTINGS:
+Readonly<AppSettings> = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   workspaceTitle: "Workspace",
   displayName: "",
   showGreeting: true,
   locale: "auto",
+  features:
+    createDefaultFeaturePreferences(),
 };
 
 function isRecord(
@@ -62,7 +81,10 @@ function normalizeText(
     return fallback;
   }
 
-  return normalized.slice(0, maximumLength);
+  return normalized.slice(
+    0,
+    maximumLength,
+  );
 }
 
 function normalizeOptionalText(
@@ -95,8 +117,8 @@ function normalizeLocale(
 /**
  * Validiert gespeicherte oder importierte Einstellungen.
  *
- * Dadurch führen veraltete oder manuell beschädigte Daten
- * nicht zum Absturz der Anwendung.
+ * Ältere Einstellungen werden dabei automatisch auf das
+ * aktuelle Schema ergänzt.
  */
 export function normalizeSettings(
   value: unknown,
@@ -120,13 +142,19 @@ export function normalizeSettings(
     ),
 
     showGreeting:
-      typeof source.showGreeting === "boolean"
+      typeof source.showGreeting ===
+      "boolean"
         ? source.showGreeting
         : DEFAULT_SETTINGS.showGreeting,
 
     locale: normalizeLocale(
       source.locale,
     ),
+
+    features:
+      normalizeFeaturePreferences(
+        source.features,
+      ),
   };
 }
 
