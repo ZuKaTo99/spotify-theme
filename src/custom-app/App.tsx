@@ -3,6 +3,11 @@ import type {
 } from "react";
 
 import {
+  createTranslator,
+  resolveLocale,
+} from "../shared/i18n";
+
+import {
   SettingsPanel,
 } from "./components/SettingsPanel";
 
@@ -16,17 +21,31 @@ export function App(): ReactElement {
     update,
   } = useSettings();
 
+  const resolvedLocale =
+    resolveLocale(settings.locale);
+
+  const t =
+    createTranslator(resolvedLocale);
+
   const greeting =
     settings.showGreeting &&
     settings.displayName
-      ? `Hallo, ${settings.displayName}!`
+      ? t(
+          "app.greeting",
+          {
+            name: settings.displayName,
+          },
+        )
       : null;
 
   return (
-    <main className="zukato-app">
+    <main
+      className="zukato-app"
+      lang={resolvedLocale}
+    >
       <header className="zukato-app__header">
         <p className="zukato-app__label">
-          Spotify Toolkit
+          {t("app.productLabel")}
         </p>
 
         <h1>
@@ -40,7 +59,7 @@ export function App(): ReactElement {
         )}
 
         <p>
-          Persönlicher und modularer Spotify-Arbeitsbereich.
+          {t("app.description")}
         </p>
       </header>
 
@@ -57,6 +76,7 @@ export function App(): ReactElement {
         locale={
           settings.locale
         }
+        t={t}
         onChange={update}
       />
     </main>

@@ -4,6 +4,10 @@ import type {
 } from "react";
 
 import type {
+  Translator,
+} from "../../shared/i18n";
+
+import type {
   AppLocale,
 } from "../../shared/settings";
 
@@ -16,6 +20,7 @@ interface SettingsPanelProps {
   displayName: string;
   showGreeting: boolean;
   locale: AppLocale;
+  t: Translator;
 
   onChange: (
     changes: SettingsChanges,
@@ -52,23 +57,28 @@ export function SettingsPanel(
   function handleLocaleChange(
     event: ChangeEvent<HTMLSelectElement>,
   ): void {
+    const locale =
+      event.target.value as AppLocale;
+
     props.onChange({
-      locale: event.target.value as AppLocale,
+      locale,
     });
   }
 
   return (
     <section
       className="zukato-settings"
-      aria-labelledby="zukato-settings-heading"
+      aria-labelledby="settings-heading"
     >
-      <h2 id="zukato-settings-heading">
-        Einstellungen
+      <h2 id="settings-heading">
+        {props.t("settings.heading")}
       </h2>
 
       <div className="zukato-settings__field">
         <label htmlFor="workspace-title">
-          Workspace-Titel
+          {props.t(
+            "settings.workspaceTitle",
+          )}
         </label>
 
         <input
@@ -76,13 +86,17 @@ export function SettingsPanel(
           type="text"
           maxLength={60}
           value={props.workspaceTitle}
-          onChange={handleWorkspaceTitleChange}
+          onChange={
+            handleWorkspaceTitleChange
+          }
         />
       </div>
 
       <div className="zukato-settings__field">
         <label htmlFor="display-name">
-          Anzeigename
+          {props.t(
+            "settings.displayName",
+          )}
         </label>
 
         <input
@@ -90,31 +104,47 @@ export function SettingsPanel(
           type="text"
           maxLength={40}
           value={props.displayName}
-          onChange={handleDisplayNameChange}
-          placeholder="Optional"
+          onChange={
+            handleDisplayNameChange
+          }
+          placeholder={
+            props.t(
+              "settings.displayNamePlaceholder",
+            )
+          }
         />
       </div>
 
       <div className="zukato-settings__field">
         <label htmlFor="application-language">
-          Sprache
+          {props.t(
+            "settings.language",
+          )}
         </label>
 
         <select
           id="application-language"
           value={props.locale}
-          onChange={handleLocaleChange}
+          onChange={
+            handleLocaleChange
+          }
         >
           <option value="auto">
-            Automatisch
+            {props.t(
+              "settings.languageAuto",
+            )}
           </option>
 
           <option value="de">
-            Deutsch
+            {props.t(
+              "settings.languageGerman",
+            )}
           </option>
 
           <option value="en">
-            English
+            {props.t(
+              "settings.languageEnglish",
+            )}
           </option>
         </select>
       </div>
@@ -124,10 +154,14 @@ export function SettingsPanel(
           <input
             type="checkbox"
             checked={props.showGreeting}
-            onChange={handleGreetingChange}
+            onChange={
+              handleGreetingChange
+            }
           />
 
-          Persönliche Begrüßung anzeigen
+          {props.t(
+            "settings.showGreeting",
+          )}
         </label>
       </div>
     </section>
