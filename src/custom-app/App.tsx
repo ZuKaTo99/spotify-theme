@@ -1,31 +1,64 @@
-import type { ReactElement } from "react";
+import type {
+  ReactElement,
+} from "react";
 
-/**
- * Hauptkomponente unserer Custom App.
- *
- * Später kommen hier unter anderem hinein:
- * - Dashboard
- * - Hörverlauf
- * - Statistiken
- * - Playlist-Werkzeuge
- * - Visualizer
- * - Song-Notizen
- * - Einstellungen
- */
+import {
+  SettingsPanel,
+} from "./components/SettingsPanel";
+
+import {
+  useSettings,
+} from "./hooks/useSettings";
+
 export function App(): ReactElement {
+  const {
+    settings,
+    update,
+  } = useSettings();
+
+  const greeting =
+    settings.showGreeting &&
+    settings.displayName
+      ? `Hallo, ${settings.displayName}!`
+      : null;
+
   return (
     <main className="zukato-app">
       <header className="zukato-app__header">
         <p className="zukato-app__label">
-          ZuKaTo Spicetify
+          Spotify Toolkit
         </p>
 
-        <h1>Development Workspace</h1>
+        <h1>
+          {settings.workspaceTitle}
+        </h1>
+
+        {greeting && (
+          <p className="zukato-app__greeting">
+            {greeting}
+          </p>
+        )}
 
         <p>
-          Die eigene Custom App wurde erfolgreich geladen.
+          Persönlicher und modularer Spotify-Arbeitsbereich.
         </p>
       </header>
+
+      <SettingsPanel
+        workspaceTitle={
+          settings.workspaceTitle
+        }
+        displayName={
+          settings.displayName
+        }
+        showGreeting={
+          settings.showGreeting
+        }
+        locale={
+          settings.locale
+        }
+        onChange={update}
+      />
     </main>
   );
 }
