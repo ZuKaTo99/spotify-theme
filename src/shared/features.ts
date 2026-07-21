@@ -65,6 +65,11 @@ export interface FeatureDefinition {
    * überschrieben werden darf.
    */
   customizableTitle: boolean;
+
+  /**
+ * Pflichtmodule bleiben immer aktiviert.
+ */
+required?: boolean;
 }
 
 /**
@@ -138,6 +143,7 @@ export const FEATURE_DEFINITIONS:
       defaultOrder: 90,
       defaultEnabled: true,
       customizableTitle: true,
+      required: true,
     },
 
     {

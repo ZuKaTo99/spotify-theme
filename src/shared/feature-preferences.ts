@@ -1,6 +1,5 @@
 import {
   FEATURE_DEFINITIONS,
-  FEATURE_IDS,
 } from "./features";
 
 import type {
@@ -117,20 +116,31 @@ export function normalizeFeaturePreferences(
   const normalized =
     createDefaultFeaturePreferences();
 
-  for (const featureId of FEATURE_IDS) {
+  for (
+    const feature of FEATURE_DEFINITIONS
+  ) {
+    const featureId = feature.id;
+
     const storedPreference =
       value[featureId];
 
     if (!isRecord(storedPreference)) {
+      normalized[featureId].enabled =
+        feature.required
+          ? true
+          : normalized[featureId].enabled;
+
       continue;
     }
 
     normalized[featureId] = {
       enabled:
-        typeof storedPreference.enabled ===
-        "boolean"
-          ? storedPreference.enabled
-          : defaults[featureId].enabled,
+        feature.required
+          ? true
+          : typeof storedPreference.enabled ===
+              "boolean"
+            ? storedPreference.enabled
+            : defaults[featureId].enabled,
 
       order: normalizeOrder(
         storedPreference.order,

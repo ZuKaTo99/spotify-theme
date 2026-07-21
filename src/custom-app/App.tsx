@@ -8,6 +8,10 @@ import {
 } from "../shared/i18n";
 
 import {
+  FeatureManager,
+} from "./components/FeatureManager";
+
+import {
   SettingsPanel,
 } from "./components/SettingsPanel";
 
@@ -76,6 +80,12 @@ export function App(): ReactElement {
         locale={
           settings.locale
         }
+        t={t}
+        onChange={update}
+      />
+
+      <FeatureManager
+        features={settings.features}
         t={t}
         onChange={update}
       />

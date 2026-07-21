@@ -22,6 +22,44 @@ const germanTranslations = {
   "settings.languageEnglish": "Englisch",
   "settings.showGreeting":
     "Persönliche Begrüßung anzeigen",
+
+  "modules.heading": "Module",
+  "modules.description":
+    "Funktionen aktivieren, umbenennen und sortieren.",
+  "modules.customApp": "Workspace-Module",
+  "modules.extension": "Spotify-Erweiterungen",
+  "modules.enabled": "Aktiviert",
+  "modules.displayTitle": "Anzeigename",
+  "modules.order": "Reihenfolge",
+  "modules.required": "Pflichtmodul",
+  "modules.defaultTitlePlaceholder":
+    "Standard: {title}",
+
+  "feature.dashboard": "Dashboard",
+  "feature.listening-history": "Hörverlauf",
+  "feature.statistics": "Statistiken",
+  "feature.favorites": "Favoriten",
+  "feature.playlist-tools":
+    "Playlist-Werkzeuge",
+  "feature.visualizer": "Visualisierer",
+  "feature.song-notes": "Song-Notizen",
+  "feature.theme-studio": "Theme-Studio",
+  "feature.settings": "Einstellungen",
+
+  "feature.keyboard-shortcuts":
+    "Tastenkürzel",
+  "feature.sleep-timer": "Sleep-Timer",
+  "feature.volume-scroll":
+    "Lautstärke per Mausrad",
+  "feature.copy-track-info":
+    "Songinformationen kopieren",
+  "feature.quick-playlist":
+    "Schneller Playlist-Button",
+  "feature.mini-player": "Mini-Player",
+  "feature.player-statistics":
+    "Player-Statistiken",
+  "feature.context-actions":
+    "Kontextaktionen",
 } as const;
 
 export type TranslationKey =
@@ -40,15 +78,58 @@ const englishTranslations:
     "app.greeting": "Hello, {name}!",
 
     "settings.heading": "Settings",
-    "settings.workspaceTitle": "Workspace title",
+    "settings.workspaceTitle":
+      "Workspace title",
     "settings.displayName": "Display name",
-    "settings.displayNamePlaceholder": "Optional",
+    "settings.displayNamePlaceholder":
+      "Optional",
     "settings.language": "Language",
     "settings.languageAuto": "Automatic",
     "settings.languageGerman": "German",
     "settings.languageEnglish": "English",
     "settings.showGreeting":
       "Show personal greeting",
+
+    "modules.heading": "Modules",
+    "modules.description":
+      "Enable, rename and reorder features.",
+    "modules.customApp":
+      "Workspace modules",
+    "modules.extension":
+      "Spotify extensions",
+    "modules.enabled": "Enabled",
+    "modules.displayTitle": "Display name",
+    "modules.order": "Order",
+    "modules.required": "Required module",
+    "modules.defaultTitlePlaceholder":
+      "Default: {title}",
+
+    "feature.dashboard": "Dashboard",
+    "feature.listening-history":
+      "Listening history",
+    "feature.statistics": "Statistics",
+    "feature.favorites": "Favorites",
+    "feature.playlist-tools":
+      "Playlist tools",
+    "feature.visualizer": "Visualizer",
+    "feature.song-notes": "Song notes",
+    "feature.theme-studio": "Theme Studio",
+    "feature.settings": "Settings",
+
+    "feature.keyboard-shortcuts":
+      "Keyboard shortcuts",
+    "feature.sleep-timer": "Sleep timer",
+    "feature.volume-scroll":
+      "Mouse-wheel volume",
+    "feature.copy-track-info":
+      "Copy track information",
+    "feature.quick-playlist":
+      "Quick playlist button",
+    "feature.mini-player": "Mini player",
+    "feature.player-statistics":
+      "Player statistics",
+    "feature.context-actions":
+      "Context actions",
   };
 
 const translations: Record<
@@ -69,12 +150,6 @@ export type Translator = (
   parameters?: TranslationParameters,
 ) => string;
 
-/**
- * Ermittelt die tatsächlich verwendete Sprache.
- *
- * Bei "auto" wird die Sprache des Spotify-Clients
- * beziehungsweise des eingebetteten Browsers verwendet.
- */
 export function resolveLocale(
   configuredLocale: AppLocale,
 ): SupportedLocale {
@@ -103,9 +178,6 @@ export function resolveLocale(
     : "en";
 }
 
-/**
- * Ersetzt Platzhalter wie {name} kontrolliert.
- */
 function interpolate(
   text: string,
   parameters: TranslationParameters,
@@ -126,12 +198,6 @@ function interpolate(
   );
 }
 
-/**
- * Erstellt eine typisierte Übersetzungsfunktion.
- *
- * Nicht vorhandene Übersetzungsschlüssel werden bereits
- * während der TypeScript-Prüfung erkannt.
- */
 export function createTranslator(
   locale: SupportedLocale,
 ): Translator {
