@@ -1,3 +1,7 @@
+import type {
+  FeaturePreferences,
+} from "./feature-preferences";
+
 /**
  * Stabile technische Kennungen aller Anwendungsmodule.
  *
@@ -240,6 +244,8 @@ export function getFeatureDefinition(
   return definition;
 }
 
+
+
 /**
  * Liefert sortierte Features für eine bestimmte Oberfläche.
  */
@@ -255,5 +261,37 @@ export function getFeaturesBySurface(
       (first, second) =>
         first.defaultOrder -
         second.defaultOrder,
+    );
+}
+
+/**
+ * Liefert aktivierte Features einer Oberfläche in der
+ * vom Nutzer gespeicherten Reihenfolge.
+ */
+export function getEnabledFeaturesBySurface(
+  surface: FeatureSurface,
+  preferences: FeaturePreferences,
+): readonly FeatureDefinition[] {
+  return FEATURE_DEFINITIONS
+    .filter(
+      (feature) =>
+        feature.surface === surface &&
+        preferences[feature.id].enabled,
+    )
+    .sort(
+      (first, second) => {
+        const orderDifference =
+          preferences[first.id].order -
+          preferences[second.id].order;
+
+        if (orderDifference !== 0) {
+          return orderDifference;
+        }
+
+        return (
+          first.defaultOrder -
+          second.defaultOrder
+        );
+      },
     );
 }
