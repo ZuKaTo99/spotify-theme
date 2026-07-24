@@ -14,6 +14,7 @@ export interface AppNavigationItem {
 interface AppNavigationProps {
   items: readonly AppNavigationItem[];
   activeFeatureId: FeatureId;
+  ariaLabel: string;
   onSelect: (
     featureId: FeatureId,
   ) => void;
@@ -22,12 +23,13 @@ interface AppNavigationProps {
 export function AppNavigation({
   items,
   activeFeatureId,
+  ariaLabel,
   onSelect,
 }: AppNavigationProps): ReactElement {
   return (
     <nav
       className="spotify-toolkit-navigation"
-      aria-label="Workspace"
+      aria-label={ariaLabel}
     >
       {items.map((item) => {
         const isActive =

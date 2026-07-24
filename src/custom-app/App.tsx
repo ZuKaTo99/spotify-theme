@@ -3,21 +3,30 @@ import type {
 } from "react";
 
 import {
+  getFeatureTitle,
+} from "../shared/feature-titles";
+
+import {
+  getEnabledFeaturesBySurface,
+  type FeatureId,
+} from "../shared/features";
+
+import {
   createTranslator,
   resolveLocale,
 } from "../shared/i18n";
 
 import {
-  getFeatureTitle,
-} from "../shared/feature-titles";
-
-import {
-  ModulePage,
-} from "./components/ModulePage";
+  AppNavigation,
+} from "./components/AppNavigation";
 
 import {
   FeatureManager,
 } from "./components/FeatureManager";
+
+import {
+  ModulePage,
+} from "./components/ModulePage";
 
 import {
   SettingsPanel,
@@ -27,11 +36,22 @@ import {
   useSettings,
 } from "./hooks/useSettings";
 
+const ReactRuntime =
+  Spicetify.React as typeof import("react");
+
 export function App(): ReactElement {
   const {
     settings,
     update,
   } = useSettings();
+
+  const [
+    activeFeatureId,
+    setActiveFeatureId,
+  ] =
+    ReactRuntime.useState<FeatureId>(
+      "settings",
+    );
 
   const resolvedLocale =
     resolveLocale(settings.locale);
@@ -39,12 +59,42 @@ export function App(): ReactElement {
   const t =
     createTranslator(resolvedLocale);
 
-    const settingsTitle =
-  getFeatureTitle(
-    "settings",
-    settings.features.settings.customTitle,
-    t,
-  );
+  const navigationItems =
+    getEnabledFeaturesBySurface(
+      "custom-app",
+      settings.features,
+    ).map((feature) => ({
+      id: feature.id,
+      title: getFeatureTitle(
+        feature.id,
+        settings.features[
+          feature.id
+        ].customTitle,
+        t,
+      ),
+    }));
+
+  const settingsTitle =
+    getFeatureTitle(
+      "settings",
+      settings.features.settings
+        .customTitle,
+      t,
+    );
+
+  const activeNavigationItem =
+    navigationItems.find(
+      (item) =>
+        item.id === activeFeatureId,
+    );
+
+  const visibleFeatureId =
+    activeNavigationItem?.id ??
+    "settings";
+
+  const visibleFeatureTitle =
+    activeNavigationItem?.title ??
+    settingsTitle;
 
   const greeting =
     settings.showGreeting &&
@@ -82,30 +132,52 @@ export function App(): ReactElement {
         </p>
       </header>
 
-<ModulePage title={settingsTitle}>
-  <SettingsPanel
-    workspaceTitle={
-      settings.workspaceTitle
-    }
-    displayName={
-      settings.displayName
-    }
-    showGreeting={
-      settings.showGreeting
-    }
-    locale={
-      settings.locale
-    }
-    t={t}
-    onChange={update}
-  />
-</ModulePage>
-
-      <FeatureManager
-        features={settings.features}
-        t={t}
-        onChange={update}
+      <AppNavigation
+        items={navigationItems}
+        activeFeatureId={
+          visibleFeatureId
+        }
+        ariaLabel={
+          settings.workspaceTitle
+        }
+        onSelect={
+          setActiveFeatureId
+        }
       />
+
+      <ModulePage
+        title={visibleFeatureTitle}
+      >
+        {visibleFeatureId ===
+          "settings" && (
+          <>
+            <SettingsPanel
+              workspaceTitle={
+                settings.workspaceTitle
+              }
+              displayName={
+                settings.displayName
+              }
+              showGreeting={
+                settings.showGreeting
+              }
+              locale={
+                settings.locale
+              }
+              t={t}
+              onChange={update}
+            />
+
+            <FeatureManager
+              features={
+                settings.features
+              }
+              t={t}
+              onChange={update}
+            />
+          </>
+        )}
+      </ModulePage>
     </main>
   );
 }
