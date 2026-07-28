@@ -9,8 +9,11 @@ export type SupportedLocale =
 const germanTranslations = {
   "app.productLabel": "Spotify Toolkit",
   "app.description":
-    "Persönlicher und modularer Spotify-Arbeitsbereich.",
+  "Persönlicher und modularer Spotify-Arbeitsbereich.",
   "app.greeting": "Hallo, {name}!",
+
+  "module.underDevelopment":
+  "Dieses Modul wird noch entwickelt.",
 
   "settings.heading": "Einstellungen",
   "settings.workspaceTitle": "Workspace-Titel",
@@ -76,6 +79,9 @@ const englishTranslations:
     "app.description":
       "Your personal and modular Spotify workspace.",
     "app.greeting": "Hello, {name}!",
+
+    "module.underDevelopment":
+    "This module is still under development.",
 
     "settings.heading": "Settings",
     "settings.workspaceTitle":

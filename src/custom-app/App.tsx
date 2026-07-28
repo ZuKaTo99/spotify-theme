@@ -145,39 +145,45 @@ export function App(): ReactElement {
         }
       />
 
-      <ModulePage
-        title={visibleFeatureTitle}
-      >
-        {visibleFeatureId ===
-          "settings" && (
-          <>
-            <SettingsPanel
-              workspaceTitle={
-                settings.workspaceTitle
-              }
-              displayName={
-                settings.displayName
-              }
-              showGreeting={
-                settings.showGreeting
-              }
-              locale={
-                settings.locale
-              }
-              t={t}
-              onChange={update}
-            />
+  <ModulePage
+    title={visibleFeatureTitle}
+  >
+    {visibleFeatureId ===
+    "settings" ? (
+      <>
+        <SettingsPanel
+          workspaceTitle={
+            settings.workspaceTitle
+          }
+          displayName={
+            settings.displayName
+          }
+          showGreeting={
+            settings.showGreeting
+          }
+          locale={
+            settings.locale
+          }
+          t={t}
+          onChange={update}
+        />
 
-            <FeatureManager
-              features={
-                settings.features
-              }
-              t={t}
-              onChange={update}
-            />
-          </>
+        <FeatureManager
+          features={
+            settings.features
+          }
+          t={t}
+          onChange={update}
+        />
+      </>
+    ) : (
+      <p>
+        {t(
+          "module.underDevelopment",
         )}
-      </ModulePage>
+      </p>
+    )}
+  </ModulePage>
     </main>
   );
 }
