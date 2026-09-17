@@ -25,6 +25,10 @@ import {
 } from "./components/FeatureManager";
 
 import {
+  ModuleContent,
+} from "./components/ModuleContent";
+
+import {
   ModulePage,
 } from "./components/ModulePage";
 
@@ -98,13 +102,13 @@ export function App(): ReactElement {
 
   const greeting =
     settings.showGreeting &&
-    settings.displayName
+      settings.displayName
       ? t(
-          "app.greeting",
-          {
-            name: settings.displayName,
-          },
-        )
+        "app.greeting",
+        {
+          name: settings.displayName,
+        },
+      )
       : null;
 
   return (
@@ -144,46 +148,42 @@ export function App(): ReactElement {
           setActiveFeatureId
         }
       />
+        <ModulePage
+          title={visibleFeatureTitle}
+        >
+          <ModuleContent
+            featureId={visibleFeatureId}
+            t={t}
+            settingsContent={
+              <>
+                <SettingsPanel
+                  workspaceTitle={
+                    settings.workspaceTitle
+                  }
+                  displayName={
+                    settings.displayName
+                  }
+                  showGreeting={
+                    settings.showGreeting
+                  }
+                  locale={
+                    settings.locale
+                  }
+                  t={t}
+                  onChange={update}
+                />
 
-  <ModulePage
-    title={visibleFeatureTitle}
-  >
-    {visibleFeatureId ===
-    "settings" ? (
-      <>
-        <SettingsPanel
-          workspaceTitle={
-            settings.workspaceTitle
-          }
-          displayName={
-            settings.displayName
-          }
-          showGreeting={
-            settings.showGreeting
-          }
-          locale={
-            settings.locale
-          }
-          t={t}
-          onChange={update}
-        />
-
-        <FeatureManager
-          features={
-            settings.features
-          }
-          t={t}
-          onChange={update}
-        />
-      </>
-    ) : (
-      <p>
-        {t(
-          "module.underDevelopment",
-        )}
-      </p>
-    )}
-  </ModulePage>
+                <FeatureManager
+                  features={
+                    settings.features
+                  }
+                  t={t}
+                  onChange={update}
+                />
+              </>
+            }
+          />
+        </ModulePage>
     </main>
   );
 }
