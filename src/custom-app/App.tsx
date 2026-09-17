@@ -21,10 +21,6 @@ import {
 } from "./components/AppNavigation";
 
 import {
-  FeatureManager,
-} from "./components/FeatureManager";
-
-import {
   ModuleContent,
 } from "./components/ModuleContent";
 
@@ -33,8 +29,8 @@ import {
 } from "./components/ModulePage";
 
 import {
-  SettingsPanel,
-} from "./components/SettingsPanel";
+  SettingsModule,
+} from "./modules/settings/SettingsModule";
 
 import {
   useSettings,
@@ -156,32 +152,11 @@ export function App(): ReactElement {
           features={settings.features}
           t={t}
           settingsContent={
-            <>
-              <SettingsPanel
-                workspaceTitle={
-                  settings.workspaceTitle
-                }
-                displayName={
-                  settings.displayName
-                }
-                showGreeting={
-                  settings.showGreeting
-                }
-                locale={
-                  settings.locale
-                }
-                t={t}
-                onChange={update}
-              />
-
-              <FeatureManager
-                features={
-                  settings.features
-                }
-                t={t}
-                onChange={update}
-              />
-            </>
+            <SettingsModule
+              settings={settings}
+              t={t}
+              onChange={update}
+            />
           }
         />
       </ModulePage>
