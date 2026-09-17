@@ -148,42 +148,43 @@ export function App(): ReactElement {
           setActiveFeatureId
         }
       />
-        <ModulePage
-          title={visibleFeatureTitle}
-        >
-          <ModuleContent
-            featureId={visibleFeatureId}
-            t={t}
-            settingsContent={
-              <>
-                <SettingsPanel
-                  workspaceTitle={
-                    settings.workspaceTitle
-                  }
-                  displayName={
-                    settings.displayName
-                  }
-                  showGreeting={
-                    settings.showGreeting
-                  }
-                  locale={
-                    settings.locale
-                  }
-                  t={t}
-                  onChange={update}
-                />
+      <ModulePage
+        title={visibleFeatureTitle}
+      >
+        <ModuleContent
+          featureId={visibleFeatureId}
+          features={settings.features}
+          t={t}
+          settingsContent={
+            <>
+              <SettingsPanel
+                workspaceTitle={
+                  settings.workspaceTitle
+                }
+                displayName={
+                  settings.displayName
+                }
+                showGreeting={
+                  settings.showGreeting
+                }
+                locale={
+                  settings.locale
+                }
+                t={t}
+                onChange={update}
+              />
 
-                <FeatureManager
-                  features={
-                    settings.features
-                  }
-                  t={t}
-                  onChange={update}
-                />
-              </>
-            }
-          />
-        </ModulePage>
+              <FeatureManager
+                features={
+                  settings.features
+                }
+                t={t}
+                onChange={update}
+              />
+            </>
+          }
+        />
+      </ModulePage>
     </main>
   );
 }

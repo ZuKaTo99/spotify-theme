@@ -9,11 +9,18 @@ export type SupportedLocale =
 const germanTranslations = {
   "app.productLabel": "Spotify Toolkit",
   "app.description":
-  "Persönlicher und modularer Spotify-Arbeitsbereich.",
+    "Persönlicher und modularer Spotify-Arbeitsbereich.",
   "app.greeting": "Hallo, {name}!",
 
   "module.underDevelopment":
-  "Dieses Modul wird noch entwickelt.",
+    "Dieses Modul wird noch entwickelt.",
+
+  "dashboard.description":
+    "Übersicht über deinen aktuellen Spotify Toolkit-Arbeitsbereich.",
+  "dashboard.workspaceModules":
+    "Aktive Workspace-Module",
+  "dashboard.extensionModules":
+    "Aktive Erweiterungen",
 
   "settings.heading": "Einstellungen",
   "settings.workspaceTitle": "Workspace-Titel",
@@ -81,7 +88,14 @@ const englishTranslations:
     "app.greeting": "Hello, {name}!",
 
     "module.underDevelopment":
-    "This module is still under development.",
+      "This module is still under development.",
+
+    "dashboard.description":
+      "Overview of your current Spotify Toolkit workspace.",
+    "dashboard.workspaceModules":
+      "Active workspace modules",
+    "dashboard.extensionModules":
+      "Active extensions",
 
     "settings.heading": "Settings",
     "settings.workspaceTitle":
