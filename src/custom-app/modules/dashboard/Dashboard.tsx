@@ -4,15 +4,15 @@ import type {
 
 import type {
   FeaturePreferences,
-} from "../../shared/feature-preferences";
+} from "../../../shared/feature-preferences";
 
 import {
   getEnabledFeaturesBySurface,
-} from "../../shared/features";
+} from "../../../shared/features";
 
 import type {
   Translator,
-} from "../../shared/i18n";
+} from "../../../shared/i18n";
 
 interface DashboardProps {
   features: FeaturePreferences;

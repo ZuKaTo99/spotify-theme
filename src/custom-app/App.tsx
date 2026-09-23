@@ -29,10 +29,6 @@ import {
 } from "./components/ModulePage";
 
 import {
-  SettingsModule,
-} from "./modules/settings/SettingsModule";
-
-import {
   useSettings,
 } from "./hooks/useSettings";
 
@@ -149,15 +145,9 @@ export function App(): ReactElement {
       >
         <ModuleContent
           featureId={visibleFeatureId}
-          features={settings.features}
+          settings={settings}
           t={t}
-          settingsContent={
-            <SettingsModule
-              settings={settings}
-              t={t}
-              onChange={update}
-            />
-          }
+          onSettingsChange={update}
         />
       </ModulePage>
     </main>

@@ -6,29 +6,29 @@ import type {
 import {
   getDefaultFeatureTitle,
   getFeatureTitle,
-} from "../../shared/feature-titles";
+} from "../../../shared/feature-titles";
 
 import {
   getFeaturesBySurface,
-} from "../../shared/features";
+} from "../../../shared/features";
 
 import type {
   FeatureDefinition,
   FeatureId,
   FeatureSurface,
-} from "../../shared/features";
+} from "../../../shared/features";
 
 import type {
   FeaturePreferences,
-} from "../../shared/feature-preferences";
+} from "../../../shared/feature-preferences";
 
 import type {
   Translator,
-} from "../../shared/i18n";
+} from "../../../shared/i18n";
 
 import type {
   SettingsChanges,
-} from "../hooks/useSettings";
+} from "../../hooks/useSettings";
 
 interface FeatureManagerProps {
   features: FeaturePreferences;

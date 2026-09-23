@@ -1,11 +1,6 @@
 import type {
   ReactElement,
-  ReactNode,
 } from "react";
-
-import type {
-  FeaturePreferences,
-} from "../../shared/feature-preferences";
 
 import type {
   FeatureId,
@@ -15,39 +10,64 @@ import type {
   Translator,
 } from "../../shared/i18n";
 
+import type {
+  AppSettings,
+} from "../../shared/settings";
+
+import {
+  ModulePlaceholder,
+} from "./ModulePlaceholder";
+
+import type {
+  SettingsChanges,
+} from "../hooks/useSettings";
+
 import {
   Dashboard,
-} from "./Dashboard";
+} from "../modules/dashboard/Dashboard";
+
+import {
+  SettingsModule,
+} from "../modules/settings/SettingsModule";
 
 interface ModuleContentProps {
   featureId: FeatureId;
-  features: FeaturePreferences;
-  settingsContent: ReactNode;
+  settings: AppSettings;
   t: Translator;
+
+  onSettingsChange: (
+    changes: SettingsChanges,
+  ) => void;
 }
 
 export function ModuleContent({
   featureId,
-  features,
-  settingsContent,
+  settings,
   t,
+  onSettingsChange,
 }: ModuleContentProps): ReactElement {
   if (featureId === "settings") {
-    return <>{settingsContent}</>;
+    return (
+      <SettingsModule
+        settings={settings}
+        t={t}
+        onChange={onSettingsChange}
+      />
+    );
   }
 
   if (featureId === "dashboard") {
     return (
       <Dashboard
-        features={features}
+        features={settings.features}
         t={t}
       />
     );
   }
 
   return (
-    <p>
-      {t("module.underDevelopment")}
-    </p>
+    <ModulePlaceholder
+      t={t}
+    />
   );
 }

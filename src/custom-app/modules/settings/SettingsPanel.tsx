@@ -5,15 +5,15 @@ import type {
 
 import type {
   Translator,
-} from "../../shared/i18n";
+} from "../../../shared/i18n";
 
 import type {
   AppLocale,
-} from "../../shared/settings";
+} from "../../../shared/settings";
 
 import type {
   SettingsChanges,
-} from "../hooks/useSettings";
+} from "../../hooks/useSettings";
 
 interface SettingsPanelProps {
   workspaceTitle: string;

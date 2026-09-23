@@ -12,11 +12,11 @@ import type {
 
 import {
   FeatureManager,
-} from "../../components/FeatureManager";
+} from "./FeatureManager";
 
 import {
   SettingsPanel,
-} from "../../components/SettingsPanel";
+} from "./SettingsPanel";
 
 import type {
   SettingsChanges,
