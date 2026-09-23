@@ -15,6 +15,10 @@ import type {
 } from "../../shared/settings";
 
 import {
+  ListeningHistory,
+} from "../modules/listening-history/ListeningHistory";
+
+import {
   ModulePlaceholder,
 } from "./ModulePlaceholder";
 
@@ -60,6 +64,14 @@ export function ModuleContent({
     return (
       <Dashboard
         features={settings.features}
+        t={t}
+      />
+    );
+  }
+
+  if (featureId === "listening-history") {
+    return (
+      <ListeningHistory
         t={t}
       />
     );
