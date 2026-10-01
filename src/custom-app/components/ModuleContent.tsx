@@ -15,12 +15,36 @@ import type {
 } from "../../shared/settings";
 
 import {
+  Statistics,
+} from "../modules/statistics/Statistics";
+
+import {
   ListeningHistory,
 } from "../modules/listening-history/ListeningHistory";
 
 import {
   ModulePlaceholder,
 } from "./ModulePlaceholder";
+
+import {
+  Favorites,
+} from "../modules/favorites/Favorites";
+
+import {
+  PlaylistTools,
+} from "../modules/playlist-tools/PlaylistTools";
+
+import {
+  Visualizer,
+} from "../modules/visualizer/Visualizer";
+
+import {
+  SongNotes,
+} from "../modules/song-notes/SongNotes";
+
+import {
+  ThemeStudio,
+} from "../modules/theme-studio/ThemeStudio";
 
 import type {
   SettingsChanges,
@@ -75,6 +99,55 @@ export function ModuleContent({
         t={t}
       />
     );
+  }
+
+  if (featureId === "statistics") {
+    return (
+      <Statistics
+        t={t}
+      />
+    );
+
+    if (featureId === "favorites") {
+      return (
+        <Favorites
+          t={t}
+        />
+      );
+    }
+
+    if (featureId === "playlist-tools") {
+      return (
+        <PlaylistTools
+          t={t}
+        />
+      );
+    }
+
+    if (featureId === "visualizer") {
+      return (
+        <Visualizer
+          t={t}
+        />
+      );
+    }
+
+    if (featureId === "song-notes") {
+      return (
+        <SongNotes
+          t={t}
+        />
+      );
+    }
+
+    if (featureId === "theme-studio") {
+      return (
+        <ThemeStudio
+          t={t}
+        />
+      );
+    }
+
   }
 
   return (
