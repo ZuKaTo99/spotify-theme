@@ -1,7 +1,26 @@
+import {
+  startExtensionRuntime,
+  stopExtensionRuntime,
+} from "./modules/extension-runtime";
+
 const EXTENSION_NAME = "ZuKaTo Core";
 const READY_CHECK_INTERVAL_MS = 100;
 
 let isStarted = false;
+
+function stopExtension(): void {
+  if (!isStarted) {
+    return;
+  }
+
+  stopExtensionRuntime();
+
+  isStarted = false;
+
+  console.info(
+    `[${EXTENSION_NAME}] Extension erfolgreich beendet.`,
+  );
+}
 
 /**
  * Prüft, ob die grundlegenden Spicetify-APIs bereitstehen.
@@ -31,6 +50,8 @@ function startExtension(): void {
 
   isStarted = true;
 
+  startExtensionRuntime();
+
   console.info(
     `[${EXTENSION_NAME}] Extension erfolgreich gestartet.`,
   );
@@ -58,5 +79,10 @@ function bootstrap(): void {
     );
   }
 }
+
+window.addEventListener(
+  "beforeunload",
+  stopExtension,
+);
 
 bootstrap();
