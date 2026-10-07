@@ -28,7 +28,8 @@ function stopExtension(): void {
 function isSpicetifyReady(): boolean {
   return Boolean(
     Spicetify.Player &&
-    Spicetify.Platform,
+    Spicetify.Platform &&
+    Spicetify.Platform.LocalStorageAPI,
   );
 }
 
@@ -48,9 +49,9 @@ function startExtension(): void {
     return;
   }
 
-  isStarted = true;
-
   startExtensionRuntime();
+
+  isStarted = true;
 
   console.info(
     `[${EXTENSION_NAME}] Extension erfolgreich gestartet.`,
