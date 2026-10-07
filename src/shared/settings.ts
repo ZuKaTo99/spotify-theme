@@ -7,6 +7,14 @@ import type {
   FeaturePreferences,
 } from "./feature-preferences";
 
+import {
+  KEYBOARD_SHORTCUT_DEFINITIONS,
+} from "./keyboard-shortcuts";
+
+import type {
+  KeyboardShortcutActionId,
+} from "./keyboard-shortcuts";
+
 export const SETTINGS_CHANGED_EVENT =
   "spotify-toolkit:settings-changed";
 
@@ -14,14 +22,24 @@ const SETTINGS_STORAGE_KEY =
   "spotify-toolkit.settings";
 
 /**
- * Version 2 ergänzt konfigurierbare Module.
+ * Version 3 ergänzt konfigurierbare Tastenkürzel.
  */
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 export type AppLocale =
   | "auto"
   | "de"
   | "en";
+
+export interface KeyboardShortcutBinding {
+  codes: string[];
+}
+
+export type KeyboardShortcutPreferences =
+  Record<
+    KeyboardShortcutActionId,
+    KeyboardShortcutBinding
+  >;
 
 export interface AppSettings {
   schemaVersion: number;
@@ -43,18 +61,49 @@ export interface AppSettings {
    * Einstellungen aller registrierten Module.
    */
   features: FeaturePreferences;
+
+  /**
+   * Benutzerdefinierte Tastenkürzel.
+   */
+  keyboardShortcuts:
+    KeyboardShortcutPreferences;
+}
+
+function createDefaultKeyboardShortcutPreferences():
+  KeyboardShortcutPreferences {
+  const preferences:
+    Partial<KeyboardShortcutPreferences> = {};
+
+  for (
+    const definition
+    of KEYBOARD_SHORTCUT_DEFINITIONS
+  ) {
+    preferences[definition.id] = {
+      codes: [
+        ...definition.defaultCodes,
+      ],
+    };
+  }
+
+  return (
+    preferences as KeyboardShortcutPreferences
+  );
 }
 
 export const DEFAULT_SETTINGS:
-Readonly<AppSettings> = {
-  schemaVersion: CURRENT_SCHEMA_VERSION,
-  workspaceTitle: "Workspace",
-  displayName: "",
-  showGreeting: true,
-  locale: "auto",
-  features:
-    createDefaultFeaturePreferences(),
-};
+  Readonly<AppSettings> = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    workspaceTitle: "Workspace",
+    displayName: "",
+    showGreeting: true,
+    locale: "auto",
+
+    features:
+      createDefaultFeaturePreferences(),
+
+    keyboardShortcuts:
+      createDefaultKeyboardShortcutPreferences(),
+  };
 
 function isRecord(
   value: unknown,
@@ -97,7 +146,10 @@ function normalizeOptionalText(
 
   return value
     .trim()
-    .slice(0, maximumLength);
+    .slice(
+      0,
+      maximumLength,
+    );
 }
 
 function normalizeLocale(
@@ -114,6 +166,82 @@ function normalizeLocale(
   return DEFAULT_SETTINGS.locale;
 }
 
+function normalizeShortcutCodes(
+  value: unknown,
+  fallback: readonly string[],
+): string[] {
+  if (!Array.isArray(value)) {
+    return [
+      ...fallback,
+    ];
+  }
+
+  const normalizedCodes =
+    value
+      .filter(
+        (code): code is string =>
+          typeof code === "string",
+      )
+      .map(
+        (code) =>
+          code
+            .trim()
+            .slice(
+              0,
+              40,
+            ),
+      )
+      .filter(
+        (code) =>
+          code.length > 0,
+      );
+
+  return [
+    ...new Set(
+      normalizedCodes,
+    ),
+  ].slice(
+    0,
+    4,
+  );
+}
+
+function normalizeKeyboardShortcutPreferences(
+  value: unknown,
+): KeyboardShortcutPreferences {
+  const source =
+    isRecord(value)
+      ? value
+      : {};
+
+  const preferences:
+    Partial<KeyboardShortcutPreferences> = {};
+
+  for (
+    const definition
+    of KEYBOARD_SHORTCUT_DEFINITIONS
+  ) {
+    const storedBinding =
+      source[definition.id];
+
+    const binding =
+      isRecord(storedBinding)
+        ? storedBinding
+        : {};
+
+    preferences[definition.id] = {
+      codes: normalizeShortcutCodes(
+        binding.codes,
+        definition.defaultCodes,
+      ),
+    };
+  }
+
+  return (
+    preferences as KeyboardShortcutPreferences
+  );
+}
+
 /**
  * Validiert gespeicherte oder importierte Einstellungen.
  *
@@ -123,37 +251,47 @@ function normalizeLocale(
 export function normalizeSettings(
   value: unknown,
 ): AppSettings {
-  const source = isRecord(value)
-    ? value
-    : {};
+  const source =
+    isRecord(value)
+      ? value
+      : {};
 
   return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
+    schemaVersion:
+      CURRENT_SCHEMA_VERSION,
 
-    workspaceTitle: normalizeText(
-      source.workspaceTitle,
-      DEFAULT_SETTINGS.workspaceTitle,
-      60,
-    ),
+    workspaceTitle:
+      normalizeText(
+        source.workspaceTitle,
+        DEFAULT_SETTINGS.workspaceTitle,
+        60,
+      ),
 
-    displayName: normalizeOptionalText(
-      source.displayName,
-      40,
-    ),
+    displayName:
+      normalizeOptionalText(
+        source.displayName,
+        40,
+      ),
 
     showGreeting:
       typeof source.showGreeting ===
-      "boolean"
+        "boolean"
         ? source.showGreeting
         : DEFAULT_SETTINGS.showGreeting,
 
-    locale: normalizeLocale(
-      source.locale,
-    ),
+    locale:
+      normalizeLocale(
+        source.locale,
+      ),
 
     features:
       normalizeFeaturePreferences(
         source.features,
+      ),
+
+    keyboardShortcuts:
+      normalizeKeyboardShortcutPreferences(
+        source.keyboardShortcuts,
       ),
   };
 }
@@ -162,13 +300,16 @@ export function normalizeSettings(
  * Lädt die Einstellungen des aktuell angemeldeten
  * Spotify-Benutzerkontos.
  */
-export function loadSettings(): AppSettings {
+export function loadSettings():
+  AppSettings {
   const storedValue =
     Spicetify.Platform.LocalStorageAPI.getItem(
       SETTINGS_STORAGE_KEY,
     );
 
-  return normalizeSettings(storedValue);
+  return normalizeSettings(
+    storedValue,
+  );
 }
 
 /**
@@ -179,7 +320,9 @@ export function saveSettings(
   settings: AppSettings,
 ): AppSettings {
   const normalized =
-    normalizeSettings(settings);
+    normalizeSettings(
+      settings,
+    );
 
   Spicetify.Platform.LocalStorageAPI.setItem(
     SETTINGS_STORAGE_KEY,
@@ -203,13 +346,17 @@ export function saveSettings(
  */
 export function updateSettings(
   changes: Partial<
-    Omit<AppSettings, "schemaVersion">
+    Omit<
+      AppSettings,
+      "schemaVersion"
+    >
   >,
 ): AppSettings {
   return saveSettings({
     ...loadSettings(),
     ...changes,
-    schemaVersion: CURRENT_SCHEMA_VERSION,
+    schemaVersion:
+      CURRENT_SCHEMA_VERSION,
   });
 }
 
@@ -225,12 +372,16 @@ export function subscribeToSettings(
   const handleSettingsChange = (
     event: Event,
   ): void => {
-    if (!(event instanceof CustomEvent)) {
+    if (
+      !(event instanceof CustomEvent)
+    ) {
       return;
     }
 
     listener(
-      normalizeSettings(event.detail),
+      normalizeSettings(
+        event.detail,
+      ),
     );
   };
 

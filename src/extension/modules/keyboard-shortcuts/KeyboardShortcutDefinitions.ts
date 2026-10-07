@@ -1,27 +1,34 @@
-import {
-  togglePlayPause,
-} from "./KeyboardShortcutActions";
+import type {
+  KeyboardShortcutActionId,
+} from "../../../shared/keyboard-shortcuts";
 
-export interface KeyboardShortcutModifiers {
-  leftAlt?: boolean;
-  ctrl?: boolean;
-  shift?: boolean;
-  meta?: boolean;
-}
+import type {
+  KeyboardShortcutPreferences,
+} from "../../../shared/settings";
 
 export interface KeyboardShortcut {
-  code: string;
-  modifiers?: KeyboardShortcutModifiers;
-  action: () => void;
+  actionId: KeyboardShortcutActionId;
+  codes: readonly string[];
 }
 
-export const shortcuts:
-  readonly KeyboardShortcut[] = [
-    {
-      code: "KeyP",
-      modifiers: {
-        leftAlt: true,
-      },
-      action: togglePlayPause,
-    },
-  ];
+export function createKeyboardShortcuts(
+  preferences: KeyboardShortcutPreferences,
+): readonly KeyboardShortcut[] {
+  return Object.entries(
+    preferences,
+  ).map(
+    (
+      [
+        actionId,
+        binding,
+      ],
+    ) => ({
+      actionId:
+        actionId as KeyboardShortcutActionId,
+
+      codes: [
+        ...binding.codes,
+      ],
+    }),
+  );
+}

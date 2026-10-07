@@ -3,14 +3,30 @@ import type {
 } from "../ExtensionModule";
 
 import {
-  shortcuts,
+  loadSettings,
+  subscribeToSettings,
+} from "../../../shared/settings";
+
+import {
+  keyboardShortcutActions,
+} from "./KeyboardShortcutActions";
+
+import {
+  createKeyboardShortcuts,
   type KeyboardShortcut,
 } from "./KeyboardShortcutDefinitions";
 
 const MODULE_NAME =
   "Keyboard Shortcuts";
 
-let isLeftAltPressed = false;
+let activeShortcuts:
+  readonly KeyboardShortcut[] = [];
+
+let unsubscribeFromSettings:
+  (() => void) | null = null;
+
+const pressedCodes =
+  new Set<string>();
 
 function isEditableTarget(
   target: EventTarget | null,
@@ -27,128 +43,144 @@ function isEditableTarget(
   );
 }
 
-function matchesModifiers(
-  shortcut: KeyboardShortcut,
-  event: KeyboardEvent,
-): boolean {
-  const modifiers =
-    shortcut.modifiers ?? {};
-
-  return (
-    isLeftAltPressed ===
-    Boolean(modifiers.leftAlt) &&
-    event.ctrlKey ===
-    Boolean(modifiers.ctrl) &&
-    event.shiftKey ===
-    Boolean(modifiers.shift) &&
-    event.metaKey ===
-    Boolean(modifiers.meta)
-  );
-}
-
 function matchesShortcut(
   shortcut: KeyboardShortcut,
-  event: KeyboardEvent,
 ): boolean {
-  return (
-    event.code === shortcut.code &&
-    matchesModifiers(
-      shortcut,
-      event,
-    )
+  if (
+    shortcut.codes.length === 0 ||
+    shortcut.codes.length !==
+      pressedCodes.size
+  ) {
+    return false;
+  }
+
+  return shortcut.codes.every(
+    (code) =>
+      pressedCodes.has(code),
   );
 }
 
 function handleKeyDown(
   event: KeyboardEvent,
 ): void {
-  if (event.code === "AltLeft") {
-    isLeftAltPressed = true;
-    return;
-  }
-
   if (
-    event.repeat ||
     isEditableTarget(event.target)
   ) {
     return;
   }
 
+  pressedCodes.add(
+    event.code,
+  );
+
+  if (event.repeat) {
+    return;
+  }
+
   const shortcut =
-    shortcuts.find(
-      (candidate) =>
-        matchesShortcut(
-          candidate,
-          event,
-        ),
+    activeShortcuts.find(
+      matchesShortcut,
     );
 
   if (!shortcut) {
     return;
   }
 
+  const action =
+    keyboardShortcutActions[
+      shortcut.actionId
+    ];
+
   event.preventDefault();
 
-  shortcut.action();
+  action();
 }
 
 function handleKeyUp(
   event: KeyboardEvent,
 ): void {
-  if (event.code === "AltLeft") {
-    isLeftAltPressed = false;
-  }
+  pressedCodes.delete(
+    event.code,
+  );
 }
 
 function handleWindowBlur(): void {
-  isLeftAltPressed = false;
+  pressedCodes.clear();
+}
+
+function loadCurrentShortcuts(): void {
+  const settings =
+    loadSettings();
+
+  activeShortcuts =
+    createKeyboardShortcuts(
+      settings.keyboardShortcuts,
+    );
 }
 
 export const keyboardShortcutsModule:
   ExtensionModule = {
-  id: "keyboard-shortcuts",
+    id: "keyboard-shortcuts",
 
-  start(): void {
-    document.addEventListener(
-      "keydown",
-      handleKeyDown,
-    );
+    start(): void {
+      loadCurrentShortcuts();
 
-    document.addEventListener(
-      "keyup",
-      handleKeyUp,
-    );
+      unsubscribeFromSettings =
+        subscribeToSettings(
+          (settings) => {
+            activeShortcuts =
+              createKeyboardShortcuts(
+                settings.keyboardShortcuts,
+              );
+          },
+        );
 
-    window.addEventListener(
-      "blur",
-      handleWindowBlur,
-    );
+      document.addEventListener(
+        "keydown",
+        handleKeyDown,
+      );
 
-    console.info(
-      `[Spotify Toolkit] ${MODULE_NAME} gestartet.`,
-    );
-  },
+      document.addEventListener(
+        "keyup",
+        handleKeyUp,
+      );
 
-  stop(): void {
-    document.removeEventListener(
-      "keydown",
-      handleKeyDown,
-    );
+      window.addEventListener(
+        "blur",
+        handleWindowBlur,
+      );
 
-    document.removeEventListener(
-      "keyup",
-      handleKeyUp,
-    );
+      console.info(
+        `[Spotify Toolkit] ${MODULE_NAME} gestartet.`,
+      );
+    },
 
-    window.removeEventListener(
-      "blur",
-      handleWindowBlur,
-    );
+    stop(): void {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
 
-    isLeftAltPressed = false;
+      document.removeEventListener(
+        "keyup",
+        handleKeyUp,
+      );
 
-    console.info(
-      `[Spotify Toolkit] ${MODULE_NAME} beendet.`,
-    );
-  },
-};
+      window.removeEventListener(
+        "blur",
+        handleWindowBlur,
+      );
+
+      if (unsubscribeFromSettings) {
+        unsubscribeFromSettings();
+        unsubscribeFromSettings = null;
+      }
+
+      pressedCodes.clear();
+      activeShortcuts = [];
+
+      console.info(
+        `[Spotify Toolkit] ${MODULE_NAME} beendet.`,
+      );
+    },
+  };

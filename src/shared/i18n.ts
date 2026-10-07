@@ -22,50 +22,94 @@ const germanTranslations = {
   "dashboard.extensionModules":
     "Aktive Erweiterungen",
 
-  "settings.heading": "Einstellungen",
-  "settings.workspaceTitle": "Workspace-Titel",
-  "settings.displayName": "Anzeigename",
-  "settings.displayNamePlaceholder": "Optional",
-  "settings.language": "Sprache",
-  "settings.languageAuto": "Automatisch",
-  "settings.languageGerman": "Deutsch",
-  "settings.languageEnglish": "Englisch",
+  "shortcuts.heading":
+    "Tastenbelegungen",
+  "shortcuts.description":
+    "Tastenkürzel anzeigen und bearbeiten.",
+  "shortcuts.playPause":
+    "Wiedergabe/Pause",
+  "shortcuts.currentBinding":
+    "Aktuelle Belegung",
+  "shortcuts.edit":
+    "Bearbeiten",
+  "shortcuts.pressKeys":
+    "Drücke jetzt die gewünschte Tastenkombination.",
+  "shortcuts.reset":
+    "Zurücksetzen",
+  "shortcuts.open":
+    "Tastenbelegungen öffnen",
+  "shortcuts.backToSettings":
+    "Zurück zu den Einstellungen",
+
+  "settings.heading":
+    "Einstellungen",
+  "settings.workspaceTitle":
+    "Workspace-Titel",
+  "settings.displayName":
+    "Anzeigename",
+  "settings.displayNamePlaceholder":
+    "Optional",
+  "settings.language":
+    "Sprache",
+  "settings.languageAuto":
+    "Automatisch",
+  "settings.languageGerman":
+    "Deutsch",
+  "settings.languageEnglish":
+    "Englisch",
   "settings.showGreeting":
     "Persönliche Begrüßung anzeigen",
 
-  "modules.heading": "Module",
+  "modules.heading":
+    "Module",
   "modules.description":
     "Funktionen aktivieren, umbenennen und sortieren.",
-  "modules.customApp": "Workspace-Module",
-  "modules.extension": "Spotify-Erweiterungen",
-  "modules.enabled": "Aktiviert",
-  "modules.displayTitle": "Anzeigename",
-  "modules.order": "Reihenfolge",
-  "modules.required": "Pflichtmodul",
+  "modules.customApp":
+    "Workspace-Module",
+  "modules.extension":
+    "Spotify-Erweiterungen",
+  "modules.enabled":
+    "Aktiviert",
+  "modules.displayTitle":
+    "Anzeigename",
+  "modules.order":
+    "Reihenfolge",
+  "modules.required":
+    "Pflichtmodul",
   "modules.defaultTitlePlaceholder":
     "Standard: {title}",
 
-  "feature.dashboard": "Dashboard",
-  "feature.listening-history": "Hörverlauf",
-  "feature.statistics": "Statistiken",
-  "feature.favorites": "Favoriten",
+  "feature.dashboard":
+    "Dashboard",
+  "feature.listening-history":
+    "Hörverlauf",
+  "feature.statistics":
+    "Statistiken",
+  "feature.favorites":
+    "Favoriten",
   "feature.playlist-tools":
     "Playlist-Werkzeuge",
-  "feature.visualizer": "Visualisierer",
-  "feature.song-notes": "Song-Notizen",
-  "feature.theme-studio": "Theme-Studio",
-  "feature.settings": "Einstellungen",
+  "feature.visualizer":
+    "Visualisierer",
+  "feature.song-notes":
+    "Song-Notizen",
+  "feature.theme-studio":
+    "Theme-Studio",
+  "feature.settings":
+    "Einstellungen",
 
   "feature.keyboard-shortcuts":
     "Tastenkürzel",
-  "feature.sleep-timer": "Sleep-Timer",
+  "feature.sleep-timer":
+    "Sleep-Timer",
   "feature.volume-scroll":
     "Lautstärke per Mausrad",
   "feature.copy-track-info":
     "Songinformationen kopieren",
   "feature.quick-playlist":
     "Schneller Playlist-Button",
-  "feature.mini-player": "Mini-Player",
+  "feature.mini-player":
+    "Mini-Player",
   "feature.player-statistics":
     "Player-Statistiken",
   "feature.context-actions":
@@ -82,10 +126,12 @@ type TranslationDictionary = Record<
 
 const englishTranslations:
   TranslationDictionary = {
-    "app.productLabel": "Spotify Toolkit",
+    "app.productLabel":
+      "Spotify Toolkit",
     "app.description":
       "Your personal and modular Spotify workspace.",
-    "app.greeting": "Hello, {name}!",
+    "app.greeting":
+      "Hello, {name}!",
 
     "module.underDevelopment":
       "This module is still under development.",
@@ -97,55 +143,94 @@ const englishTranslations:
     "dashboard.extensionModules":
       "Active extensions",
 
-    "settings.heading": "Settings",
+    "shortcuts.heading":
+      "Keyboard shortcuts",
+    "shortcuts.description":
+      "View and edit keyboard shortcuts.",
+    "shortcuts.playPause":
+      "Play/Pause",
+    "shortcuts.currentBinding":
+      "Current binding",
+    "shortcuts.edit":
+      "Edit",
+    "shortcuts.pressKeys":
+      "Press the desired key combination now.",
+    "shortcuts.reset":
+      "Reset",
+    "shortcuts.open":
+      "Open keyboard shortcuts",
+    "shortcuts.backToSettings":
+      "Back to settings",
+
+    "settings.heading":
+      "Settings",
     "settings.workspaceTitle":
       "Workspace title",
-    "settings.displayName": "Display name",
+    "settings.displayName":
+      "Display name",
     "settings.displayNamePlaceholder":
       "Optional",
-    "settings.language": "Language",
-    "settings.languageAuto": "Automatic",
-    "settings.languageGerman": "German",
-    "settings.languageEnglish": "English",
+    "settings.language":
+      "Language",
+    "settings.languageAuto":
+      "Automatic",
+    "settings.languageGerman":
+      "German",
+    "settings.languageEnglish":
+      "English",
     "settings.showGreeting":
       "Show personal greeting",
 
-    "modules.heading": "Modules",
+    "modules.heading":
+      "Modules",
     "modules.description":
       "Enable, rename and reorder features.",
     "modules.customApp":
       "Workspace modules",
     "modules.extension":
       "Spotify extensions",
-    "modules.enabled": "Enabled",
-    "modules.displayTitle": "Display name",
-    "modules.order": "Order",
-    "modules.required": "Required module",
+    "modules.enabled":
+      "Enabled",
+    "modules.displayTitle":
+      "Display name",
+    "modules.order":
+      "Order",
+    "modules.required":
+      "Required module",
     "modules.defaultTitlePlaceholder":
       "Default: {title}",
 
-    "feature.dashboard": "Dashboard",
+    "feature.dashboard":
+      "Dashboard",
     "feature.listening-history":
       "Listening history",
-    "feature.statistics": "Statistics",
-    "feature.favorites": "Favorites",
+    "feature.statistics":
+      "Statistics",
+    "feature.favorites":
+      "Favorites",
     "feature.playlist-tools":
       "Playlist tools",
-    "feature.visualizer": "Visualizer",
-    "feature.song-notes": "Song notes",
-    "feature.theme-studio": "Theme Studio",
-    "feature.settings": "Settings",
+    "feature.visualizer":
+      "Visualizer",
+    "feature.song-notes":
+      "Song notes",
+    "feature.theme-studio":
+      "Theme Studio",
+    "feature.settings":
+      "Settings",
 
     "feature.keyboard-shortcuts":
       "Keyboard shortcuts",
-    "feature.sleep-timer": "Sleep timer",
+    "feature.sleep-timer":
+      "Sleep timer",
     "feature.volume-scroll":
       "Mouse-wheel volume",
     "feature.copy-track-info":
       "Copy track information",
     "feature.quick-playlist":
       "Quick playlist button",
-    "feature.mini-player": "Mini player",
+    "feature.mini-player":
+      "Mini player",
     "feature.player-statistics":
       "Player statistics",
     "feature.context-actions":
