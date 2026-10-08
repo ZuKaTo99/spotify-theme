@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/modules/dashboard/Dashboard.tsx
+// Zweck: Dashboard mit einer Übersicht über aktivierte Custom-App- und Extension-Module.
+// =============================================================================
 import type {
   ReactElement,
 } from "react";
@@ -14,11 +18,17 @@ import type {
   Translator,
 } from "../../../shared/i18n";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `DashboardProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface DashboardProps {
   features: FeaturePreferences;
   t: Translator;
 }
 
+// -----------------------------------------------------------------------------
+// Zeigt eine kompakte Übersicht über aktivierte Custom-App- und Extension-Features.
+// -----------------------------------------------------------------------------
 export function Dashboard({
   features,
   t,

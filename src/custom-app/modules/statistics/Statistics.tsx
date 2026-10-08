@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/modules/statistics/Statistics.tsx
+// Zweck: Gerüst für das spätere Statistik-Modul.
+// =============================================================================
 import type {
   ReactElement,
 } from "react";
@@ -10,10 +14,16 @@ import {
   ModulePlaceholder,
 } from "../../components/ModulePlaceholder";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `StatisticsProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface StatisticsProps {
   t: Translator;
 }
 
+// -----------------------------------------------------------------------------
+// Funktion `Statistics` kapselt einen eigenständigen Arbeitsschritt dieses Moduls.
+// -----------------------------------------------------------------------------
 export function Statistics({
   t,
 }: StatisticsProps): ReactElement {

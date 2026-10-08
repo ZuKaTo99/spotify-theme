@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/App.tsx
+// Zweck: Hauptkomponente der Custom App: verbindet Einstellungen, Sprache, Navigation und aktives Modul.
+// =============================================================================
 import type {
   ReactElement,
 } from "react";
@@ -32,9 +36,15 @@ import {
   useSettings,
 } from "./hooks/useSettings";
 
+// -----------------------------------------------------------------------------
+// Typisierte Referenz auf die von Spicetify bereitgestellte React-Laufzeit.
+// -----------------------------------------------------------------------------
 const ReactRuntime =
   Spicetify.React as typeof import("react");
 
+// -----------------------------------------------------------------------------
+// Hauptkomponente der Custom App; koordiniert Einstellungen, Navigation und Modulinhalt.
+// -----------------------------------------------------------------------------
 export function App(): ReactElement {
   const {
     settings,

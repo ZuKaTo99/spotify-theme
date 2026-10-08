@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/hooks/useSettings.ts
+// Zweck: React-Hook zum Laden, Beobachten und Aktualisieren der persistenten Toolkit-Einstellungen.
+// =============================================================================
 import {
   loadSettings,
   subscribeToSettings,
@@ -18,10 +22,16 @@ import type {
 const ReactRuntime =
   Spicetify.React as typeof import("react");
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `SettingsChanges` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export type SettingsChanges = Partial<
   Omit<AppSettings, "schemaVersion">
 >;
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `SettingsController` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export interface SettingsController {
   settings: AppSettings;
 

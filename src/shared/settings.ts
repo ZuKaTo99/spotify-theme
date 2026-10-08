@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/shared/settings.ts
+// Zweck: Persistenz-, Schema- und Normalisierungsschicht für alle Toolkit-Einstellungen.
+// =============================================================================
 import {
   createDefaultFeaturePreferences,
   normalizeFeaturePreferences,
@@ -15,9 +19,15 @@ import type {
   KeyboardShortcutActionId,
 } from "./keyboard-shortcuts";
 
+// -----------------------------------------------------------------------------
+// Name des browserweiten Events, über das Settings-Änderungen live verteilt werden.
+// -----------------------------------------------------------------------------
 export const SETTINGS_CHANGED_EVENT =
   "spotify-toolkit:settings-changed";
 
+// -----------------------------------------------------------------------------
+// Schlüssel für die benutzerspezifische Speicherung über Spicetify LocalStorageAPI.
+// -----------------------------------------------------------------------------
 const SETTINGS_STORAGE_KEY =
   "spotify-toolkit.settings";
 
@@ -26,21 +36,33 @@ const SETTINGS_STORAGE_KEY =
  */
 const CURRENT_SCHEMA_VERSION = 3;
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `AppLocale` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export type AppLocale =
   | "auto"
   | "de"
   | "en";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `KeyboardShortcutBinding` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export interface KeyboardShortcutBinding {
   codes: string[];
 }
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `KeyboardShortcutPreferences` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export type KeyboardShortcutPreferences =
   Record<
     KeyboardShortcutActionId,
     KeyboardShortcutBinding
   >;
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `AppSettings` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export interface AppSettings {
   schemaVersion: number;
 
@@ -69,6 +91,9 @@ export interface AppSettings {
     KeyboardShortcutPreferences;
 }
 
+// -----------------------------------------------------------------------------
+// Erzeugt Standardbelegungen aus der zentralen Shortcut-Registry.
+// -----------------------------------------------------------------------------
 function createDefaultKeyboardShortcutPreferences():
   KeyboardShortcutPreferences {
   const preferences:
@@ -90,6 +115,9 @@ function createDefaultKeyboardShortcutPreferences():
   );
 }
 
+// -----------------------------------------------------------------------------
+// Vollständige sichere Standardkonfiguration der Anwendung.
+// -----------------------------------------------------------------------------
 export const DEFAULT_SETTINGS:
   Readonly<AppSettings> = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -105,6 +133,9 @@ export const DEFAULT_SETTINGS:
       createDefaultKeyboardShortcutPreferences(),
   };
 
+// -----------------------------------------------------------------------------
+// Prüft die zugehörige Laufzeitbedingung und liefert einen booleschen Wert.
+// -----------------------------------------------------------------------------
 function isRecord(
   value: unknown,
 ): value is Record<string, unknown> {
@@ -115,6 +146,9 @@ function isRecord(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeText(
   value: unknown,
   fallback: string,
@@ -136,6 +170,9 @@ function normalizeText(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeOptionalText(
   value: unknown,
   maximumLength: number,
@@ -152,6 +189,9 @@ function normalizeOptionalText(
     );
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeLocale(
   value: unknown,
 ): AppLocale {
@@ -166,6 +206,9 @@ function normalizeLocale(
   return DEFAULT_SETTINGS.locale;
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeShortcutCodes(
   value: unknown,
   fallback: readonly string[],
@@ -206,6 +249,9 @@ function normalizeShortcutCodes(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeKeyboardShortcutPreferences(
   value: unknown,
 ): KeyboardShortcutPreferences {

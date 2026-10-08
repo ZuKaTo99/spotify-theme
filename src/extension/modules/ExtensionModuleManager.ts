@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/extension/modules/ExtensionModuleManager.ts
+// Zweck: Lifecycle-Manager für registrierte Extension-Module.
+// =============================================================================
 import type {
   FeaturePreferences,
 } from "../../shared/feature-preferences";
@@ -10,6 +14,9 @@ import type {
   ExtensionModule,
 } from "./ExtensionModule";
 
+// -----------------------------------------------------------------------------
+// Verwaltet Registry und Lifecycle aller Extension-Module.
+// -----------------------------------------------------------------------------
 export class ExtensionModuleManager {
   private readonly modulesById =
     new Map<FeatureId, ExtensionModule>();
@@ -28,6 +35,7 @@ export class ExtensionModuleManager {
     }
   }
 
+  // Startet ein registriertes Modul, sofern es noch nicht läuft.
   start(featureId: FeatureId): void {
     if (
       this.startedModuleIds.has(
@@ -51,6 +59,7 @@ export class ExtensionModuleManager {
     );
   }
 
+  // Stoppt ein laufendes Modul und entfernt es aus dem aktiven Zustand.
   stop(featureId: FeatureId): void {
     if (
       !this.startedModuleIds.has(
@@ -74,6 +83,7 @@ export class ExtensionModuleManager {
     );
   }
 
+  // Synchronisiert aktive Module mit den gespeicherten enabled-Einstellungen.
   applyPreferences(
     preferences: FeaturePreferences,
   ): void {
@@ -92,6 +102,7 @@ export class ExtensionModuleManager {
     }
   }
 
+  // Beendet beim Shutdown alle aktuell laufenden Extension-Module.
   stopAll(): void {
     for (
       const featureId

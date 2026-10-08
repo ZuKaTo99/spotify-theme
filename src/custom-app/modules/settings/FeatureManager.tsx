@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/modules/settings/FeatureManager.tsx
+// Zweck: Verwaltet Aktivierung, Anzeigenamen und Sortierung aller registrierten Features.
+// =============================================================================
 import type {
   ChangeEvent,
   ReactElement,
@@ -30,6 +34,9 @@ import type {
   SettingsChanges,
 } from "../../hooks/useSettings";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `FeatureManagerProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface FeatureManagerProps {
   features: FeaturePreferences;
   t: Translator;
@@ -39,11 +46,17 @@ interface FeatureManagerProps {
   ) => void;
 }
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `FeatureGroup` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface FeatureGroup {
   surface: FeatureSurface;
   title: string;
 }
 
+// -----------------------------------------------------------------------------
+// Rendert und aktualisiert Aktivierung, Titel und Reihenfolge aller Features.
+// -----------------------------------------------------------------------------
 export function FeatureManager(
   props: FeatureManagerProps,
 ): ReactElement {
@@ -62,6 +75,7 @@ export function FeatureManager(
     },
   ];
 
+  // Aktualisiert genau ein Feature, ohne die übrigen Feature-Einstellungen zu überschreiben.
   function updateFeature(
     featureId: FeatureId,
     changes: Partial<
@@ -83,6 +97,7 @@ export function FeatureManager(
     });
   }
 
+  // Rendert die vollständige Einstellungszeile eines einzelnen Features.
   function renderFeature(
     definition: FeatureDefinition,
   ): ReactElement {
@@ -111,6 +126,7 @@ export function FeatureManager(
     const orderId =
       `feature-${definition.id}-order`;
 
+    // Übernimmt den Aktivierungsstatus eines Features aus der Checkbox.
     function handleEnabledChange(
       event: ChangeEvent<HTMLInputElement>,
     ): void {
@@ -122,6 +138,7 @@ export function FeatureManager(
       );
     }
 
+    // Speichert den benutzerdefinierten Anzeigenamen eines Features.
     function handleTitleChange(
       event: ChangeEvent<HTMLInputElement>,
     ): void {
@@ -134,6 +151,7 @@ export function FeatureManager(
       );
     }
 
+    // Speichert die numerische Sortierposition eines Features.
     function handleOrderChange(
       event: ChangeEvent<HTMLInputElement>,
     ): void {

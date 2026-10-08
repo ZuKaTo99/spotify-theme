@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/shared/features.ts
+// Zweck: Zentrale Feature-Registry mit IDs, Flächen, Standardreihenfolge und Filter-Hilfen.
+// =============================================================================
 import type {
   FeaturePreferences,
 } from "./feature-preferences";
@@ -35,13 +39,22 @@ export const FEATURE_IDS = [
   "context-actions",
 ] as const;
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `FeatureId` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export type FeatureId =
   typeof FEATURE_IDS[number];
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `FeatureSurface` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export type FeatureSurface =
   | "custom-app"
   | "extension";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `FeatureDefinition` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export interface FeatureDefinition {
   /**
    * Stabile interne Kennung.
@@ -214,6 +227,9 @@ export const FEATURE_DEFINITIONS:
 const FEATURE_ID_SET =
   new Set<string>(FEATURE_IDS);
 
+// -----------------------------------------------------------------------------
+// Type Guard für Feature-IDs aus externen oder gespeicherten Werten.
+// -----------------------------------------------------------------------------
 export function isFeatureId(
   value: unknown,
 ): value is FeatureId {

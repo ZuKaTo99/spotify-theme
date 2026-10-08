@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/types/spicetify.d.ts
+// Zweck: Globale Spicetify-Typdefinitionen. Diese Datei beschreibt externe APIs und enthält keine Runtime-Logik.
+// =============================================================================
 declare namespace Spicetify {
 	type Icon =
 		| "addToPlaylist"

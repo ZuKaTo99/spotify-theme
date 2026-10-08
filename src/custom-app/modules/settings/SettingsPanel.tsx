@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/modules/settings/SettingsPanel.tsx
+// Zweck: Formular für allgemeine Einstellungen wie Titel, Anzeigename, Sprache und Begrüßung.
+// =============================================================================
 import type {
   ChangeEvent,
   ReactElement,
@@ -15,6 +19,9 @@ import type {
   SettingsChanges,
 } from "../../hooks/useSettings";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `SettingsPanelProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface SettingsPanelProps {
   workspaceTitle: string;
   displayName: string;
@@ -27,9 +34,13 @@ interface SettingsPanelProps {
   ) => void;
 }
 
+// -----------------------------------------------------------------------------
+// Rendert die allgemeinen benutzerspezifischen Einstellungen.
+// -----------------------------------------------------------------------------
 export function SettingsPanel(
   props: SettingsPanelProps,
 ): ReactElement {
+  // Speichert Änderungen am Workspace-Titel.
   function handleWorkspaceTitleChange(
     event: ChangeEvent<HTMLInputElement>,
   ): void {
@@ -38,6 +49,7 @@ export function SettingsPanel(
     });
   }
 
+  // Speichert den Anzeigenamen für die persönliche Begrüßung.
   function handleDisplayNameChange(
     event: ChangeEvent<HTMLInputElement>,
   ): void {
@@ -46,6 +58,7 @@ export function SettingsPanel(
     });
   }
 
+  // Schaltet die persönliche Begrüßung ein oder aus.
   function handleGreetingChange(
     event: ChangeEvent<HTMLInputElement>,
   ): void {
@@ -54,6 +67,7 @@ export function SettingsPanel(
     });
   }
 
+  // Speichert die ausgewählte Anwendungssprache.
   function handleLocaleChange(
     event: ChangeEvent<HTMLSelectElement>,
   ): void {

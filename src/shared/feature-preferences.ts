@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/shared/feature-preferences.ts
+// Zweck: Erzeugt und normalisiert benutzerspezifische Einstellungen aller registrierten Features.
+// =============================================================================
 import {
   FEATURE_DEFINITIONS,
 } from "./features";
@@ -30,11 +34,17 @@ export interface FeaturePreference {
   customTitle: string;
 }
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `FeaturePreferences` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export type FeaturePreferences = Record<
   FeatureId,
   FeaturePreference
 >;
 
+// -----------------------------------------------------------------------------
+// Prüft die zugehörige Laufzeitbedingung und liefert einen booleschen Wert.
+// -----------------------------------------------------------------------------
 function isRecord(
   value: unknown,
 ): value is Record<string, unknown> {
@@ -45,6 +55,9 @@ function isRecord(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeOrder(
   value: unknown,
   fallback: number,
@@ -65,6 +78,9 @@ function normalizeOrder(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Normalisiert den zugehörigen Wert defensiv auf eine sichere interne Form.
+// -----------------------------------------------------------------------------
 function normalizeCustomTitle(
   value: unknown,
 ): string {

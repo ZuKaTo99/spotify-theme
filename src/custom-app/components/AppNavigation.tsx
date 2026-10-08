@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/components/AppNavigation.tsx
+// Zweck: Navigation der Custom App: rendert sichtbare Workspace-Module als auswählbare Schaltflächen.
+// =============================================================================
 import type {
   ReactElement,
 } from "react";
@@ -6,11 +10,17 @@ import type {
   FeatureId,
 } from "../../shared/features";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `AppNavigationItem` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 export interface AppNavigationItem {
   id: FeatureId;
   title: string;
 }
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `AppNavigationProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface AppNavigationProps {
   items: readonly AppNavigationItem[];
   activeFeatureId: FeatureId;
@@ -20,6 +30,9 @@ interface AppNavigationProps {
   ) => void;
 }
 
+// -----------------------------------------------------------------------------
+// Rendert die Modulnavigation und markiert den aktuell aktiven Eintrag.
+// -----------------------------------------------------------------------------
 export function AppNavigation({
   items,
   activeFeatureId,

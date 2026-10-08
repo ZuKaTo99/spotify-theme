@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/shared/feature-titles.ts
+// Zweck: Löst Standardtitel und benutzerdefinierte Feature-Titel über i18n auf.
+// =============================================================================
 import type {
   FeatureId,
 } from "./features";
@@ -7,6 +11,9 @@ import type {
   Translator,
 } from "./i18n";
 
+// -----------------------------------------------------------------------------
+// Ordnet jeder Feature-ID den passenden Übersetzungsschlüssel für den Standardtitel zu.
+// -----------------------------------------------------------------------------
 const FEATURE_TITLE_KEYS = {
   "dashboard": "feature.dashboard",
   "listening-history":
@@ -41,6 +48,9 @@ const FEATURE_TITLE_KEYS = {
   TranslationKey
 >;
 
+// -----------------------------------------------------------------------------
+// Löst den lokalisierten Standardtitel eines Features auf.
+// -----------------------------------------------------------------------------
 export function getDefaultFeatureTitle(
   featureId: FeatureId,
   t: Translator,
@@ -50,6 +60,9 @@ export function getDefaultFeatureTitle(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Verwendet einen benutzerdefinierten Titel oder fällt auf den lokalisierten Standardtitel zurück.
+// -----------------------------------------------------------------------------
 export function getFeatureTitle(
   featureId: FeatureId,
   customTitle: string,

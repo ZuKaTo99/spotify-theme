@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/modules/settings/SettingsModule.tsx
+// Zweck: Container der Einstellungen mit interner Navigation zwischen Übersicht und Tastenkürzeln.
+// =============================================================================
 import type {
   ReactElement,
 } from "react";
@@ -26,13 +30,22 @@ import {
   SettingsPanel,
 } from "./SettingsPanel";
 
+// -----------------------------------------------------------------------------
+// Typisierte Referenz auf die von Spicetify bereitgestellte React-Laufzeit.
+// -----------------------------------------------------------------------------
 const ReactRuntime =
   Spicetify.React as typeof import("react");
 
+// -----------------------------------------------------------------------------
+// Gemeinsamer Typ `SettingsView` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 type SettingsView =
   | "overview"
   | "keyboard-shortcuts";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `SettingsModuleProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface SettingsModuleProps {
   settings: AppSettings;
 
@@ -43,6 +56,9 @@ interface SettingsModuleProps {
   ) => void;
 }
 
+// -----------------------------------------------------------------------------
+// Wechselt intern zwischen Einstellungsübersicht und separater Shortcut-Seite.
+// -----------------------------------------------------------------------------
 export function SettingsModule({
   settings,
   t,

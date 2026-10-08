@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/extension/modules/extension-modules.ts
+// Zweck: Zentrale Registry aller Extension-Module.
+// =============================================================================
 import {
   contextActionsModule,
 } from "./context-actions/ContextActionsModule";
@@ -34,6 +38,9 @@ import {
   volumeScrollModule,
 } from "./volume-scroll/VolumeScrollModule";
 
+// -----------------------------------------------------------------------------
+// Zentrale Registry aller Module, die vom ExtensionModuleManager verwaltet werden.
+// -----------------------------------------------------------------------------
 export const extensionModules:
   readonly ExtensionModule[] = [
     keyboardShortcutsModule,

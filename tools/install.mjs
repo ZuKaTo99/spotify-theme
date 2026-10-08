@@ -1,12 +1,28 @@
+// =============================================================================
+// Datei: tools/install.mjs
+// Zweck: Windows-Installationsskript für Spicetify Extension und Custom App.
+// =============================================================================
 import { access, cp, mkdir, rm } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `toolsDirectory`.
+// -----------------------------------------------------------------------------
 const toolsDirectory = path.dirname(fileURLToPath(import.meta.url));
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `projectDirectory`.
+// -----------------------------------------------------------------------------
 const projectDirectory = path.resolve(toolsDirectory, "..");
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `outputDirectory`.
+// -----------------------------------------------------------------------------
 const outputDirectory = path.join(projectDirectory, "dist");
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `appDataDirectory`.
+// -----------------------------------------------------------------------------
 const appDataDirectory = process.env.APPDATA;
 
 if (!appDataDirectory) {
@@ -15,11 +31,17 @@ if (!appDataDirectory) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `spicetifyDirectory`.
+// -----------------------------------------------------------------------------
 const spicetifyDirectory = path.join(
   appDataDirectory,
   "spicetify",
 );
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `extension`.
+// -----------------------------------------------------------------------------
 const extension = {
   name: "zukato-extension.js",
 
@@ -36,6 +58,9 @@ const extension = {
   ),
 };
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `customApp`.
+// -----------------------------------------------------------------------------
 const customApp = {
   name: "zukato-workspace",
 
@@ -51,6 +76,9 @@ const customApp = {
   ),
 };
 
+// -----------------------------------------------------------------------------
+// Stellt vor der Installation sicher, dass ein erwartetes Build-Artefakt existiert.
+// -----------------------------------------------------------------------------
 async function assertExists(
   targetPath,
   description,
@@ -64,6 +92,9 @@ async function assertExists(
   }
 }
 
+// -----------------------------------------------------------------------------
+// Führt einen Spicetify-CLI-Befehl synchron mit sichtbarer Konsolenausgabe aus.
+// -----------------------------------------------------------------------------
 function runSpicetify(...arguments_) {
   console.log(`spicetify ${arguments_.join(" ")}`);
 
@@ -76,6 +107,9 @@ function runSpicetify(...arguments_) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Kopiert die gebaute Extension in das Spicetify-Extensions-Verzeichnis.
+// -----------------------------------------------------------------------------
 async function installExtension() {
   console.log("Installiere Extension …");
 
@@ -95,6 +129,9 @@ async function installExtension() {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Ersetzt die installierte Custom App durch den aktuellen Build.
+// -----------------------------------------------------------------------------
 async function installCustomApp() {
   console.log("Installiere Custom App …");
 
@@ -123,6 +160,9 @@ async function installCustomApp() {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Orchestriert die Schritte dieses Skripts in der vorgesehenen Reihenfolge.
+// -----------------------------------------------------------------------------
 async function main() {
   await assertExists(
     extension.source,

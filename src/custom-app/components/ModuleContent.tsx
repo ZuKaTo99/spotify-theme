@@ -1,3 +1,7 @@
+// =============================================================================
+// Datei: src/custom-app/components/ModuleContent.tsx
+// Zweck: Zentraler Modul-Router: ordnet Feature-IDs den passenden React-Komponenten zu.
+// =============================================================================
 import type {
   ReactElement,
 } from "react";
@@ -58,6 +62,9 @@ import {
   SettingsModule,
 } from "../modules/settings/SettingsModule";
 
+// -----------------------------------------------------------------------------
+// Datenvertrag `ModuleContentProps` für diesen Bereich des Projekts.
+// -----------------------------------------------------------------------------
 interface ModuleContentProps {
   featureId: FeatureId;
   settings: AppSettings;
@@ -68,6 +75,9 @@ interface ModuleContentProps {
   ) => void;
 }
 
+// -----------------------------------------------------------------------------
+// Wählt anhand der Feature-ID die passende Modulkomponente aus.
+// -----------------------------------------------------------------------------
 export function ModuleContent({
   featureId,
   settings,

@@ -1,3 +1,5 @@
+// TypeScript-Konfiguration für Custom App, Extension und Build-Werkzeuge.
+// Strikte JSON-Dateien wie package.json und manifest.json bleiben bewusst kommentarlos.
 {
   "compilerOptions": {
     "target": "ES2022",

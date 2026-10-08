@@ -1,15 +1,34 @@
+// =============================================================================
+// Datei: tools/build.mjs
+// Zweck: Build-Skript für Extension, Custom App und Theme.
+// =============================================================================
 import { build } from "esbuild";
 import * as sass from "sass";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `toolsDirectory`.
+// -----------------------------------------------------------------------------
 const toolsDirectory = path.dirname(fileURLToPath(import.meta.url));
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `projectDirectory`.
+// -----------------------------------------------------------------------------
 const projectDirectory = path.resolve(toolsDirectory, "..");
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `sourceDirectory`.
+// -----------------------------------------------------------------------------
 const sourceDirectory = path.join(projectDirectory, "src");
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `outputDirectory`.
+// -----------------------------------------------------------------------------
 const outputDirectory = path.join(projectDirectory, "dist");
 
+// -----------------------------------------------------------------------------
+// Zentraler Modulzustand bzw. Registry-Wert `paths`.
+// -----------------------------------------------------------------------------
 const paths = {
   extension: {
     source: path.join(sourceDirectory, "extension", "index.ts"),
@@ -43,6 +62,9 @@ const paths = {
   },
 };
 
+// -----------------------------------------------------------------------------
+// Kompiliert eine SCSS-Datei in eine CSS-Ausgabedatei.
+// -----------------------------------------------------------------------------
 async function compileScss(inputFile, outputFile) {
   const result = sass.compile(inputFile, {
     style: "expanded",
@@ -52,6 +74,9 @@ async function compileScss(inputFile, outputFile) {
   await writeFile(outputFile, result.css, "utf8");
 }
 
+// -----------------------------------------------------------------------------
+// Bündelt die Spicetify Extension mit esbuild.
+// -----------------------------------------------------------------------------
 async function buildExtension() {
   await build({
     entryPoints: [paths.extension.source],
@@ -66,6 +91,9 @@ async function buildExtension() {
   });
 }
 
+// -----------------------------------------------------------------------------
+// Bündelt die Custom App, kompiliert Styles und kopiert das Manifest.
+// -----------------------------------------------------------------------------
 async function buildCustomApp() {
   await build({
     entryPoints: [paths.customApp.source],
@@ -128,6 +156,9 @@ async function buildCustomApp() {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Kompiliert Theme-Styles und kopiert Farben sowie Assets.
+// -----------------------------------------------------------------------------
 async function buildTheme() {
   await compileScss(
     paths.theme.stylesSource,
@@ -149,6 +180,9 @@ async function buildTheme() {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Orchestriert die Schritte dieses Skripts in der vorgesehenen Reihenfolge.
+// -----------------------------------------------------------------------------
 async function main() {
   console.log("Bereinige dist-Verzeichnis …");
 
