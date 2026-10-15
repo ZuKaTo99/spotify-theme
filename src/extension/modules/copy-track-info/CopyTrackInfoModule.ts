@@ -1,25 +1,38 @@
 // =============================================================================
 // Datei: src/extension/modules/copy-track-info/CopyTrackInfoModule.ts
-// Zweck: Gerüst für das spätere Kopieren von Track-Informationen.
+// Zweck: Titeldaten aus dem Spotify-Kontextmenü in die Zwischenablage kopieren.
 // =============================================================================
-import type {
-  ExtensionModule,
-} from "../ExtensionModule";
+import { currentTrack } from "../../../shared/library";
+import { runtimeText } from "../../../shared/runtime-i18n";
+import type { ExtensionModule } from "../ExtensionModule";
 
-// -----------------------------------------------------------------------------
-// Zentraler Modulzustand bzw. Registry-Wert `copyTrackInfoModule`.
-// -----------------------------------------------------------------------------
-export const copyTrackInfoModule:
-  ExtensionModule = {
-    id: "copy-track-info",
+let contextItem: Spicetify.ContextMenu.Item | null = null;
+let profileItem: Spicetify.Menu.Item | null = null;
 
-    // Startet ein registriertes Modul, sofern es noch nicht läuft.
-    start(): void {
-      // Funktionalität folgt später.
-    },
+/** Async Clipboard ist ggf. gesperrt: Fehler werden sichtbar kommuniziert. */
+async function copyText(text: string): Promise<void> {
+  try { await navigator.clipboard.writeText(text); Spicetify.showNotification(runtimeText("runtime.copied")); }
+  catch { Spicetify.showNotification(runtimeText("runtime.clipboardError"), true); }
+}
 
-    // Stoppt ein laufendes Modul und entfernt es aus dem aktiven Zustand.
-    stop(): void {
-      // Aufräumlogik folgt später.
-    },
-  };
+export const copyTrackInfoModule: ExtensionModule = {
+  id: "copy-track-info",
+  start(): void {
+    contextItem = new Spicetify.ContextMenu.Item(
+      "ZuKaTo: Titel-URI kopieren",
+      (uris) => { if (uris[0]) void copyText(uris[0]); },
+      (uris) => uris.some((uri) => /^spotify:(track|episode):/.test(uri)),
+    );
+    contextItem.register();
+    profileItem = new Spicetify.Menu.Item("ZuKaTo: aktuellen Titel kopieren", false, () => {
+      const info = currentTrack();
+      if (!info) { Spicetify.showNotification(runtimeText("runtime.noCurrent"), true); return; }
+      void copyText(`${info.title} — ${info.artist}\n${info.uri}`);
+    });
+    profileItem.register();
+  },
+  stop(): void {
+    contextItem?.deregister(); contextItem = null;
+    profileItem?.deregister(); profileItem = null;
+  },
+};

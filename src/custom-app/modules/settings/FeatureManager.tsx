@@ -2,10 +2,10 @@
 // Datei: src/custom-app/modules/settings/FeatureManager.tsx
 // Zweck: Verwaltet Aktivierung, Anzeigenamen und Sortierung aller registrierten Features.
 // =============================================================================
-import type {
-  ChangeEvent,
-  ReactElement,
-} from "react";
+import type { ChangeEvent, ReactElement } from "react";
+
+// Verwendet die Spotify-eigene React-Laufzeit für kontrollierte Entwurfsfelder.
+const ReactRuntime = Spicetify.React as typeof import("react");
 
 import {
   getDefaultFeatureTitle,
@@ -60,6 +60,9 @@ interface FeatureGroup {
 export function FeatureManager(
   props: FeatureManagerProps,
 ): ReactElement {
+  // Werte werden beim Tippen nicht sofort normalisiert, damit Leerzeichen erhalten bleiben.
+  const [titleDrafts, setTitleDrafts] = ReactRuntime.useState<Partial<Record<FeatureId, string>>>({});
+
   const groups: readonly FeatureGroup[] = [
     {
       surface: "custom-app",
@@ -142,13 +145,7 @@ export function FeatureManager(
     function handleTitleChange(
       event: ChangeEvent<HTMLInputElement>,
     ): void {
-      updateFeature(
-        definition.id,
-        {
-          customTitle:
-            event.target.value,
-        },
-      );
+      setTitleDrafts((previous) => ({ ...previous, [definition.id]: event.target.value }));
     }
 
     // Speichert die numerische Sortierposition eines Features.
@@ -213,8 +210,20 @@ export function FeatureManager(
             type="text"
             maxLength={60}
             value={
-              preference.customTitle
+              titleDrafts[definition.id] ?? preference.customTitle
             }
+            onBlur={() => {
+              const draft = titleDrafts[definition.id];
+              if (draft !== undefined) {
+                updateFeature(definition.id, { customTitle: draft });
+                setTitleDrafts((previous) => {
+                  const next = { ...previous };
+                  delete next[definition.id];
+                  return next;
+                });
+              }
+            }}
+            onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
             disabled={
               !definition.customizableTitle
             }

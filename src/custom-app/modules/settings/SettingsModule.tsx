@@ -29,6 +29,8 @@ import {
 import {
   SettingsPanel,
 } from "./SettingsPanel";
+import { DataBackup } from "./DataBackup";
+import { WallpaperSettings } from "./WallpaperSettings";
 
 // -----------------------------------------------------------------------------
 // Typisierte Referenz auf die von Spicetify bereitgestellte React-Laufzeit.
@@ -139,11 +141,17 @@ export function SettingsModule({
         </button>
       </section>
 
+      {/* Ein-/Ausschalter und Ordnerauswahl direkt in den Einstellungen. */}
+      <WallpaperSettings t={t} />
+
       <FeatureManager
         features={settings.features}
         t={t}
         onChange={onChange}
       />
+
+      {/* Backup ist unabhängig von den normalen Einstellungsfeldern. */}
+      <DataBackup t={t} />
     </>
   );
 }

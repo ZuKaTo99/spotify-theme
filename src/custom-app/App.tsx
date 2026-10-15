@@ -5,6 +5,7 @@
 import type {
   ReactElement,
 } from "react";
+import { applyPalette, loadPalette, type PaletteId } from "../shared/appearance";
 
 import {
   getFeatureTitle,
@@ -51,12 +52,25 @@ export function App(): ReactElement {
     update,
   } = useSettings();
 
+  // Eigene Palette anwenden, ohne CSS anderer Spotify-Seiten zu verändern.
+  const rootRef = ReactRuntime.useRef<HTMLElement>(null);
+  ReactRuntime.useEffect(() => {
+    const refresh = (): void => applyPalette(rootRef.current, loadPalette());
+    const onPalette = (event: Event): void => {
+      const palette = (event as CustomEvent<PaletteId>).detail;
+      if (palette) applyPalette(rootRef.current, palette);
+    };
+    refresh();
+    window.addEventListener("zukato-toolkit:appearance-changed", onPalette);
+    return () => window.removeEventListener("zukato-toolkit:appearance-changed", onPalette);
+  }, []);
+
   const [
     activeFeatureId,
     setActiveFeatureId,
   ] =
     ReactRuntime.useState<FeatureId>(
-      "settings",
+      "dashboard",
     );
 
   const resolvedLocale =
@@ -116,6 +130,7 @@ export function App(): ReactElement {
   return (
     <main
       className="zukato-app"
+      ref={rootRef}
       lang={resolvedLocale}
     >
       <header className="zukato-app__header">

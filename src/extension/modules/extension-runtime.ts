@@ -7,6 +7,8 @@ import {
   subscribeToSettings,
 } from "../../shared/settings";
 
+import { startSongSessionTracker, stopSongSessionTracker } from "../../shared/song-session";
+
 import {
   extensionModules,
 } from "./extension-modules";
@@ -47,6 +49,9 @@ export function applyCurrentExtensionPreferences():
 // -----------------------------------------------------------------------------
 export function startExtensionRuntime():
   void {
+  // Der Songzähler ist unabhängig von abschaltbaren Funktionsmodulen.
+  // Er muss auch außerhalb der Visualizer-Seite weiterlaufen.
+  startSongSessionTracker();
   applyCurrentExtensionPreferences();
 
   if (unsubscribeFromSettings) {
@@ -73,5 +78,6 @@ export function stopExtensionRuntime():
     unsubscribeFromSettings = null;
   }
 
+  stopSongSessionTracker();
   extensionModuleManager.stopAll();
 }

@@ -3,6 +3,7 @@
 // Zweck: Build-Skript für Extension, Custom App und Theme.
 // =============================================================================
 import { build } from "esbuild";
+import { bundleFallback } from "./bundle-fallback.mjs";
 import * as sass from "sass";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -78,7 +79,12 @@ async function compileScss(inputFile, outputFile) {
 // Bündelt die Spicetify Extension mit esbuild.
 // -----------------------------------------------------------------------------
 async function buildExtension() {
-  await build({
+  // Erzwingt auf Wunsch den portablen Compiler (z. B. bei blockierten npm-Skripten).
+  // So können wir denselben Fehlerpfad auch automatisiert testen.
+  const forceFallback = process.env.ZUKATO_FORCE_FALLBACK === "1";
+  try {
+    if (forceFallback) throw new Error("Fallback durch ZUKATO_FORCE_FALLBACK aktiviert");
+    await build({
     entryPoints: [paths.extension.source],
     outfile: paths.extension.output,
     bundle: true,
@@ -89,13 +95,22 @@ async function buildExtension() {
     charset: "utf8",
     legalComments: "none",
   });
+  } catch (error) {
+    console.warn(`esbuild ausgelassen/fehlgeschlagen: ${String(error?.message ?? error)}`);
+    console.warn("Extension wird mit dem lokalen TypeScript-Offline-Bundler gebaut.");
+    await bundleFallback(paths.extension.source, paths.extension.output);
+  }
 }
 
 // -----------------------------------------------------------------------------
 // Bündelt die Custom App, kompiliert Styles und kopiert das Manifest.
 // -----------------------------------------------------------------------------
 async function buildCustomApp() {
-  await build({
+  // Derselbe Fallback-Schalter gilt für Extension UND Custom App.
+  const forceFallback = process.env.ZUKATO_FORCE_FALLBACK === "1";
+  try {
+    if (forceFallback) throw new Error("Fallback durch ZUKATO_FORCE_FALLBACK aktiviert");
+    await build({
     entryPoints: [paths.customApp.source],
     outfile: paths.customApp.output,
 
@@ -144,6 +159,11 @@ async function buildCustomApp() {
       ].join("\n"),
     },
   });
+  } catch (error) {
+    console.warn(`esbuild ausgelassen/fehlgeschlagen: ${String(error?.message ?? error)}`);
+    console.warn("Custom App wird mit dem lokalen TypeScript-Offline-Bundler gebaut.");
+    await bundleFallback(paths.customApp.source, paths.customApp.output, { app: true });
+  }
 
   await compileScss(
     paths.customApp.stylesSource,

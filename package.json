@@ -1,13 +1,15 @@
 {
   "name": "zukato-spicetify",
-  "version": "1.0.0",
+  "version": "1.7.2",
   "description": "",
   "main": "index.js",
-"scripts": {
-  "check": "tsc --noEmit",
-  "build": "npm run check && node tools/build.mjs",
-  "install:spicetify": "npm run build && node tools/install.mjs"
-},
+  "scripts": {
+    "check": "tsc --noEmit",
+    "doctor": "node tools/doctor.mjs",
+    "build": "npm run check && node tools/build.mjs",
+    "install:spicetify": "npm run build && node tools/install.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

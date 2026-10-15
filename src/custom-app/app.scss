@@ -1,11 +1,264 @@
-/*
- * =============================================================================
+/* =============================================================================
  * Datei: src/custom-app/app.scss
- * Zweck: Zentrale Styles der Custom App.
- * =============================================================================
- */
+ * Zweck: Dark-Mode-freundlicher, responsiver Workspace mit zugänglichen Controls.
+ * Sämtliche Selektoren sind absichtlich auf .zukato-app begrenzt.
+ * ============================================================================= */
+.zukato-app {
+  --zukato-accent: #1ed760;
+  --zukato-panel: rgba(128, 128, 128, .09);
+  --zukato-border: rgba(148, 163, 184, .22);
+  color: var(--spice-text, #f6f6f6);
+  padding: clamp(18px, 4vw, 44px);
+  min-height: 100%;
+  font-family: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
 
-/*
- * Das visuelle Design entwickeln wir später.
- * Neue globale Custom-App-Styles werden hier mit klaren Abschnittskommentaren ergänzt.
- */
+  *, *::before, *::after { box-sizing: border-box; }
+  h1 { font-size: clamp(30px, 4vw, 45px); letter-spacing: -.035em; margin: 5px 0 10px; }
+  h2 { font-size: 22px; margin: 0 0 15px; }
+  h3 { font-size: 17px; margin: 12px 0; }
+  p { margin: 0 0 15px; }
+  button, input, select, textarea { font: inherit; }
+  input:not([type="checkbox"]), select, textarea {
+    color: inherit; background: var(--spice-main, #181818);
+    border: 1px solid var(--zukato-border); border-radius: 9px; padding: 9px 12px;
+    max-width: 100%;
+  }
+  textarea { width: 100%; resize: vertical; }
+  button { color: inherit; cursor: pointer; background: var(--zukato-panel);
+    padding: 9px 13px; border: 1px solid var(--zukato-border); border-radius: 10px;
+    transition: border-color .15s, background .15s; }
+  button:hover:not(:disabled) { border-color: var(--zukato-accent); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--zukato-accent); outline-offset: 2px;
+  }
+  button:disabled { cursor: not-allowed; opacity: .45; }
+  label { display: block; margin-bottom: 6px; font-weight: 600; }
+
+  /* Kopfzeile und horizontal umlaufende Modulleiste. */
+  &__header { margin-bottom: 24px; max-width: 900px; }
+  &__label { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--zukato-accent); }
+  &__greeting { color: var(--zukato-accent); }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  nav ul { padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; list-style: none; }
+  nav button[aria-current="page"], nav button[aria-selected="true"] {
+    color: #101410; background: var(--zukato-accent); font-weight: 750;
+  }
+
+  /* Detailseiten und aus Spotify übernommene Formularcontrols. */
+  .zukato-panel { display: grid; gap: 12px; }
+  .zukato-empty { color: var(--spice-subtext, #a7a7a7); border: 1px dashed var(--zukato-border); padding: 25px; border-radius: 12px; }
+  .zukato-toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .zukato-track-list { padding: 0; margin: 0; display: grid; gap: 8px; list-style: none; }
+  .zukato-track { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px 15px; background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 12px; }
+  .zukato-track__info { min-width: 0; display: flex; flex: 1; flex-direction: column; overflow-wrap: anywhere; }
+  .zukato-track__info span, .zukato-track__info small { color: var(--spice-subtext, #aaa); }
+  .zukato-track__actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .zukato-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(135px,1fr)); gap: 12px; }
+  .zukato-metrics > div { padding: 17px; border-radius: 12px; background: var(--zukato-panel); border: 1px solid var(--zukato-border); display:flex; flex-direction:column; }
+  .zukato-metrics strong { font-size: 28px; color: var(--zukato-accent); }
+  .zukato-columns { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 20px; }
+  .zukato-columns li { padding: 4px 0; overflow-wrap: anywhere; }
+  .zukato-current-track { padding: 20px; border-radius: 14px; border: 1px solid var(--zukato-border); background: var(--zukato-panel); }
+  .zukato-note-editor { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--zukato-border); border-radius: 14px; }
+
+  /* Einstellungen: Feature-Karten, Backups und Shortcut-Eingaben. */
+  .zukato-settings, .zukato-modules, .zukato-shortcuts, .zukato-data-backup, .zukato-shortcuts-link {
+    padding: 18px; margin: 0 0 20px; border: 1px solid var(--zukato-border);
+    border-radius: 15px; background: var(--zukato-panel);
+  }
+  .zukato-settings__field, .zukato-feature__field { margin: 10px 0; }
+  .zukato-modules__list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+  .zukato-feature { padding: 14px; border: 1px solid var(--zukato-border); border-radius: 12px; }
+  .zukato-feature__header { margin-bottom: 9px; }
+  .zukato-feature input:not([type="checkbox"]) { width: 100%; }
+  .zukato-data-backup label { font-size: 13px; }
+  .zukato-data-backup input[type="file"] { max-width: 240px; }
+  .zukato-error { color: #fb7185; }
+
+  /* Farbpalette und Live-Monitor. */
+  .zukato-palette { display: flex; flex-wrap: wrap; gap: 10px; }
+  .zukato-palette button { display: inline-flex; align-items: center; gap: 9px; }
+  .zukato-palette button.is-selected { border-color: var(--zukato-accent); }
+  .zukato-palette button span { width: 18px; height: 18px; border-radius: 50%; }
+  .zukato-player-monitor { justify-items: center; text-align: center; }
+  .zukato-player-monitor__disc { width: min(225px, 60vw); aspect-ratio: 1; border-radius: 50%;
+    background: repeating-radial-gradient(circle, #121212 0 5px, #262626 6px 9px); border: 5px solid var(--zukato-accent);
+    display: grid; place-items: center; }
+  .zukato-player-monitor__disc > div { width: 20%; height: 20%; background: var(--zukato-accent); border-radius: 50%; }
+  .zukato-player-monitor__disc.is-playing { animation: zukato-spin 6s linear infinite; }
+  .zukato-progress { width: 100%; height: 9px; border-radius: 100px; overflow: hidden; background: var(--zukato-border); }
+  .zukato-progress > div { height: 100%; background: var(--zukato-accent); transition: width .4s; }
+  .zukato-player-monitor__buttons { display: flex; justify-content: center; gap: 12px; }
+  @keyframes zukato-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .zukato-player-monitor__disc.is-playing { animation: none; } }
+  @media (max-width: 600px) { .zukato-track { align-items: start; flex-direction: column; }
+    .zukato-track__actions { width: 100%; } .zukato-toolbar { align-items: stretch; } }
+}
+
+/* =============================================================================
+ * Immersiver Video-Visualizer: alle Selektoren bleiben auf .zukato-app begrenzt.
+ * Ebenen: Video (0), Abdunklung (1), Audio-Canvas (2), Songtext (3), Controls (4).
+ * ============================================================================= */
+.zukato-app {
+  .zukato-viz { width: 100%; }
+  .zukato-viz__stage {
+    position: relative; isolation: isolate; overflow: hidden; background: #0b1019;
+    aspect-ratio: 16 / 9; min-height: 300px; border-radius: 20px;
+    border: 1px solid var(--zukato-border); color: #fff;
+  }
+  .zukato-viz__backdrop, .zukato-viz__video, .zukato-viz__fallback, .zukato-viz__veil,
+  .zukato-viz__spectrum, .zukato-viz__overlay {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+  }
+  /* Die Stage behält maximal zwei Videolayer; nur opacity wird animiert. */
+  .zukato-viz__backdrop { z-index: 0; overflow: hidden; }
+  .zukato-viz__video, .zukato-viz__fallback {
+    transition-property: opacity; transition-timing-function: ease-in-out;
+    will-change: opacity;
+  }
+  /* Nur der Videolayer wird farbkorrigiert. Text und Audiolayer bleiben klar. */
+  .zukato-viz__video { object-position: center;
+    filter: blur(var(--zukato-video-blur, 0)) saturate(var(--zukato-video-saturation, 100%))
+      hue-rotate(var(--zukato-video-hue, 0deg)); }
+
+  .zukato-viz__fallback {
+    background: radial-gradient(circle at 68% 35%, rgba(30,215,96,.26), transparent 38%),
+      radial-gradient(ellipse at 30% 80%, #254871 0%, transparent 58%), #080b13;
+  }
+  /* Separater Vignettenverlauf: keine Änderung der ursprünglich importierten Datei. */
+  .zukato-viz__veil {
+    background: radial-gradient(ellipse at center, transparent 18%, rgba(0,0,0,var(--zukato-vignette, 0)) 100%),
+      rgba(0,0,0,var(--zukato-video-dim, .35));
+    z-index: 1; pointer-events: none;
+  }
+  .zukato-viz__spectrum { z-index: 2; pointer-events: none; }
+  .zukato-viz__overlay {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: clamp(20px, 5vw, 60px); z-index: 3; pointer-events: none;
+    text-shadow: 0 2px 20px rgba(0,0,0,.95);
+  }
+  .zukato-viz__track { display: grid; gap: 4px; margin-bottom: auto; width: 100%; }
+  .zukato-viz__track strong { font-size: clamp(18px, 2.3vw, 29px); overflow-wrap: anywhere; }
+  .zukato-viz__track span { opacity: .85; }
+  /* Die Position gilt nur für den Songtext, nicht für Titel oder Player-Knöpfe. */
+  .zukato-viz__lyrics { position: absolute; top: 50%; left: 50%; width: min(calc(100% - 40px), 850px);
+    transform: translate(-50%, -50%); }
+  .zukato-viz__lyrics--top { top: clamp(70px, 15%, 120px); transform: translateX(-50%); }
+  .zukato-viz__lyrics--bottom { top: auto; bottom: 28px; transform: translateX(-50%); }
+  .zukato-viz__lyrics p {
+    font-size: clamp(14px, calc(2.3vw * var(--zukato-caption-scale, 1)), 45px);
+    font-weight: 700; color: var(--zukato-caption-color, #fff); opacity: .55; margin: 9px 0;
+    text-shadow: 0 2px var(--zukato-caption-shadow, 13px) rgba(0,0,0,.95);
+    transition: color .15s, opacity .15s, transform .15s; overflow-wrap: anywhere;
+  }
+  .zukato-viz__lyrics p.is-current { color: var(--zukato-caption-highlight, #fff); opacity: 1; transform: scale(1.04); }
+  .zukato-viz__hint { color: var(--spice-subtext, #adb1b5); font-size: 13px; }
+  .zukato-viz__lyrics .zukato-viz__hint { color: rgba(255,255,255,.75); }
+  .zukato-viz__fullscreen { position: absolute; top: 12px; right: 12px; z-index: 4;
+    background: rgba(0,0,0,.5); }
+  .zukato-viz__timeline { position: absolute; z-index: 4; bottom: 0; width: 100%; height: 4px;
+    background: rgba(255,255,255,.25); }
+  .zukato-viz__timeline > div { height: 100%; background: var(--zukato-accent); }
+  .zukato-viz__stage:fullscreen { border-radius: 0; aspect-ratio: auto; width: 100vw; height: 100vh; }
+  .zukato-viz__settings { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,310px),1fr)); gap: 14px; }
+  .zukato-viz__controls { min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 17px;
+    background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 15px; }
+  .zukato-viz__controls h3, .zukato-viz__controls p { margin: 0; }
+  .zukato-viz__controls > label { display: grid; gap: 6px; }
+  .zukato-viz__controls label.zukato-viz__checkbox { display: flex; align-items: center; gap: 8px; }
+  .zukato-viz__range > span { display: flex; justify-content: space-between; gap: 12px; }
+  .zukato-viz__range input { width: 100%; accent-color: var(--zukato-accent); }
+  .zukato-viz__controls .zukato-viz__upload { display: grid; gap: 5px; min-width: 0; }
+  .zukato-viz__controls input[type="file"] { width: 100%; font-size: 12px; }
+  /* Bibliothek: Dateiliste ohne automatisches Starten sämtlicher Videos. */
+  /* Der LRC-Editor bleibt zugeklappt, bis der Nutzer ihn öffnen möchte. */
+  /* HTML-Web-Wallpaper laufen hinter Lyrics und Canvas in isolierten iframes. */
+  .zukato-viz__web-frame { width: 100%; height: 100%; border: 0; display: block; background: #000;
+    filter: blur(var(--zukato-video-blur, 0)) saturate(var(--zukato-video-saturation, 100%))
+      hue-rotate(var(--zukato-video-hue, 0deg)); }
+  .zukato-viz__scene-backdrop { overflow: hidden; }
+  .zukato-viz__scene-backdrop > video { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* Eigene Szenen lassen sich ohne Drag&Drop präzise umordnen. */
+  .zukato-viz__scene-manager { margin: 14px 0; }
+  .zukato-viz__scene-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+  .zukato-viz__scene-row > label { display: grid; flex: 1 1 190px; gap: 5px; min-width: 0; }
+  .zukato-viz__scene-row select, .zukato-viz__scene-row input { width: 100%; min-width: 0; }
+  .zukato-viz__scene-list { padding-left: 25px; display: grid; gap: 5px; }
+  .zukato-viz__scene-list li { display: flex; align-items: center; gap: 7px; }
+  .zukato-viz__scene-list li span { flex: 1; overflow-wrap: anywhere; min-width: 0; }
+  .zukato-viz__scene-list li button { padding: 4px 9px; }
+  .zukato-viz__lyrics-editor { padding: 12px; border: 1px solid var(--zukato-border);
+    border-radius: 10px; min-width: 0; }
+  .zukato-viz__lyrics-editor summary { cursor: pointer; font-weight: 700; }
+  .zukato-viz__lyrics-editor textarea { display: block; width: 100%; min-height: 155px;
+    resize: vertical; margin-top: 10px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px; line-height: 1.5; }
+  .zukato-viz__track-scenes { margin: 14px 0; }
+  .zukato-viz__library { margin-top: 10px; }
+  .zukato-viz__library-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,220px),1fr)); gap: 8px; }
+  .zukato-viz__library-list button { text-align: left; display: grid; gap: 4px; min-width: 0; }
+  .zukato-viz__thumbnail { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; background: #0d1825; }
+  .zukato-viz__thumbnail--empty { display: grid; place-items: center; color: rgba(255,255,255,.45); font-size: 23px; }
+  .zukato-viz__library-list button.is-selected { border-color: var(--zukato-accent); }
+  .zukato-viz__library-list strong, .zukato-viz__library-list small { overflow-wrap: anywhere; }
+  .zukato-viz__library-list small { font-size: 11px; color: var(--spice-subtext, #aaa); }
+  .zukato-viz__library-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .zukato-viz__preview { width: min(100%,600px); max-height: 320px; border-radius: 12px; background: #000; }
+  /* Clip-Editor: Timing-Metadaten bearbeiten, Originaldatei unangetastet lassen. */
+  .zukato-viz__clip-editor { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--zukato-border); border-radius: 10px; }
+  .zukato-viz__clip-editor h4, .zukato-viz__clip-editor p { margin: 0; }
+  .zukato-viz__clip-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .zukato-viz__clip-inputs label { display: grid; gap: 5px; }
+  .zukato-viz__clip-inputs input { width: 100%; min-width: 0; }
+  .zukato-viz__clip-editor small { color: var(--spice-subtext, #aaa); }
+  .zukato-viz__presets { margin-top: 10px; }
+  .zukato-viz__presets input[type="text"] { width: 100%; }
+  @media (max-width: 600px) {
+    .zukato-viz__stage { aspect-ratio: 4 / 5; min-height: 340px; }
+    .zukato-viz__overlay { padding: 18px; }
+    .zukato-viz__lyrics p { font-size: calc(17px * var(--zukato-caption-scale, 1)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .zukato-viz__lyrics p { transition: none; transform: none; }
+    .zukato-viz__video, .zukato-viz__fallback { transition-duration: 0ms !important; }
+  }
+}
+
+// =============================================================================
+// Einstellungen/Visualizer v1.6: Der OFF-Modus zeigt ohne erlaubte Original-
+// URL bewusst KEIN eigenes HTML-Wallpaper; diese Meldung erklärt die Ursache.
+// =============================================================================
+.zukato-viz__missing-source {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 2rem;
+  background: #111;
+  color: #eee;
+  text-align: center;
+}
+.zukato-wallpaper-settings {
+  margin-block: 1rem;
+}
+
+// =============================================================================
+// Vorschau der lokalen Szenenbibliothek (v1.7.0).
+// Isoliertes iframe/video; feste 16:9-Proportion, damit der Verwaltungsdialog
+// durch große importierte Projekte nicht aus dem Layout gedrückt wird.
+// =============================================================================
+.zukato-viz__scene-preview {
+  width: min(100%, 640px);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  position: relative;
+  border-radius: 10px;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: grid;
+  place-items: center;
+  iframe, video { width: 100%; height: 100%; border: 0; object-fit: contain; }
+}

@@ -2,10 +2,10 @@
 // Datei: src/custom-app/modules/settings/SettingsPanel.tsx
 // Zweck: Formular für allgemeine Einstellungen wie Titel, Anzeigename, Sprache und Begrüßung.
 // =============================================================================
-import type {
-  ChangeEvent,
-  ReactElement,
-} from "react";
+import type { ChangeEvent, ReactElement } from "react";
+
+// React bleibt die von Spicetify bereitgestellte Instanz.
+const ReactRuntime = Spicetify.React as typeof import("react");
 
 import type {
   Translator,
@@ -40,22 +40,24 @@ interface SettingsPanelProps {
 export function SettingsPanel(
   props: SettingsPanelProps,
 ): ReactElement {
-  // Speichert Änderungen am Workspace-Titel.
+  // Lokale Entwürfe erlauben Leerzeichen und Backspace, bevor trim() beim Blur greift.
+  const [titleDraft, setTitleDraft] = ReactRuntime.useState(props.workspaceTitle);
+  const [nameDraft, setNameDraft] = ReactRuntime.useState(props.displayName);
+  ReactRuntime.useEffect(() => setTitleDraft(props.workspaceTitle), [props.workspaceTitle]);
+  ReactRuntime.useEffect(() => setNameDraft(props.displayName), [props.displayName]);
+
+  // Speichert Änderungen am Workspace-Titel erst beim Verlassen des Feldes.
   function handleWorkspaceTitleChange(
     event: ChangeEvent<HTMLInputElement>,
   ): void {
-    props.onChange({
-      workspaceTitle: event.target.value,
-    });
+    setTitleDraft(event.target.value);
   }
 
   // Speichert den Anzeigenamen für die persönliche Begrüßung.
   function handleDisplayNameChange(
     event: ChangeEvent<HTMLInputElement>,
   ): void {
-    props.onChange({
-      displayName: event.target.value,
-    });
+    setNameDraft(event.target.value);
   }
 
   // Schaltet die persönliche Begrüßung ein oder aus.
@@ -99,7 +101,9 @@ export function SettingsPanel(
           id="workspace-title"
           type="text"
           maxLength={60}
-          value={props.workspaceTitle}
+          value={titleDraft}
+          onBlur={() => props.onChange({ workspaceTitle: titleDraft })}
+          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
           onChange={
             handleWorkspaceTitleChange
           }
@@ -117,7 +121,9 @@ export function SettingsPanel(
           id="display-name"
           type="text"
           maxLength={40}
-          value={props.displayName}
+          value={nameDraft}
+          onBlur={() => props.onChange({ displayName: nameDraft })}
+          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
           onChange={
             handleDisplayNameChange
           }

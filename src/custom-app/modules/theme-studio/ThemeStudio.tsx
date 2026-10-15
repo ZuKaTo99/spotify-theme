@@ -1,35 +1,25 @@
 // =============================================================================
 // Datei: src/custom-app/modules/theme-studio/ThemeStudio.tsx
-// Zweck: Gerüst für das spätere Theme-Studio.
+// Zweck: Akzentfarbe auswählen und gerätespezifisch sichern.
 // =============================================================================
-import type {
-  ReactElement,
-} from "react";
+import type { ReactElement } from "react";
+import type { Translator } from "../../../shared/i18n";
+import { loadPalette, PALETTES, savePalette, type PaletteId } from "../../../shared/appearance";
+const ReactRuntime = Spicetify.React as typeof import("react");
 
-import type {
-  Translator,
-} from "../../../shared/i18n";
-
-import {
-  ModulePlaceholder,
-} from "../../components/ModulePlaceholder";
-
-// -----------------------------------------------------------------------------
-// Datenvertrag `ThemeStudioProps` für diesen Bereich des Projekts.
-// -----------------------------------------------------------------------------
-interface ThemeStudioProps {
-  t: Translator;
-}
-
-// -----------------------------------------------------------------------------
-// Funktion `ThemeStudio` kapselt einen eigenständigen Arbeitsschritt dieses Moduls.
-// -----------------------------------------------------------------------------
-export function ThemeStudio({
-  t,
-}: ThemeStudioProps): ReactElement {
-  return (
-    <ModulePlaceholder
-      t={t}
-    />
-  );
+export function ThemeStudio({ t }: { t: Translator }): ReactElement {
+  const [selected, setSelected] = ReactRuntime.useState<PaletteId>(loadPalette);
+  return <section className="zukato-panel">
+    <p>{t("appearance.intro")}</p>
+    <div className="zukato-palette">
+      {(Object.entries(PALETTES) as Array<[PaletteId, { name: string; accent: string }]>).map(([id, palette]) =>
+        <button type="button" className={selected === id ? "is-selected" : ""} key={id} onClick={() => {
+          savePalette(id);
+          setSelected(id);
+        }} aria-pressed={selected === id}>
+          <span style={{ background: palette.accent }} />{palette.name}
+        </button>)}
+    </div>
+    <p>{t("appearance.current")} <strong>{PALETTES[selected].name}</strong></p>
+  </section>;
 }

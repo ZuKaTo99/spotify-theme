@@ -58,7 +58,8 @@ function isEditableTarget(
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
-    target.isContentEditable
+    target.isContentEditable ||
+    Boolean(target.closest("[contenteditable]:not([contenteditable='false'])"))
   );
 }
 
@@ -89,8 +90,11 @@ function handleKeyDown(
   event: KeyboardEvent,
 ): void {
   if (
-    isEditableTarget(event.target)
+    isEditableTarget(event.target) ||
+    event.isComposing || event.key === "Dead"
   ) {
+    // Keine alten Modifier von vorherigen Fokuswechseln behalten.
+    pressedCodes.clear();
     return;
   }
 

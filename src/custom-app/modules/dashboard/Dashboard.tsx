@@ -2,9 +2,10 @@
 // Datei: src/custom-app/modules/dashboard/Dashboard.tsx
 // Zweck: Dashboard mit einer Übersicht über aktivierte Custom-App- und Extension-Module.
 // =============================================================================
-import type {
-  ReactElement,
-} from "react";
+import type { ReactElement } from "react";
+import { currentTrack, toggleFavorite } from "../../../shared/library";
+import { useToolkitData } from "../../hooks/useToolkitData";
+import { TrackList } from "../../components/TrackList";
 
 import type {
   FeaturePreferences,
@@ -45,31 +46,29 @@ export function Dashboard({
       features,
     ).length;
 
+  // Daten aus derselben zentralen Bibliothek wie Hörverlauf, Notizen und Favoriten.
+  const { history, favorites, notes } = useToolkitData();
+  const playing = currentTrack();
+
   return (
-    <section>
-      <p>
-        {t("dashboard.description")}
-      </p>
-
-      <dl>
-        <dt>
-          {t(
-            "dashboard.workspaceModules",
-          )}
-        </dt>
-        <dd>
-          {workspaceModuleCount}
-        </dd>
-
-        <dt>
-          {t(
-            "dashboard.extensionModules",
-          )}
-        </dt>
-        <dd>
-          {extensionModuleCount}
-        </dd>
-      </dl>
+    <section className="zukato-panel">
+      <p>{t("dashboard.description")}</p>
+      <div className="zukato-metrics">
+        <div><strong>{workspaceModuleCount}</strong><span>{t("dashboard.workspaceModules")}</span></div>
+        <div><strong>{extensionModuleCount}</strong><span>{t("dashboard.extensionModules")}</span></div>
+        <div><strong>{history.length}</strong><span>{t("stats.changes")}</span></div>
+        <div><strong>{favorites.length}</strong><span>{t("stats.favorites")}</span></div>
+        <div><strong>{notes.length}</strong><span>{t("stats.notes")}</span></div>
+      </div>
+      {playing && <div className="zukato-current-track">
+        <h3>{t("dashboard.nowPlaying")}</h3>
+        <p><strong>{playing.title}</strong> — {playing.artist}</p>
+        <button type="button" onClick={() => toggleFavorite(playing)}>
+          {favorites.some((favorite) => favorite.uri === playing.uri) ? t("common.remove") : t("history.remember")}
+        </button>
+      </div>}
+      <h3>{t("dashboard.recent")}</h3>
+      <TrackList tracks={history.slice(0, 5)} emptyText={t("history.empty")} />
     </section>
   );
 }
