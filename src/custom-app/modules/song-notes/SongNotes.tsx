@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
 import { currentTrack, setSongNote } from "../../../shared/library";
 import { useToolkitData } from "../../hooks/useToolkitData";
+import { TrackSearch } from "../../components/TrackSearch";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -28,6 +29,7 @@ export function SongNotes({ t }: { t: Translator }): ReactElement {
   return <section className="zukato-panel">
     <p>{t("notes.intro")}</p>
     <button type="button" onClick={() => setActive(currentTrack())}>{t("notes.choose")}</button>
+    <TrackSearch t={t} actionLabel={t("search.notes")} onChoose={(track) => setActive(track)} />
     {selected ? <div className="zukato-note-editor">
       <h3>{selected.title} — {selected.artist}</h3>
       <label htmlFor="zukato-note">{t("notes.label")}</label>

@@ -140,6 +140,18 @@ export function toggleFavorite(info: TrackInfo): boolean {
   return !exists;
 }
 
+/** Idempotentes Hinzufügen: zwei Klicks entfernen einen Favoriten nicht versehentlich. */
+export function addFavorite(info: TrackInfo): boolean {
+  if (!track(info)) return false;
+  if (loadLibrary().favorites.some((entry) => entry.uri === info.uri)) return false;
+  changeLibrary((db) => ({
+    ...db,
+    favorites: db.favorites.some((entry) => entry.uri === info.uri)
+      ? db.favorites : [info, ...db.favorites].slice(0, MAX_FAVORITES),
+  }));
+  return true;
+}
+
 /** Notizen werden pro Titel gespeichert, Leertext entfernt die vorhandene Notiz. */
 export function setSongNote(info: TrackInfo, text: string): void {
   if (!track(info)) return;

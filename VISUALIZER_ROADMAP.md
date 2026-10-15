@@ -1,3 +1,26 @@
+## v1.12 – UI-Fokus (15. Oktober 2026)
+
+Vier schlanke Visualizer-Panels, Kinomodus, ein Quellenumschalter oberhalb der
+Bühne, sichtbarer HTML-Ordnerimport und nachrangige Einzelvideo-Verwaltung.
+Playlists und Lied-spezifische Zuordnungen bleiben in ihrer bisherigen
+Speicherstruktur erhalten. Der angezeigte Wallpaper-Index wird nun identisch
+zur tatsächlichen Startposition berechnet.
+
+**Weiter offen:** automatische rechtmäßige Originalclip-Quelle, lizenzierte
+Publisher-Lyrics, robustes Live-Feedback aus dem Spotify-Client und weitere
+Kompatibilitätstests echter Wallpaper-Engine-HTML-Projekte.
+
+---
+
+## Aktualisierung v1.11.0 – automatische Lyrics
+
+- **Neu implementiert:** Synchronisierte oder unsynchronisierte Texte automatisch von LRCLIB anhand von Titel, Künstler, Album und Dauer abrufen und in der Visualizer-Ebene anzeigen; Local-LRC hat Vorrang.
+- **Wichtig:** LRCLIB ist eine unabhängige Community-Lyrics-Quelle; kein Versprechen, dass alle Originaltexte verfügbar sind oder dass alle Rechte geklärt sind. Quellenattribution, RAM-only-Aufbewahrung, Rate-Limit und kein Bulk-Download sind eingebaut.
+- **Noch offen:** Spotify-Live-Prüfung der externen CORS-Verbindung, mögliche alternative ausdrücklich erlaubte/lizenzierte Lyrics-Anbieter, Wort-für-Wort-Karaoke, automatische legale Originalvideo-Ausschnitte und echte Systemaudio-FFT.
+- **UI:** Manueller `.lrc`-Editor ist nur noch eine optionale erweiterte Funktion; Design-Regler bleiben zentral.
+
+---
+
 # ZuKaTo – Wallpaper-Visualizer: Architektur & nächste Ausbaustufen
 
 **Stand: 14. Oktober 2026 · Version 1.6.0**

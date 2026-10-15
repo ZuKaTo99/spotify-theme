@@ -1,3 +1,71 @@
+# ZuKaTo v1.12.0 – Visualizer-Steuerzentrale (unveröffentlichter Arbeitsstand)
+
+**Noch nichts installieren oder committen.** Die Version enthält alle bisherigen
+unveröffentlichten Änderungen (v1.8–v1.11) und verbessert die Visualizer-Bedienung.
+
+- **Bühne im Vordergrund:** Track, gewählte Quelle, Video/HTML-Wallpaper und
+  automatische Lyrics bleiben beim Einstellen sichtbar.
+- **Vier statt aller Regler auf einmal:** Wallpapers, Songtexte, Audioeffekte und
+  Presets/Extras haben eigene Registerkarten. Die zuletzt ausgewählte wird
+  ausschließlich für die laufende Sitzung gemerkt.
+- **Eigene Wallpaper zuerst:** Der Ordnerimport und die pro-Song-Reihenfolge
+  stehen direkt im Wallpaper-Bereich. Ältere Einzelvideo-Funktionen sind in
+  einem ausklappbaren Abschnitt erreichbar.
+- **Schneller Quellenwechsel:** Wallpapers/Originalclips oben an der Bühne
+  umschalten, ohne die gespeicherte Bibliothek zu löschen.
+- **Kinomodus:** Verwaltungsansichten ausblenden; jederzeit zum Bearbeiten
+  zurückkehren. Browser-Vollbild bleibt als separate Option erhalten.
+- **Bugfix:** Die angezeigte Nummer des aktuellen Wallpapers berücksichtigt
+  nun den Startpunkt frisch importierter Ordner und Song-Overrides.
+- **Qualität:** 84/84 automatisierte Tests inkl. Windows-unabhängigem Fallback-
+  Build bestanden. Spotify-/Windows-Liveprüfung bleibt ausstehend.
+
+**Unverändert offen:** Automatische rechtmäßig verfügbare Original-Musikclips
+(der Schalter allein lädt keine), zuverlässige Lyrics-Rechteabklärung und
+Spotify-/Spicetify-Liveabnahme. Näheres in `REVIEW_V1.12.md`.
+
+---
+
+## ZuKaTo v1.11.0 – automatische Lyrics (Entwicklungsstand, NICHT übernehmen)
+
+**Wichtig:** Dieses Paket enthält die Änderungen seit der noch nicht übernommenen v1.8.0/v1.9.0/v1.10.0. Es ist ein Arbeitsstand, kein Auftrag zur Installation oder zum Git-Commit.
+
+**Lyrics im Visualizer werden jetzt automatisch gesucht**: Beim Songwechsel liest ZuKaTo Titel, Künstler, Album und Songdauer aus dem Player und fragt die dokumentierte LRCLIB-API (`https://lrclib.net/docs`) an. Bei vorhandenen LRC-Zeitmarken wird die aktuelle Zeile synchron zum Spotify-Fortschritt hervorgehoben. Wenn der Anbieter nur unzeitgesteuerten Text hat, erscheint er als scrollbarer Volltext ohne falsche Synchronisierung. Instrumentalsongs, fehlende Treffer, Offline-/Netzwerkfehler und HTTP-429-Limits erhalten eigene Statusanzeigen. Es gibt einen manuellen Wiederholungsversuch. **Es handelt sich um eine unabhängige Community-Lyrics-Quelle, NICHT um einen offiziellen Spotify-/Publisher-Lyrics-Endpunkt; Vollständigkeit, Rechte und Korrektheit können nicht garantiert werden.** Die Nutzung ist abhängig von Quelle und geltendem Recht.
+
+**Weiterhin selbst einstellbar:** Schriftgröße, Farbe, Highlight, Schatten, Position, sichtbare Zeilen und Timing-Offset. Eigene lokale LRCs überschreiben automatische Treffer, liegen aber nur noch unter „Eigene Lyrics / LRC – zusätzliche Optionen“. Automatisch abgerufene Texte werden nur kurzfristig im Arbeitsspeicher gehalten (max. 35 Titel) und nicht in ZIP, JSON-Backup oder IndexedDB gesammelt. Es werden keine Zugangstokens, Spotify-Kontodaten oder Wallpapers an LRCLIB geschickt.
+
+**Technisch:** `src/custom-app/modules/visualizer/automatic-lyrics.ts` trennt API, Matching, RAM-Cache, Begrenzungen und Rate-Limits vom React-Visualizer. Offline-Regressionsprüfungen stehen in `tests/automatic-lyrics.test.mjs`. Die echten Anfragen und die Spotify-Live-Darstellung müssen unter Windows im Spotify-Client geprüft werden.
+
+---
+
+## ZuKaTo v1.10.0 – Navigation, Dashboard und Song-Aktionen
+
+**Noch nicht übernommen:** Diese Version führt die v1.8-/v1.9-Weiterentwicklung fort. Der Entwicklungsstand wird lediglich vorbereitet und geprüft. Die Version ersetzt keine Rechteprüfung für Originalclips/Lyrics und wurde noch nicht unter Windows/Spotify abgenommen.
+
+Die neue **Song-Schnellaktion** öffnet sich über den Button im Workspace oder per `Ctrl+Shift+F`. Hier lassen sich Spotify-Songs suchen bzw. Links einfügen, direkt für lokale ZuKaTo-Favoriten merken oder in die Spotify-Warteschlange einreihen. Die bekannten Song-Notizen und Detailmodule bleiben unverändert nutzbar.
+
+Die Navigation ist in **Start**, **Musik & Sammlung**, **Gestaltung** und **System** gruppiert. Der zuletzt geöffnete Bereich bleibt für diese Sitzung gespeichert. Das Dashboard zeigt Spotify-Fortschritt/Restlänge in Minuten:Sekunden und einen zentralen Suchzugriff.
+
+In **Einstellungen → Übersicht** stehen der Originalvideo-Schalter, Navigation zu den wichtigsten Konfigurationsbereichen und eine Zusammenfassung der lokal gespeicherten Daten. Erweiterte Optionen sind nicht entfernt, sondern gezielt zu öffnen.
+
+Technische Dateien: `src/shared/workspace-navigation.ts`, `src/shared/player-progress.ts`, `src/custom-app/components/QuickTrackPanel.tsx`, `src/custom-app/components/TrackSearch.tsx`; Regressionstests in `tests/workspace-ux.test.mjs`.
+
+---
+
+## ZuKaTo v1.9.0 – neu gestalteter Workspace
+
+Die v1.9.0 ist eine **vollständige Weiterentwicklung von v1.8.0**. Falls v1.8.0 noch nicht installiert wurde, kann das v1.9.0-Paket direkt über den vorhandenen Projektordner entpackt werden.
+
+- **Dashboard:** Schnellzugriffe, Live-Wiedergabe, Favoritenaktion, Spotify-Cover, aktueller Verlauf und lokale Statistiken.
+- **Einstellungen:** Fünf getrennte Bereiche statt einer langen Formularseite. Die Originalclip-Umschaltung besteht aus nur einem Ein/Aus-Schalter; die fortgeschrittene HTML-Wallpaper-Verwaltung liegt auf Wunsch aufgeklappt darunter.
+- **Module:** Aktivierung als kompakter Schalter; seltene Titel- und Reihenfolgeoptionen hinter „Weitere Optionen“.
+- **Theme-Studio:** 24 Farben, eigene HEX-Werte und die Vorschau eines echten ZuKaTo-Minilayouts.
+- **Technik:** Keine geänderten Storage-Schlüssel, keine neuen Laufzeit-Abhängigkeiten. Ausführliche Kommentare in allen neuen und überarbeiteten Dateien.
+
+Historischer Stand von v1.9.0: Damals gab es noch keine automatische Lyrics-Quelle. **Ab v1.11.0** ist LRCLIB als unabhängiger automatischer Anbieter angebunden; offizielle/lizenzierte Publisher-Lyrics und automatische Originalvideos bleiben getrennte offene Ziele.
+
+---
+
 > **Windows / Node.js 24:** Bei Build-Problemen zuerst [START_HIER_WINDOWS.md](START_HIER_WINDOWS.md) lesen (`npm run doctor`).
 
 # ZuKaTo Spicetify / Spotify Toolkit
@@ -56,6 +124,13 @@ npm run install:spicetify      # Build + lokale Spicetify-Installation
 
 **Wallpaper-Visualizer (v1.6):** Der bisherige Wiedergabe-Monitor wurde zum immersiven Video-Visualizer ausgebaut. Er kombiniert ein lokal gespeichertes, stummes Hintergrundvideo mit einem optionalen Canvas-Spektrum und zeitsynchronen LRC-Lyrics. Videos laufen in Endlosschleife und folgen Play/Pause. Neu: Die Loop-Zeit eines importierten Videos lässt sich im Clip-Editor festlegen, ohne die Originaldatei anzutasten. Bei einem Titelwechsel wird ein anderes Video erst nach seinem ersten dekodierten Bild überblendet; dasselbe Standardvideo läuft ohne Neustart weiter. Der Crossfade lässt sich zwischen 0 und 3000 ms einstellen. Wahlweise laufen die Videos frei im Loop oder werden auf die Spotify-Songposition ausgerichtet; beim Song-Seek wird der Clip nachgeführt. Das ist ein zeitbasierter Abgleich mit Toleranz, keine sample- oder framegenaue Audioanalyse.
 
+### NEU v1.8.0 – Songsuche, 24 Farben und vereinfachte Originalclips
+
+- **Songs ohne URI-Umwege:** In **Favoriten**, **Playlist-Werkzeuge** und **Song-Notizen** steht jetzt eine Suche nach Songtitel/Künstler zur Verfügung. Auch normale Spotify-Songlinks (`https://open.spotify.com/track/...`) oder `spotify:track:...` können eingefügt und ausgewählt werden. Aus den Treffern lassen sich lokale Favoriten speichern, Songs zur Queue hinzufügen oder Notizen für einen Song schreiben. ZuKaTo verändert dadurch nicht ungefragt deine echten Spotify-Playlists oder Spotify-Likes. Die Suche nutzt ausschließlich die vom angemeldeten Spotify-Client unterstützte Spotify-API; die Kompatibilität hängt von der eingesetzten Spotify-Version ab. Bei einem Songlink kann der Titel auch ohne verfügbare Detaildaten übernommen werden.
+- **Theme-Farbpalette:** Das Theme-Studio bietet **24 Akzentfarben**, einen Farbwähler und ein eigenes HEX-Feld (`#RRGGBB`) mit Eingabeprüfung und kontrastreicher Button-Beschriftung. Die Farbe bleibt auf ZuKaTo beschränkt und wird weiterhin im JSON-Backup gespeichert. Alte Farbauswahlen/Backups bleiben gültig.
+- **Originalausschnitte – nur Ein/Aus:** In der Wallpaper-Verwaltung gibt es nur noch einen Schalter, ob hinterlegte Originalclips statt der eigenen HTML-Wallpapers gezeigt werden sollen. Komplexe Eingabefelder für Einzel-URLs, Zeitbereiche und JSON-Manifeste wurden aus der normalen Oberfläche entfernt. Alte Zuordnungen bleiben als Daten erhalten. **Wichtig:** Ein Schalter erzeugt keine Videoquelle: Automatisches Abrufen urheberrechtlich geschützter Originalclips ist weiterhin nicht vorhanden; ohne hinterlegte Quelle erscheint ein Hinweis.
+- **Projekt weiter verständlich halten:** Die Song-Suche ist in `src/custom-app/components/TrackSearch.tsx` wiederverwendbar; Parsing und API-Aufruf sind in `src/shared/track-search.ts` isoliert. Farbvalidierung und Kontrast liegen in `src/shared/appearance.ts`. Alle neuen Module sind kommentiert.
+
 ### NEU v1.7 – dauerhafte Playlist, HTML-Songsignale und Vorschau
 
 - **Songwechsel-Zähler im Extension-Kern:** Er läuft auch weiter, wenn der Visualizer-Tab geschlossen ist. Sein Index wird lokal gespeichert und nach einem Neustart wiederverwendet. Doppelte Player-Events, Pause und Seek sollen keine zusätzlichen Wallpapers auslösen; echte Skips und Repeats sind eigene Durchläufe. Ist die Extension nicht installiert, kann die Custom App den Zähler nur beobachten, solange sie geöffnet ist.
@@ -86,7 +161,7 @@ Meine_Wallpapers/
 
 Die Reihenfolge wird **natürlich nach Ordnernamen sortiert**: Titel 1 → Nebel, Titel 2 → Regen, Titel 3 → Sterne, Titel 4 → wieder Nebel. Während Titel 1 läuft, bleibt Nebel dauerhaft aktiv und kann **innerhalb seines eigenen HTML-Projekts** endlos animieren. **Kein** automatischer Wechsel nach Sekunden. Skip und Repeat gelten als nächster Songwechsel. Du kannst über **Nur aktueller Titel** einzelnen Songs ausdrücklich andere Szenen zuordnen. Über den **Checkbox-Schalter** ist die Wallpaper-Funktion an/aus: AUS zeigt die für den Song hinterlegte URL auf einen direkt abspielbaren **erlaubten** Originalvideoclip. Ist noch keine solche URL hinterlegt, erscheint ein Hinweis statt einer erfundenen Quelle.
 
-Originalclip-URLs lassen sich einzeln pro Song oder als JSON-Liste im Einstellungsbereich hinterlegen. Beispiel einer optionalen Datei (URLs sind Platzhalter, keine verfügbaren Medien):
+Die manuelle Originalclip-Konfiguration aus früheren Versionen ist ab v1.8 aus der Einstellungsoberfläche entfernt. Bereits früher gespeicherte Zuordnungen bleiben aus Kompatibilitätsgründen erhalten. Das folgende JSON ist nur ein historisches Formatbeispiel, **keine** Importanleitung für v1.8 (URLs sind Platzhalter):
 
 ```json
 {
@@ -123,7 +198,7 @@ Originalclip-URLs lassen sich einzeln pro Song oder als JSON-Liste im Einstellun
 
 Die optionale echte WebAudio-FFT misst **Mikrofon-Audio** (z. B. hörbaren Lautsprecherton), **nicht** Spotifys geschützten digitalen Audiostream; das Mikrofon ist keineswegs eine garantierte Loopback-Lösung. Automatisches Laden des **Original-Songtexts** aus einer zulässigen Lyrics-Quelle ist noch offen. Eine Spicetify-Einbindung mit Lyrics Plus benötigt eine gesondert geprüfte Schnittstelle und Berechtigung; es werden keine internen Spotify-APIs stillschweigend abgefragt. Details in `VISUALIZER_ROADMAP.md`.
 
-**Theme:** Das Theme-Build-Artefakt `dist/theme/` enthält ein neutrales Grundgerüst. Das Theme-Studio verändert bewusst nur die Custom App, nicht fremde Spotify-Styles oder installierte Drittanbieter-Themes. `tools/install.mjs` installiert darum nur Extension und Custom App, kein globales Spotify-Theme.
+**Theme:** Seit v1.8 stehen 24 Presets plus freie HEX-Farbe zur Verfügung. Das Theme-Build-Artefakt `dist/theme/` enthält ein neutrales Grundgerüst. Das Theme-Studio verändert bewusst nur die Custom App, nicht fremde Spotify-Styles oder installierte Drittanbieter-Themes. `tools/install.mjs` installiert darum nur Extension und Custom App, kein globales Spotify-Theme.
 
 ## Datensicherung und Privatsphäre
 
@@ -133,7 +208,7 @@ Die JSON-Backupdatei enthält ggf. persönliche Song-Notizen und Hörverlauf. Be
 
 ## Build und technische Grenzen
 
-Normalerweise verwendet der Build `esbuild` und `sass`. Falls ein entpacktes `node_modules` von einem **anderen Betriebssystem** stammt (z. B. Windows-`node_modules` unter Linux), kann `esbuild` seine native Binärdatei nicht starten. Hier greift `tools/bundle-fallback.mjs` mit dem lokal installierten TypeScript-Compiler, ohne globale `npm`-Aufrufe. Das ist hauptsächlich für Projektübertragung und Offline-Analyse gedacht: auf dem Zielsystem bevorzugt `npm install` ausführen, um korrekte native Abhängigkeiten zu installieren. Der Fallback erstellt keine Sourcemaps; der normale Build schon.
+Normalerweise verwendet der Build `esbuild` und `sass`. Falls ein entpacktes `node_modules` von einem **anderen Betriebssystem** stammt (z. B. Windows-`node_modules` unter Linux), kann `esbuild` seine native Binärdatei nicht starten. Hier greift `tools/bundle-fallback.mjs` mit dem lokal installierten TypeScript-Compiler, ohne globale `npm`-Aufrufe. Das ist hauptsächlich für Projektübertragung und Offline-Analyse gedacht: auf dem Zielsystem bevorzugt `npm install` ausführen, um korrekte native Abhängigkeiten zu installieren. Der Fallback erstellt keine Sourcemaps; der normale Build schon. Bei einem Source-Only-Update enthält das ZIP absichtlich keine alten `dist`-Dateien: `npm install` gefolgt von `npm test` baut sie aus den tatsächlichen Quellen neu.
 
 `npm test` umfasst Bundle-Smoke-Tests mit simulierten Spicetify-APIs, Songsession-Reducer-/Lifecycle-Tests und Visualizer-Unit-Tests (LRC-Timing/Editor-Zeitmarken, Bibliothek, Kopien, Medien-Storage, Clip-/Song-Synchronisierung, Song-Szenen, Backup-Normalisierung und Mikrofonfreigabe). Die Source-Unit-Tests verwenden die Node-22-Funktion `stripTypeScriptTypes`. **Ein Lauf unter echtem Spotify/Spicetify ist hiermit nicht ersetzt.** Vor Veröffentlichung sämtliche Features im Zielclient prüfen; besonders Player-Events, Kontextmenüs und die Spotify-Version können sich ändern.
 

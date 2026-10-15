@@ -174,7 +174,13 @@ test("Visualizer: Workspace-Router rendert Video-Bühne und Import-Controls", as
     collect(node.props?.children);
   }
   collect(stage);
-  assert.equal(fileInputs.length, 2, "Video- und LRC-Dateiimport müssen vorhanden sein");
+  // v1.12: Das Lyrics-Panel wird erst bei Auswahl eingeblendet. Das spart
+  // UI-Elemente, ohne die optionale LRC-Funktion aus dem Code zu entfernen.
+  assert.equal(fileInputs.length, 1, "Der Wallpaper-Tab enthält den Legacy-Videoimport");
+  assert.ok(find(stage, (node) => node.type?.name === "SceneManager"),
+    "Ordnerimport und Reihenfolgenverwaltung müssen sofort zugänglich sein.");
+  assert.ok(find(stage, (node) => node.props?.className === "zukato-viz__panel-tabs"),
+    "Visualizer-Registerkarten müssen im Workspace erreichbar sein.");
   assert.ok(find(stage, (node) => node.type?.name === "WallpaperBackdrop"),
     "Der Workspace nutzt die eigenständige Crossfade-Bühne.");
   assert.ok(find(stage, (node) => node.type?.name === "WallpaperLibrary"),

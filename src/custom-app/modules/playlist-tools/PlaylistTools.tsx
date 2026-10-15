@@ -6,6 +6,8 @@ import type { ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
 import { currentTrack } from "../../../shared/library";
 import { useToolkitData } from "../../hooks/useToolkitData";
+import { TrackSearch } from "../../components/TrackSearch";
+import { parseSpotifyTrackInput } from "../../../shared/track-search";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -15,7 +17,7 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
   const [uri, setUri] = ReactRuntime.useState("");
   const [working, setWorking] = ReactRuntime.useState(false);
   async function queue(uris: string[]): Promise<void> {
-    const valid = uris.filter((item) => /^spotify:(track|episode):[A-Za-z0-9]+$/.test(item));
+    const valid = uris.map(parseSpotifyTrackInput).filter((item): item is string => Boolean(item));
     if (!valid.length) { Spicetify.showNotification(t("playlist.noValid"), true); return; }
     setWorking(true);
     try {
@@ -32,9 +34,10 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
       <button type="button" disabled={working} onClick={() => { const track = currentTrack(); if (track) void queue([track.uri]); else Spicetify.showNotification(t("playlist.noCurrent"), true); }}>{t("playlist.current")}</button>
       <button type="button" disabled={working || favorites.length === 0} onClick={() => void queue(favorites.map((item) => item.uri))}>{t("playlist.allFavorites", { count: favorites.length })}</button>
     </div>
+    <TrackSearch t={t} actionLabel={t("search.queue")} onChoose={async (track) => { await queue([track.uri]); }} />
     <label htmlFor="zukato-queue-uri">{t("playlist.label")}</label>
     <div className="zukato-toolbar">
-      <input id="zukato-queue-uri" placeholder="spotify:track:…" value={uri} onChange={(event) => setUri(event.target.value)} />
+      <input id="zukato-queue-uri" placeholder="https://open.spotify.com/track/…" value={uri} onChange={(event) => setUri(event.target.value)} />
       <button type="button" disabled={working || !uri} onClick={() => void queue([uri.trim()])}>{t("playlist.queue")}</button>
     </div>
   </section>;

@@ -4,8 +4,9 @@
 // =============================================================================
 import type { ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
-import { currentTrack, toggleFavorite } from "../../../shared/library";
+import { addFavorite, currentTrack, toggleFavorite } from "../../../shared/library";
 import { TrackList } from "../../components/TrackList";
+import { TrackSearch } from "../../components/TrackSearch";
 import { useToolkitData } from "../../hooks/useToolkitData";
 
 export function Favorites({ t }: { t: Translator }): ReactElement {
@@ -19,6 +20,11 @@ export function Favorites({ t }: { t: Translator }): ReactElement {
         else Spicetify.showNotification(t("playlist.noCurrent"), true);
       }}>{t("favorites.toggle")}</button>
     </div>
+    <TrackSearch t={t} actionLabel={t("search.favorite")} onChoose={(track) => {
+      // Idempotent: ein zweiter Klick oder veralteter View darf nie entfernen.
+      const added = addFavorite(track);
+      Spicetify.showNotification(t(added ? "search.saved" : "search.alreadyFavorite"));
+    }} />
     <TrackList tracks={favorites} emptyText={t("favorites.empty")} action={toggleFavorite} actionLabel={t("common.remove")} />
   </section>;
 }

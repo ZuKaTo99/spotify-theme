@@ -3,7 +3,7 @@
 // Zweck: Manuelles Backup/Restore von Einstellungen und lokalen ZuKaTo-Daten.
 // =============================================================================
 import type { ChangeEvent, ReactElement } from "react";
-import { loadPalette, savePalette, PALETTES, type PaletteId } from "../../../shared/appearance";
+import { loadPalette, savePalette, normalizePalette } from "../../../shared/appearance";
 import { loadLibrary, normalizeLibrary, saveLibrary } from "../../../shared/library";
 import { loadSettings, normalizeSettings, saveSettings } from "../../../shared/settings";
 import {
@@ -38,8 +38,7 @@ async function importBackup(file: File): Promise<void> {
       !data.settings || !data.library) throw new Error("Keine ZuKaTo-Backupdatei (Version 1).");
   const settings = normalizeSettings(data.settings);
   const library = normalizeLibrary(data.library);
-  const palette = typeof data.palette === "string" && Object.prototype.hasOwnProperty.call(PALETTES, data.palette)
-    ? data.palette as PaletteId : "emerald";
+  const palette = normalizePalette(data.palette);
   // Bestätigung vor allen destruktiven Ersetzungen; keine automatische Import-Aktion.
   if (!window.confirm("Alle aktuellen ZuKaTo-Einstellungen, Favoriten, Notizen und den Hörverlauf durch dieses Backup ersetzen?")) return;
   saveSettings(settings);

@@ -7,8 +7,8 @@
 import type { ChangeEvent, ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
 import {
-  saveScenePreferences, validateOriginalVideoUrl, withoutScene,
-  MAX_PLAYLIST_ITEMS, MAX_PLAYLIST_SCOPES, validateOriginalRange, parseOriginalClipManifest, type ScenePreferences,
+  saveScenePreferences, withoutScene,
+  MAX_PLAYLIST_ITEMS, MAX_PLAYLIST_SCOPES, type ScenePreferences,
 } from "../../../shared/scene-playlists";
 import { deleteScene, importScene, importSceneFolder, listScenes, loadScene, type SceneEntry } from "./scene-store";
 import { groupWallpaperFolderFiles } from "./scene-folder";
@@ -23,18 +23,16 @@ interface Props {
   settings: ScenePreferences;
   onChange: (value: ScenePreferences) => void;
   onError: (message: string) => void;
+  showModeToggle?: boolean;
 }
 
 /** Lokaler Verwaltungsdialog: ändert keine Datei, die du in Wallpaper Engine bearbeitest. */
-export function SceneManager({ t, trackUri, settings, onChange, onError }: Props): ReactElement {
+export function SceneManager({ t, trackUri, settings, onChange, onError, showModeToggle = true }: Props): ReactElement {
   const [scope, setScope] = ReactRuntime.useState("default");
   const [scenes, setScenes] = ReactRuntime.useState<SceneEntry[]>([]);
   const [selected, setSelected] = ReactRuntime.useState("");
   const [previewId, setPreviewId] = ReactRuntime.useState("");
   const [loaded, setLoaded] = ReactRuntime.useState(false);
-  const [urlDraft, setUrlDraft] = ReactRuntime.useState("");
-  const [rangeStart, setRangeStart] = ReactRuntime.useState("0");
-  const [rangeEnd, setRangeEnd] = ReactRuntime.useState("");
   const [revision, setRevision] = ReactRuntime.useState(0);
   const [busy, setBusy] = ReactRuntime.useState(false);
   const [importStatus, setImportStatus] = ReactRuntime.useState("");
@@ -47,13 +45,6 @@ export function SceneManager({ t, trackUri, settings, onChange, onError }: Props
       .catch((cause: unknown) => { if (active) onError(String(cause)); });
     return () => { active = false; };
   }, [revision]);
-
-  ReactRuntime.useEffect(() => {
-    setUrlDraft(settings.originals[effectiveScope] ?? "");
-    const range = settings.originalRanges[effectiveScope];
-    setRangeStart(String(range?.start ?? 0));
-    setRangeEnd(range?.end === null || range?.end === undefined ? "" : String(range.end));
-  }, [effectiveScope, settings.originals, settings.originalRanges]);
 
   /** Persistenz zuerst, React-State erst nach erfolgreichem Schreibvorgang. */
   function persist(changes: Partial<ScenePreferences>): void {
@@ -174,57 +165,19 @@ export function SceneManager({ t, trackUri, settings, onChange, onError }: Props
     changePlaylist(next);
   }
 
-  /**
-   * JSON-Liste erlaubt viele manuelle Originalclip-Zuordnungen auf einmal.
-   * Eine URL ist nur eine externe Quelle; wir laden keine Videos herunter.
-   */
-  async function onOriginalManifest(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = "";
-    if (!file) return;
-    setBusy(true);
-    try {
-      if (file.size > 100_000) throw new Error(t("viz.manifestTooLarge"));
-      const imported = parseOriginalClipManifest(JSON.parse(await file.text()) as unknown);
-      const originals = { ...settings.originals, ...imported.originals };
-      if (Object.keys(originals).length > MAX_PLAYLIST_SCOPES)
-        throw new Error(t("viz.sceneScopesFull"));
-      persist({ originals, originalRanges: { ...settings.originalRanges, ...imported.originalRanges } });
-      setImportStatus(t("viz.manifestImported", { count: String(Object.keys(imported.originals).length) }));
-    } catch (cause) { onError(String(cause)); }
-    finally { setBusy(false); }
-  }
-
-  function saveOriginal(): void {
-    try {
-      const url = validateOriginalVideoUrl(urlDraft);
-      const originals = { ...settings.originals };
-      const originalRanges = { ...settings.originalRanges };
-      if (url) {
-        originals[effectiveScope] = url;
-        originalRanges[effectiveScope] = validateOriginalRange(Number(rangeStart),
-          rangeEnd.trim() ? Number(rangeEnd) : null);
-      } else {
-        delete originals[effectiveScope];
-        delete originalRanges[effectiveScope];
-      }
-      persist({ originals, originalRanges });
-    } catch (cause) { onError(String(cause)); }
-  }
-
   const totalMiB = (scenes.reduce((sum, item) => sum + item.bytes, 0) / 1048576).toFixed(1);
   const missingCount = loaded ? new Set(Object.values(settings.playlists).flat()
     .filter((id) => !scenes.some((entry) => entry.id === id))).size : 0;
 
   return <section className="zukato-viz__controls zukato-viz__scene-manager">
-    <h3>{t("viz.sceneHeading")}</h3>
+    <h3>{t("viz.sceneHeadingSimplified")}</h3>
     <p>{t("viz.sceneHelp")}</p>
     <div className="zukato-viz__scene-row">
-      <label className="zukato-viz__checkbox">
-        <input type="checkbox" checked={settings.mode === "wallpapers"}
-          onChange={(event) => persist({ mode: event.currentTarget.checked ? "wallpapers" : "original" })} />
-        {t("viz.wallpapersEnabled")}
-      </label>
+      {showModeToggle && <label className="zukato-viz__checkbox">
+        <input type="checkbox" checked={settings.mode === "original"}
+          onChange={(event) => persist({ mode: event.currentTarget.checked ? "original" : "wallpapers" })} />
+        {t("viz.originalToggle")}
+      </label>}
       <label>{t("viz.sceneScope")}
         <select value={scope} onChange={(event) => setScope(event.currentTarget.value)}>
           <option value="default">{t("viz.default")}</option>
@@ -277,21 +230,6 @@ export function SceneManager({ t, trackUri, settings, onChange, onError }: Props
       <button type="button" title={t("viz.sceneDown")} disabled={index === playlist.length - 1} onClick={() => move(index, 1)}>↓</button>
       <button type="button" title={t("viz.sceneRemove")} onClick={() => changePlaylist(playlist.filter((entry) => entry !== id))}>×</button>
     </li>)}</ol> : <p className="zukato-viz__hint">{t("viz.sceneEmpty")}</p>}
-    <label>{t("viz.sceneOriginalUrl")}
-      <input type="url" value={urlDraft} placeholder="https://example.org/clip.webm"
-        onChange={(event) => setUrlDraft(event.currentTarget.value)} />
-    </label>
-    <div className="zukato-viz__scene-row">
-      <label>{t("viz.sceneClipStart")}<input type="number" min={0} max={14400} step="0.1"
-        value={rangeStart} onChange={(event) => setRangeStart(event.currentTarget.value)} /></label>
-      <label>{t("viz.sceneClipEnd")}<input type="number" min={0} max={14400} step="0.1"
-        placeholder={t("viz.sceneClipFull")} value={rangeEnd} onChange={(event) => setRangeEnd(event.currentTarget.value)} /></label>
-    </div>
-    <button type="button" onClick={saveOriginal}>{t("viz.sceneSaveUrl")}</button>
-    <label className="zukato-viz__upload">{t("viz.manifestUpload")}
-      <input type="file" accept=".json,application/json" disabled={busy}
-        onChange={(event) => { void onOriginalManifest(event); }} />
-    </label>
-    <p className="zukato-viz__hint">{t("viz.sceneOnlineHelp")}</p>
+    <p className="zukato-viz__hint">{t("viz.originalAutoNote")}</p>
   </section>;
 }

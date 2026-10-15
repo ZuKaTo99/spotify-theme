@@ -107,6 +107,22 @@ export function sceneList(settings: ScenePreferences, trackUri: string): string[
 }
 
 /**
+ * Einheitliche Position der Ordner-Wiedergabe für Bühne UND Statusanzeige.
+ * Bisher zeigte die Statusleiste einen falschen Index nach dem Wechsel eines
+ * importierten Ordners, da sie den gespeicherten Playlist-Start ignorierte.
+ * Diese Funktion hat keine Nebenwirkungen und lässt sich ohne Spotify testen.
+ */
+export function scenePosition(settings: ScenePreferences, trackUri: string, songIndex: number): { index: number; total: number } {
+  const entries = sceneList(settings, trackUri);
+  if (!entries.length) return { index: 0, total: 0 };
+  const scope = settings.playlists[trackUri] ? trackUri : "default";
+  const offset = settings.starts[scope] ?? 0;
+  const safeIndex = Number.isFinite(songIndex) ? Math.max(0, Math.floor(songIndex)) : 0;
+  const position = Math.max(0, safeIndex - offset) % entries.length;
+  return { index: position, total: entries.length };
+}
+
+/**
  * Von der Nutzerin/dem Nutzer gepflegte Quellenliste importieren, OHNE
  * Videodateien herunterzuladen. Schema:
  * {"format":"zukato-original-clips-v1","videos":[
@@ -155,13 +171,8 @@ export function resolveScene(
   }
   const entries = sceneList(settings, trackUri);
   if (entries.length) {
-    const safeIndex = Number.isFinite(songIndex) ? Math.max(0, Math.floor(songIndex)) : 0;
-    // Ein neuer Hauptordner beginnt beim NÄCHSTEN neuen Song wieder mit
-    // Eintrag 1, unabhängig davon, wie viele Songs vorher abgespielt wurden.
-    const scope = settings.playlists[trackUri] ? trackUri : "default";
-    const offset = settings.starts[scope] ?? 0;
-    const relative = Math.max(0, safeIndex - offset);
-    return { kind: "scene", id: entries[relative % entries.length] };
+    // Statusleiste und echte Wiedergabe nutzen exakt denselben Algorithmus.
+    return { kind: "scene", id: entries[scenePosition(settings, trackUri, songIndex).index] };
   }
   // Kompatibilität: ein altes lokales Video bleibt nutzbar, sofern noch kein
   // neuer Wallpaper-Ordner gewählt wurde.

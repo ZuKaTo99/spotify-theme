@@ -17,6 +17,7 @@ import {
   MAX_LRC_BYTES, saveLyrics, saveWallpaper,
 } from "./media-store";
 import { activeLyricIndex, parseLrc, type TimedLyricLine } from "./lyrics";
+import { lookupAutomaticLyrics, LYRICS_PROVIDER_URL, type AutomaticLyrics } from "./automatic-lyrics";
 import { useMicrophoneSpectrum } from "./useMicrophoneSpectrum";
 import { WallpaperBackdrop, type WallpaperInfo } from "./WallpaperBackdrop";
 import { WallpaperLibrary } from "./WallpaperLibrary";
@@ -24,11 +25,12 @@ import { VisualizerPresets } from "./VisualizerPresets";
 import { LyricsEditor } from "./LyricsEditor";
 import { createVideoThumbnail } from "./video-thumbnail";
 import {
-  loadScenePreferences, resolveScene, sceneList, SCENE_PLAYLIST_CHANGED_EVENT,
+  loadScenePreferences, saveScenePreferences, resolveScene, scenePosition, SCENE_PLAYLIST_CHANGED_EVENT,
 } from "../../../shared/scene-playlists";
 import { SceneBackdrop } from "./SceneBackdrop";
 import { SceneManager } from "./SceneManager";
 import { loadSongSession, observeSongSession, SONG_SESSION_EVENT } from "../../../shared/song-session";
+import { readVisualizerPanel, rememberVisualizerPanel, sourceStatus, VISUALIZER_PANELS, type VisualizerPanel } from "../../../shared/visualizer-workspace";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -37,6 +39,7 @@ interface PlayerSnapshot {
   uri: string;
   title: string;
   artist: string;
+  album: string;
   duration: number;
   progress: number;
   playing: boolean;
@@ -49,6 +52,7 @@ function snapshot(): PlayerSnapshot {
     uri: track?.uri ?? "",
     title: track?.title ?? "",
     artist: track?.artist ?? "",
+    album: track?.album ?? "",
     duration: Math.max(0, Spicetify.Player.getDuration() || 0),
     progress: Math.max(0, Spicetify.Player.getProgress() || 0),
     playing: Spicetify.Player.isPlaying(),
@@ -69,6 +73,14 @@ function RangeControl({ label, value, min, max, step = 1, suffix = "", onChange 
 /** Die Seite hält nur UI-State; große Dateien verbleiben lokal in IndexedDB. */
 export function Visualizer({ t }: { t: Translator }): ReactElement {
   const [player, setPlayer] = ReactRuntime.useState(snapshot);
+  // Die UI-Navigation ist bewusst vom Media-Store getrennt: Beim Wechsel
+  // zwischen Registern wird keine Datei geladen, gelöscht oder neu zugeordnet.
+  const [activePanel, setActivePanel] = ReactRuntime.useState(readVisualizerPanel);
+  const [cinemaMode, setCinemaMode] = ReactRuntime.useState(false);
+  function selectPanel(panel: VisualizerPanel): void {
+    rememberVisualizerPanel(panel);
+    setActivePanel(panel);
+  }
   // Der Zähler ist der Index des SONGS in der Ordnerfolge – niemals Sekunden.
   // Spotify-Repeats derselben URI lösen ebenfalls songchange aus und zählen.
   // Persistenter Songlauf statt lokalem Seitencounter. Dadurch bleibt die
@@ -88,7 +100,14 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   const [lyricsRevision, setLyricsRevision] = ReactRuntime.useState(0);
   const [wallpaperInfo, setWallpaperInfo] = ReactRuntime.useState<WallpaperInfo>({ filename: "", key: "" });
   const [lyrics, setLyrics] = ReactRuntime.useState<TimedLyricLine[]>([]);
-  const [lyricsLoaded, setLyricsLoaded] = ReactRuntime.useState(false);
+  // Eigene LRCs sind Overrides; automatische Texte werden nie in IndexedDB geschrieben.
+  const [localLyricsLoaded, setLocalLyricsLoaded] = ReactRuntime.useState(false);
+  const [plainLyrics, setPlainLyrics] = ReactRuntime.useState<string[]>([]);
+  const [remoteLyrics, setRemoteLyrics] = ReactRuntime.useState<AutomaticLyrics | null>(null);
+  const [lyricsState, setLyricsState] = ReactRuntime.useState<"idle" | "loading" | "local" | "synced" | "plain" | "instrumental" | "not-found" | "rate-limited" | "error">("idle");
+  const [lyricsRetry, setLyricsRetry] = ReactRuntime.useState(0);
+  // Erzwingt eine neue API-Anfrage nur beim gezielten Klick auf „Erneut suchen“.
+  const retryUriRef = ReactRuntime.useRef("");
   const [message, setMessage] = ReactRuntime.useState("");
   const [error, setError] = ReactRuntime.useState("");
   const [busy, setBusy] = ReactRuntime.useState(false);
@@ -154,7 +173,7 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
       const next = snapshot();
       // Bei unverändertem Player keine React-Arbeit erzwingen.
       return previous.uri === next.uri && previous.title === next.title &&
-        previous.artist === next.artist && previous.playing === next.playing &&
+        previous.artist === next.artist && previous.album === next.album && previous.playing === next.playing &&
         previous.progress === next.progress && previous.duration === next.duration
         ? previous : next;
     });
@@ -168,18 +187,61 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
     };
   }, []);
 
-  // Nie bei jeder Progress-Aktualisierung laden: Lyrics nur beim Titelwechsel.
+  // Auto-Lyrics: Jede neue Song-URI startet eine frische, abbrechbare Abfrage.
+  // Lokale LRC-Dateien behalten Vorrang. Änderungen am Fortschrittsbalken
+  // dürfen NICHT erneut das Netz anfragen. Langsame Altantworten werden
+  // durch AbortController und das alive-Flag zuverlässig verworfen.
   ReactRuntime.useEffect(() => {
     let alive = true;
+    const controller = new AbortController();
     setLyrics([]);
-    setLyricsLoaded(false);
-    void loadLyrics(player.uri).then((content) => {
-      if (!alive) return;
-      setLyrics(content ? parseLrc(content) : []);
-      setLyricsLoaded(Boolean(content));
-    }).catch((cause: unknown) => { if (alive) setError(String(cause)); });
-    return () => { alive = false; };
-  }, [player.uri, lyricsRevision]);
+    setPlainLyrics([]);
+    setRemoteLyrics(null);
+    setLocalLyricsLoaded(false);
+    setLyricsState(player.uri && config.lyricsEnabled ? "loading" : "idle");
+
+    async function loadCurrentLyrics(): Promise<void> {
+      if (!player.uri || !config.lyricsEnabled) return;
+      try {
+        const own = await loadLyrics(player.uri);
+        if (!alive) return;
+        const localLines = own ? parseLrc(own) : [];
+        if (localLines.length) {
+          setLyrics(localLines);
+          setLocalLyricsLoaded(true);
+          setLyricsState("local");
+          return;
+        }
+        // Songmetadaten stammen aus dem Spotify-Player; LRCLIB benötigt
+        // nur Titel, Künstler, Album und Dauer. Keine Account-/Tokendaten.
+        const forceRefresh = retryUriRef.current === player.uri;
+        retryUriRef.current = "";
+        const result = await lookupAutomaticLyrics({
+          uri: player.uri, title: player.title, artist: player.artist,
+          album: player.album, durationMs: player.duration,
+        }, { signal: controller.signal, skipCache: forceRefresh });
+        if (!alive || controller.signal.aborted) return;
+        setRemoteLyrics(result);
+        if (result.kind === "synced") {
+          const lines = parseLrc(result.text);
+          setLyrics(lines);
+          setLyricsState(lines.length ? "synced" : "not-found");
+        } else if (result.kind === "plain") {
+          setPlainLyrics(result.lines);
+          setLyricsState("plain");
+        } else {
+          setLyricsState(result.kind);
+        }
+      } catch (cause) {
+        if (alive && !controller.signal.aborted) {
+          console.warn("[ZuKaTo] Lyrics konnten nicht geladen werden.", cause);
+          setLyricsState("error");
+        }
+      }
+    }
+    void loadCurrentLyrics();
+    return () => { alive = false; controller.abort(); };
+  }, [player.uri, lyricsRevision, lyricsRetry, config.lyricsEnabled]);
 
   /** Persistiert einen einzelnen Reglerwert sofort. */
   function changeConfig(changes: Partial<VisualizerConfig>): void {
@@ -272,6 +334,11 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   const canAssignTrack = Boolean(player.uri);
   const selectedScope = assignment === "track" ? player.uri : DEFAULT_WALLPAPER_KEY;
   const chosenScene = resolveScene(sceneSettings, player.uri, songRun);
+  // Statusanzeige aus tatsächlich ausgewählter Quelle und geladenem Legacyvideo.
+  // "missing" bedeutet gerade NICHT, dass bereits automatisch ein Originalclip
+  // im Internet gefunden wurde (dafür gibt es derzeit keine legitime Quelle).
+  const backgroundStatus = sourceStatus(chosenScene.kind, Boolean(wallpaperInfo.filename));
+  const sceneOrder = scenePosition(sceneSettings, player.uri, songRun);
   const stageStyle = { "--zukato-video-dim": config.dim / 100, "--zukato-video-blur": `${config.blur}px`,
     "--zukato-video-saturation": `${config.videoSaturation}%`,
     "--zukato-video-hue": `${config.videoHue}deg`, "--zukato-vignette": config.vignette / 100,
@@ -286,8 +353,31 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
     setError(message === "VIDEO_UNSUPPORTED" ? t("viz.unsupportedVideo") : message);
   }
 
-  return <section className="zukato-viz zukato-panel">
-    <p>{t("viz.intro")}</p>
+  return <section className={`zukato-viz zukato-panel${cinemaMode ? " zukato-viz--cinema" : ""}`}>
+    {!cinemaMode && <p>{t("viz.intro")}</p>}
+    <div className="zukato-viz__commandbar">
+      <div className="zukato-viz__commandbar-info">
+        <strong>{player.title || t("viz.noTrack")}</strong>
+        <small>{player.artist || t("viz.noTrack")} · {t(`viz.status.${backgroundStatus}`)}</small>
+      </div>
+      <div className="zukato-viz__commandbar-actions">
+        <button type="button" aria-pressed={sceneSettings.mode === "original"}
+          title={t("viz.originalModeInfo")}
+          onClick={() => {
+            try {
+              const mode = sceneSettings.mode === "original" ? "wallpapers" : "original";
+              // Nur den Quellenmodus umschalten; alle bisher importierten
+              // HTML-Projekte, Clip-Verweise und Playlists bleiben erhalten.
+              setSceneSettings(saveScenePreferences({ ...sceneSettings, mode }));
+              setError("");
+            } catch (cause) { setError(String(cause)); }
+          }}>{sceneSettings.mode === "original" ? t("viz.switchToWallpapers") : t("viz.switchToOriginals")}</button>
+        <button type="button" aria-pressed={cinemaMode} onClick={() => setCinemaMode((previous) => !previous)}>
+          {cinemaMode ? t("viz.cinemaExit") : t("viz.cinemaEnter")}
+        </button>
+        <button type="button" onClick={enterFullscreen}>{t("viz.fullscreen")}</button>
+      </div>
+    </div>
     <div className="zukato-viz__stage" ref={stageRef} style={stageStyle}>
       {chosenScene.kind === "missing-original" ? <div className="zukato-viz__missing-source" role="status">
         {t("viz.originalMissing")}
@@ -309,28 +399,44 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           style={{ textAlign: config.lyricAlign }} aria-live="off">
           {lines.length ? lines.map((line, offset) => <p key={`${line.timeMs}-${offset}`}
             className={lineStart + offset === index ? "is-current" : ""}>{line.text}</p>)
-            : <span className="zukato-viz__hint">{t("viz.noLyrics")}</span>}
+            : plainLyrics.length ? <div className="zukato-viz__plain" tabIndex={0} aria-label={t("viz.plainLyricsLabel")}>
+              {plainLyrics.map((line, offset) => <p key={offset}>{line}</p>)}
+            </div> : <span className="zukato-viz__hint">{lyricsState === "loading" ? t("viz.lyricsLoading")
+              : lyricsState === "instrumental" ? t("viz.lyricsInstrumental")
+                : lyricsState === "rate-limited" ? t("viz.lyricsRateLimited")
+                  : lyricsState === "error" ? t("viz.lyricsError")
+                    : lyricsState === "idle" ? t("viz.noTrack") : t("viz.noLyrics")}</span>}
         </div>}
       </div>
-      <button type="button" className="zukato-viz__fullscreen" onClick={enterFullscreen}>{t("viz.fullscreen")}</button>
       <div className="zukato-viz__timeline" aria-hidden="true"><div style={{ width: `${progress}%` }} /></div>
     </div>
-    <div className="zukato-toolbar">
-      <span>{chosenScene.kind === "scene" ? `${t("viz.background")}: ${t("viz.sceneCurrent")} ${(songRun % Math.max(1, sceneList(sceneSettings, player.uri).length)) + 1}`
+    {!cinemaMode && <div className="zukato-toolbar">
+      <span>{chosenScene.kind === "scene" ? `${t("viz.background")}: ${t("viz.sceneCurrent")} ${sceneOrder.index + 1}`
         : chosenScene.kind === "original" ? t("viz.sceneOriginalActive")
         : chosenScene.kind === "missing-original" ? t("viz.originalMissing")
         : wallpaperInfo.filename ? `${t("viz.background")}: ${wallpaperInfo.filename} (${wallpaperInfo.key.endsWith(":default") ? t("viz.default") : t("viz.forTrack")})` : t("viz.noWallpaper")}</span>
       <span>{Spicetify.Player.formatTime(player.progress)} / {Spicetify.Player.formatTime(player.duration)} · {player.playing ? t("visualizer.playing") : t("visualizer.paused")}</span>
-    </div>
-    <div className="zukato-player-monitor__buttons">
+    </div>}
+    {!cinemaMode && <div className="zukato-player-monitor__buttons">
       <button type="button" onClick={() => Spicetify.Player.back()}>⏮</button>
       <button type="button" onClick={() => Spicetify.Player.togglePlay()}>{player.playing ? t("visualizer.pause") : t("visualizer.play")}</button>
       <button type="button" onClick={() => Spicetify.Player.next()}>⏭</button>
-    </div>
+    </div>}
     {message && <p role="status">{message}</p>}
     {error && <p className="zukato-error" role="alert">{error}</p>}
-    <div className="zukato-viz__settings">
-      <section className="zukato-viz__controls">
+    {!cinemaMode && <>
+      <nav className="zukato-viz__panel-tabs" aria-label={t("viz.panelsLabel")}>
+        {VISUALIZER_PANELS.map((panel) => <button key={panel} type="button"
+          className={activePanel === panel ? "is-active" : ""}
+          aria-current={activePanel === panel ? "page" : undefined}
+          onClick={() => selectPanel(panel)}>{t(`viz.panel.${panel}`)}</button>)}
+      </nav>
+      <div className="zukato-viz__settings">
+      {activePanel === "wallpapers" && <>
+        <SceneManager t={t} trackUri={player.uri} settings={sceneSettings} onChange={setSceneSettings} onError={setError} showModeToggle={false} />
+        <details className="zukato-viz__library-panel">
+        <summary>{t("viz.manageLegacyLibrary")}</summary>
+        <section className="zukato-viz__controls">
         <h3>{t("viz.wallpaperHeading")}</h3>
         <p>{t("viz.wallpaperHelp")}</p>
         <label>{t("viz.assignment")}
@@ -351,6 +457,8 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           </select>
         </label>
         <RangeControl label={t("viz.dim")} value={config.dim} min={0} max={90} suffix="%" onChange={(dim) => changeConfig({ dim })} />
+        <details className="zukato-viz__options">
+          <summary>{t("viz.moreVideoOptions")}</summary>
         <RangeControl label={t("viz.blur")} value={config.blur} min={0} max={20} suffix="px" onChange={(blur) => changeConfig({ blur })} />
         <label>{t("viz.videoSync")}
           <select value={config.videoSync} onChange={(event) => changeConfig({ videoSync: event.currentTarget.value as VisualizerConfig["videoSync"] })}>
@@ -365,8 +473,14 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         <RangeControl label={t("viz.videoHue")} value={config.videoHue} min={-180} max={180} step={5} suffix="°" onChange={(videoHue) => changeConfig({ videoHue })} />
         <RangeControl label={t("viz.vignette")} value={config.vignette} min={0} max={100} step={5} suffix="%" onChange={(vignette) => changeConfig({ vignette })} />
         <RangeControl label={t("viz.transition")} value={config.transitionMs} min={0} max={3000} step={100} suffix=" ms" onChange={(transitionMs) => changeConfig({ transitionMs })} />
-      </section>
-      <section className="zukato-viz__controls">
+        </details>
+        </section>
+        <WallpaperLibrary t={t} trackUri={player.uri} revision={mediaRevision}
+          onUpdated={() => { setMediaRevision((value) => value + 1); setMessage(t("viz.saved")); setError(""); }}
+          onError={backdropError} />
+        </details>
+      </>}
+      {activePanel === "audio" && <section className="zukato-viz__controls">
         <h3>{t("viz.audioHeading")}</h3>
         <p>{t("viz.audioHelp")}</p>
         <label>{t("viz.spectrumMode")}
@@ -380,6 +494,8 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           {spectrum.active ? t("viz.stopMic") : t("viz.startMic")}
         </button>
         {spectrum.error && <p className="zukato-error" role="alert">{spectrum.error}</p>}
+        <details className="zukato-viz__options">
+          <summary>{t("viz.moreAudioOptions")}</summary>
         <RangeControl label={t("viz.sensitivity")} value={config.sensitivity} min={0.5} max={5} step={0.1} onChange={(sensitivity) => changeConfig({ sensitivity })} />
         <RangeControl label={t("viz.smoothing")} value={config.smoothing} min={0} max={0.95} step={0.05} onChange={(smoothing) => changeConfig({ smoothing })} />
         <RangeControl label={t("viz.bars")} value={config.bars} min={12} max={128} step={4} onChange={(bars) => changeConfig({ bars })} />
@@ -389,22 +505,46 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           suffix="%" onChange={(spectrumOpacity) => changeConfig({ spectrumOpacity })} />
         <RangeControl label={t("viz.spectrumGlow")} value={config.spectrumGlow} min={0} max={30}
           suffix="px" onChange={(spectrumGlow) => changeConfig({ spectrumGlow })} />
-      </section>
-      <section className="zukato-viz__controls">
+        </details>
+      </section>}
+      {activePanel === "lyrics" && <section className="zukato-viz__controls">
         <h3>{t("viz.lyricsHeading")}</h3>
         <p>{t("viz.lyricsHelp")}</p>
         <label className="zukato-viz__checkbox"><input type="checkbox" checked={config.lyricsEnabled} onChange={(event) => changeConfig({ lyricsEnabled: event.currentTarget.checked })} /> {t("viz.showLyrics")}</label>
         <label className="zukato-viz__checkbox"><input type="checkbox" checked={config.showTrackInfo} onChange={(event) => changeConfig({ showTrackInfo: event.currentTarget.checked })} /> {t("viz.showTitle")}</label>
-        <div className="zukato-toolbar">
-          <label className="zukato-viz__upload">{t("viz.pickLyrics")}
-            <input type="file" accept=".lrc,text/plain" disabled={busy || !canAssignTrack} onChange={onLyricsChange} />
-          </label>
-          <button type="button" disabled={busy || !canAssignTrack || !lyricsLoaded} onClick={() => void runFileAction(() => deleteLyrics(player.uri), "lyrics")}>{t("viz.deleteLyrics")}</button>
+        <div className="zukato-viz__lyrics-source" role="status">
+          <span>{lyricsState === "local" ? t("viz.lyricsOwn")
+            : lyricsState === "synced" ? t("viz.lyricsAutoSynced")
+              : lyricsState === "plain" ? t("viz.lyricsAutoPlain")
+                : lyricsState === "loading" ? t("viz.lyricsLoading")
+                  : lyricsState === "instrumental" ? t("viz.lyricsInstrumental")
+                    : lyricsState === "rate-limited" ? t("viz.lyricsRateLimited")
+                      : lyricsState === "error" ? t("viz.lyricsError") : t("viz.noLyrics")}</span>
+          {(lyricsState === "synced" || lyricsState === "plain") && remoteLyrics && "sourceId" in remoteLyrics &&
+            <a href={`${LYRICS_PROVIDER_URL}/api/get/${remoteLyrics.sourceId}`}
+              target="_blank" rel="noopener noreferrer">{t("viz.lyricsSource")}: LRCLIB</a>}
+          {(lyricsState === "not-found" || lyricsState === "error" || lyricsState === "rate-limited") &&
+            <button type="button" disabled={!canAssignTrack || busy} onClick={() => { retryUriRef.current = player.uri; setLyricsRetry((value) => value + 1); }}>{t("viz.lyricsRetry")}</button>}
         </div>
-        <LyricsEditor t={t} uri={player.uri} revision={lyricsRevision}
-          onUpdated={() => setLyricsRevision((value) => value + 1)} onError={setError}
-          progressMs={player.progress} />
+        <details className="zukato-viz__lyrics-editor">
+          <summary>{t("viz.lyricsAdvanced")}</summary>
+          <p className="zukato-viz__hint">{t("viz.lyricsAdvancedHelp")}</p>
+          <div className="zukato-toolbar">
+            <label className="zukato-viz__upload">{t("viz.pickLyrics")}
+              <input type="file" accept=".lrc,text/plain" disabled={busy || !canAssignTrack} onChange={onLyricsChange} />
+            </label>
+            <button type="button" disabled={busy || !canAssignTrack || !localLyricsLoaded}
+              onClick={() => void runFileAction(() => deleteLyrics(player.uri), "lyrics")}>{t("viz.deleteLyrics")}</button>
+          </div>
+          <LyricsEditor t={t} uri={player.uri} revision={lyricsRevision}
+            onUpdated={() => setLyricsRevision((value) => value + 1)} onError={setError}
+            progressMs={player.progress} />
+        </details>
         <RangeControl label={t("viz.lyricScale")} value={config.lyricScale} min={0.7} max={1.8} step={0.1} suffix="×" onChange={(lyricScale) => changeConfig({ lyricScale })} />
+        <label>{t("viz.lyricColor")} <input type="color" value={config.lyricColor} onChange={(event) => changeConfig({ lyricColor: event.currentTarget.value })} /></label>
+        <label>{t("viz.lyricHighlight")} <input type="color" value={config.lyricHighlight} onChange={(event) => changeConfig({ lyricHighlight: event.currentTarget.value })} /></label>
+        <details className="zukato-viz__options">
+          <summary>{t("viz.moreLyricsOptions")}</summary>
         <RangeControl label={t("viz.lyricOffset")} value={config.lyricOffsetMs} min={-5000} max={5000} step={100} suffix=" ms" onChange={(lyricOffsetMs) => changeConfig({ lyricOffsetMs })} />
         <label>{t("viz.lyricAlign")}
           <select value={config.lyricAlign} onChange={(event) => changeConfig({ lyricAlign: event.currentTarget.value as VisualizerConfig["lyricAlign"] })}>
@@ -421,13 +561,13 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
             <option value={1}>1</option><option value={3}>3</option><option value={5}>5</option>
           </select>
         </label>
-        <label>{t("viz.lyricColor")} <input type="color" value={config.lyricColor} onChange={(event) => changeConfig({ lyricColor: event.currentTarget.value })} /></label>
-        <label>{t("viz.lyricHighlight")} <input type="color" value={config.lyricHighlight} onChange={(event) => changeConfig({ lyricHighlight: event.currentTarget.value })} /></label>
         <RangeControl label={t("viz.lyricShadow")} value={config.lyricShadow} min={0} max={100} suffix="%" onChange={(lyricShadow) => changeConfig({ lyricShadow })} />
-        <span className="zukato-viz__hint">{lyrics.length ? t("viz.lyricsReady", { count: String(lyrics.length) }) : t("viz.noLyrics")}</span>
-      </section>
+        </details>
+        <span className="zukato-viz__hint">{lyrics.length ? t("viz.lyricsReady", { count: String(lyrics.length) })
+          : lyricsState === "plain" ? t("viz.lyricsNoSync") : t("viz.lyricsAutoHelp")}</span>
+      </section>}
     </div>
-    <section className="zukato-viz__controls zukato-viz__track-scenes">
+    {activePanel === "advanced" && <section className="zukato-viz__controls zukato-viz__track-scenes">
       <h3>{t("viz.trackSceneHeading")}</h3>
       <p>{t("viz.trackSceneHelp")}</p>
       <strong>{trackSceneUri === player.uri && player.uri ? t("viz.trackSceneActive") : t("viz.trackSceneGlobal")}</strong>
@@ -435,12 +575,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         <button type="button" disabled={!player.uri} onClick={saveCurrentTrackScene}>{t("viz.trackSceneSave")}</button>
         <button type="button" disabled={!player.uri || trackSceneUri !== player.uri} onClick={resetCurrentTrackScene}>{t("viz.trackSceneReset")}</button>
       </div>
-    </section>
-    <SceneManager t={t} trackUri={player.uri} settings={sceneSettings} onChange={setSceneSettings} onError={setError} />
-    <VisualizerPresets t={t} config={config} onApply={(next) => { applyConfig(next); setMessage(t("viz.presetApplied")); setError(""); }}
-      onError={(cause) => setError(cause)} />
-    <WallpaperLibrary t={t} trackUri={player.uri} revision={mediaRevision}
-      onUpdated={() => { setMediaRevision((value) => value + 1); setMessage(t("viz.saved")); setError(""); }}
-      onError={backdropError} />
+    </section>}
+    {activePanel === "advanced" && <VisualizerPresets t={t} config={config} onApply={(next) => { applyConfig(next); setMessage(t("viz.presetApplied")); setError(""); }}
+      onError={(cause) => setError(cause)} />}
+    </>}
   </section>;
 }

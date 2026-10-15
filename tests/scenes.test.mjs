@@ -37,6 +37,32 @@ test("Wallpaper-Ordner: ein Wallpaper pro Song; erst beim nächsten Titel zurüc
   assert.deepEqual(playlist.resolveScene(settings, uri, 0), { kind: "scene", id: sceneA });
 });
 
+// Der im UI angezeigte Wallpaper-Index muss dieselben Startwerte nutzen
+// wie der tatsächliche HTML-/Video-Player (Regression für neue Ordner).
+test("Wallpaper-Status: importierter Ordner beginnt beim nächsten Song bei Nummer 1", () => {
+  const preferences = playlist.normalizeScenePreferences({
+    playlists: { default: [sceneA, sceneB] },
+    starts: { default: 8 },
+  });
+  assert.deepEqual(playlist.scenePosition(preferences, uri, 7), { index: 0, total: 2 });
+  assert.deepEqual(playlist.scenePosition(preferences, uri, 8), { index: 0, total: 2 });
+  assert.deepEqual(playlist.scenePosition(preferences, uri, 9), { index: 1, total: 2 });
+  assert.deepEqual(playlist.scenePosition(preferences, uri, 10), { index: 0, total: 2 });
+  assert.equal(playlist.resolveScene(preferences, uri, 9).id,
+    preferences.playlists.default[playlist.scenePosition(preferences, uri, 9).index]);
+});
+
+test("Wallpaper-Status: Songliste erhält eigene Startposition", () => {
+  const preferences = playlist.normalizeScenePreferences({
+    playlists: { default: [sceneA, sceneB], [uri]: [sceneB, sceneA] },
+    starts: { default: 4, [uri]: 20 },
+  });
+  assert.deepEqual(playlist.scenePosition(preferences, uri, 21), { index: 1, total: 2 });
+  assert.deepEqual(playlist.scenePosition(preferences, "spotify:track:OTHER", 21), { index: 1, total: 2 });
+  assert.deepEqual(playlist.scenePosition(preferences, "spotify:track:OTHER", NaN), { index: 0, total: 2 });
+  assert.deepEqual(playlist.scenePosition({ ...preferences, playlists: {} }, uri, 0), { index: 0, total: 0 });
+});
+
 test("Quellen-Schalter AUS benutzt nie heimlich HTML-Wallpapers", () => {
   const settings = playlist.normalizeScenePreferences({ mode: "original", playlists: { default: [sceneA] },
     originals: { default: "https://clips.example.net/v.webm" } });

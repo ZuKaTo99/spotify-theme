@@ -166,100 +166,46 @@ export function FeatureManager(
         key={definition.id}
         className="zukato-feature"
       >
-        <header className="zukato-feature__header">
-          <h4>
-            {visibleTitle}
-          </h4>
-
-          {definition.required && (
-            <span>
-              {props.t(
-                "modules.required",
-              )}
-            </span>
-          )}
-        </header>
-
-        <div className="zukato-feature__field">
-          <label htmlFor={enabledId}>
-            {props.t(
-              "modules.enabled",
-            )}
+        {/* Standardansicht = nur das Wesentliche. Seltene Optionen eingeklappt. */}
+        <div className="zukato-feature__compact">
+          <div>
+            <h4>{visibleTitle}</h4>
+            {definition.required && <small>{props.t("modules.required")}</small>}
+          </div>
+          <label className="zukato-toggle">
+            <input id={enabledId} type="checkbox" checked={preference.enabled}
+              disabled={definition.required} onChange={handleEnabledChange} />
+            <span>{props.t("modules.enabled")}</span>
           </label>
-
-          <input
-            id={enabledId}
-            type="checkbox"
-            checked={preference.enabled}
-            disabled={definition.required}
-            onChange={
-              handleEnabledChange
-            }
-          />
         </div>
-
-        <div className="zukato-feature__field">
-          <label htmlFor={titleId}>
-            {props.t(
-              "modules.displayTitle",
-            )}
-          </label>
-
-          <input
-            id={titleId}
-            type="text"
-            maxLength={60}
-            value={
-              titleDrafts[definition.id] ?? preference.customTitle
-            }
-            onBlur={() => {
-              const draft = titleDrafts[definition.id];
-              if (draft !== undefined) {
-                updateFeature(definition.id, { customTitle: draft });
-                setTitleDrafts((previous) => {
-                  const next = { ...previous };
-                  delete next[definition.id];
-                  return next;
-                });
-              }
-            }}
-            onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-            disabled={
-              !definition.customizableTitle
-            }
-            placeholder={
-              props.t(
-                "modules.defaultTitlePlaceholder",
-                {
-                  title: defaultTitle,
-                },
-              )
-            }
-            onChange={
-              handleTitleChange
-            }
-          />
-        </div>
-
-        <div className="zukato-feature__field">
-          <label htmlFor={orderId}>
-            {props.t(
-              "modules.order",
-            )}
-          </label>
-
-          <input
-            id={orderId}
-            type="number"
-            min={0}
-            max={10000}
-            step={10}
-            value={preference.order}
-            onChange={
-              handleOrderChange
-            }
-          />
-        </div>
+        <details className="zukato-feature__advanced">
+          <summary>{props.t("settings.advancedModule")}</summary>
+          <div className="zukato-feature__field">
+            <label htmlFor={titleId}>{props.t("modules.displayTitle")}</label>
+            <input id={titleId} type="text" maxLength={60}
+              value={titleDrafts[definition.id] ?? preference.customTitle}
+              onBlur={() => {
+                const draft = titleDrafts[definition.id];
+                if (draft !== undefined) {
+                  updateFeature(definition.id, { customTitle: draft });
+                  setTitleDrafts((previous) => {
+                    const next = { ...previous };
+                    delete next[definition.id];
+                    return next;
+                  });
+                }
+              }}
+              onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+              disabled={!definition.customizableTitle}
+              placeholder={props.t("modules.defaultTitlePlaceholder", { title: defaultTitle })}
+              onChange={handleTitleChange} />
+          </div>
+          <div className="zukato-feature__field">
+            <label htmlFor={orderId}>{props.t("modules.order")}</label>
+            <input id={orderId} type="number" min={0} max={10000} step={10}
+              value={preference.order} onChange={handleOrderChange} />
+          </div>
+        </details>
       </article>
     );
   }

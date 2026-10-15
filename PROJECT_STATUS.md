@@ -1,3 +1,112 @@
+# ZuKaTo v1.12.0 – Visualizer-Steuerzentrale (unveröffentlichter Arbeitsstand)
+
+**Noch nichts installieren oder committen.** Die Version enthält alle bisherigen
+unveröffentlichten Änderungen (v1.8–v1.11) und verbessert die Visualizer-Bedienung.
+
+- **Bühne im Vordergrund:** Track, gewählte Quelle, Video/HTML-Wallpaper und
+  automatische Lyrics bleiben beim Einstellen sichtbar.
+- **Vier statt aller Regler auf einmal:** Wallpapers, Songtexte, Audioeffekte und
+  Presets/Extras haben eigene Registerkarten. Die zuletzt ausgewählte wird
+  ausschließlich für die laufende Sitzung gemerkt.
+- **Eigene Wallpaper zuerst:** Der Ordnerimport und die pro-Song-Reihenfolge
+  stehen direkt im Wallpaper-Bereich. Ältere Einzelvideo-Funktionen sind in
+  einem ausklappbaren Abschnitt erreichbar.
+- **Schneller Quellenwechsel:** Wallpapers/Originalclips oben an der Bühne
+  umschalten, ohne die gespeicherte Bibliothek zu löschen.
+- **Kinomodus:** Verwaltungsansichten ausblenden; jederzeit zum Bearbeiten
+  zurückkehren. Browser-Vollbild bleibt als separate Option erhalten.
+- **Bugfix:** Die angezeigte Nummer des aktuellen Wallpapers berücksichtigt
+  nun den Startpunkt frisch importierter Ordner und Song-Overrides.
+- **Qualität:** 84/84 automatisierte Tests inkl. Windows-unabhängigem Fallback-
+  Build bestanden. Spotify-/Windows-Liveprüfung bleibt ausstehend.
+
+**Unverändert offen:** Automatische rechtmäßig verfügbare Original-Musikclips
+(der Schalter allein lädt keine), zuverlässige Lyrics-Rechteabklärung und
+Spotify-/Spicetify-Liveabnahme. Näheres in `REVIEW_V1.12.md`.
+
+---
+
+# ZuKaTo v1.11.0 – Lyrics automatisch statt manuell (unveröffentlicht)
+
+**Status:** Arbeitsstand auf Basis der nicht übernommenen v1.10.0; der Nutzer möchte ausdrücklich weiterhin nichts installieren, überschreiben, committen oder pushen. Die v1.8-/v1.9-/v1.10-Änderungen sind enthalten.
+
+## Implementierung
+
+- **Automatische LRCLIB-Abfrage pro Song-URI:** Songtitel, erster Künstler, Album und Laufzeit werden als Metadaten an die öffentliche CORS-API gesendet; keine Nutzer-Accounts oder Spotify-Tokens.
+- **Synced vor Plain:** Zeitmarkierte Texte werden auf der Video-/HTML-Bühne über dem Wallpaper passend zur Spotify-Position hervorgehoben. Ohne Timing scrollbarer Text statt erfundener Zeitwerte.
+- **Lokale Überschreibungen:** Bereits importierte bzw. selbst korrigierte `.lrc`-Dateien bleiben wirksam und gehen dem Netzwerk vor. Import und Editor sind in den erweiterten Optionen verborgen, aber verfügbar.
+- **Weniger Netzlast:** 400-ms-Anfrageabstand, Abbruch bei Songwechsel, HTTP-429-`Retry-After`, RAM-Cache mit Ablaufzeit und Limit; kein persistentes Kopieren von Community-Lyrics in Datenbanken/Backups.
+- **Fehlerzustände:** Laden, instrumental, keine Treffer, Provider-/Netzwerkfehler, Rate-Limit, Wiederholen und Quellenangabe. Deutsch und Englisch vorhanden.
+- **Gestaltung unverändert:** Schriftgröße, Ausrichtung, Position, Shadow, Farbe, Highlight, Zeilenanzahl und Timing-Offset weiterhin individuell einstellbar. Das visuelle Overlay bleibt getrennt von HTML-Wallpapers und Mikrofon-Canvas.
+
+**Rechtehinweis:** LRCLIB ist ein externer Community-Anbieter, keine lizenzierte offizielle Spotify-Lyrics-API. Es ist noch zu prüfen, ob dieser Anbieter für den späteren konkreten Veröffentlichungs-/Verwendungszweck rechtlich geeignet ist. Die Software speichert automatisch geladene Texte nur kurz im RAM. **Originalvideos werden weiterhin nicht automatisch bezogen.**
+
+**Abnahme:** 77/77 automatisierte Node-Tests (davon 7 neue Lyrics-Tests), TypeScript 5.8.3 und Fallback-Build erfolgreich. Echte LRCLIB-Verfügbarkeit **im Spotify-Webview**, Darstellung, Quellrecht und Windows-Installation **noch nicht live geprüft**. Keine Behauptung einer vollständigen Spotify-Live-Abnahme.
+
+---
+
+# ZuKaTo v1.10.0 – konsolidierter Workspace (noch nicht übernommen)
+
+**Status:** Entwicklungs-/Abnahmestand auf Grundlage von v1.9.0. Alle Änderungen aus v1.8.0 und v1.9.0 sind enthalten. Der Benutzer möchte aktuell ausdrücklich **keine Installation und keinen Git-Commit**.
+
+## Was neu und anders ist
+
+- **Zentrale Song-Schnellaktion:** Von jeder Workspace-Seite aus eine Suchansicht per „Song hinzufügen“ oder `Ctrl+Shift+F` öffnen. Spotify-Titel-/Künstlersuche und eingefügte Spotify-Links ermöglichen direktes Merken oder Hinzufügen zur Queue. Keine Spotify-Likes werden verändert; Favoriten sind lokale ZuKaTo-Lesezeichen.
+- **Navigation:** Nach Musik, Gestaltung und System gruppiert. Der zuletzt geöffnete Bereich wird nur für die aktuelle Browser-Sitzung gemerkt; nach Deaktivierung eines Moduls wird sicher auf Dashboard/Einstellungen zurückgefallen.
+- **Dashboard:** echte Fortschrittsanzeige des Spotify-Players einschließlich Zeitstempel; zentrale Song-Schnellaktion und bisherige Favoriten, Shortcuts, Cover, lokaler Verlauf und Statistiken.
+- **Einstellungen:** Neue Übersicht als Standard mit Originalclip-Ein/Aus direkt sichtbar, vier Schaltflächen zu den eigentlichen Bereichen sowie kompakte Zahlen zum lokalen Speicher. Alle erweiterten Formulare bleiben erreichbar, aber sind nicht auf der Startansicht verstreut.
+- **Datenkonsistenz:** `addFavorite` ist idempotent, sodass versehentliche Wiederholungen nicht mehr zwischen Speichern und Entfernen wechseln. Vorhandene `toggleFavorite`-Aktionen für ausdrücklich gewünschtes Entfernen bleiben unverändert.
+- **Barrierefreiheit:** Dialog hat Fokus, Escape-Schließen, Hintergrund-Klick-Schließen und Tab-Fokusring. Navigation nutzt weiterhin `aria-current`.
+- **UI:** Konsistente responsive Styles und respektierte Einstellung für reduzierte Animationen. Deutsch/Englisch komplett ergänzt. Alle neuen/geänderten Bausteine haben Dateikopf- und Logik-Kommentare.
+
+## Technische Grenzen
+
+- Spicetify-Integration und Darstellung sind **noch nicht in einem echten Spotify-Client getestet**.
+- Song-Suche greift ausschließlich über `Spicetify.CosmosAsync` auf die Spotify-Web-API zu; Verfügbarkeit hängt vom angemeldeten Client ab. Die eigene Queue nutzt `Spicetify.addToQueue`.
+- Original-Musikvideos werden **nicht automatisch bezogen**; bei eingeschaltetem Modus sind nur vorher gespeicherte erlaubte Quellen nutzbar. Offizielle bzw. nachweislich lizenzierte Original-Lyrics sind weiterhin offen; ab v1.11 gibt es eine unabhängige LRCLIB-Abfrage als Komfortfunktion.
+- Hörverlaufszahlen stehen für beobachtete Songwechsel, nicht für Spotifys vollständige Hörstatistik.
+
+**Prüfung:** `npm test`: 70/70 Unit-/Smoke-Tests erfolgreich; Typprüfung/Styles/Bundles über den plattformunabhängigen Fallback gebaut. Es sind fünf neue Tests für Zeitberechnung, Navigation, Session-Fallback und Favoriten-Idempotenz hinzugekommen. Echte Windows-/Spotify-Abnahme ausstehend.
+
+**Paket:** Vollständige Dateien im ZIP-Stammverzeichnis, ohne `.git` und `node_modules`; inklusive neu erstelltem `dist`. Eine spätere Übernahme würde die bestehende Projektstruktur überschreiben, ohne die Git-Historie zu ersetzen. Noch keine Übernahme empfohlen, bis der Nutzer die Vorschau beurteilen möchte.
+
+---
+
+# ZuKaTo v1.9.0 – UX-Überarbeitung (Teststand)
+
+**Ausgangslage:** Der Nutzer hat v1.8.0 bewusst noch nicht übernommen. v1.9.0 enthält deshalb alle v1.8.0-Funktionen UND die neue Oberfläche. Das Archiv ist ein vollständiges direkt überschreibbares Projekt, kein Git-Patch.
+
+**Neu und überarbeitet:**
+
+- Dashboard als echte Startseite mit Live-Wiedergabestatus, aktuellem Titel, Spotify-Cover (nur validierte CDN-URLs), Play/Pause, Skip und ZuKaTo-Favoritenaktion.
+- Dashboard-Schnellzugriffe öffnen direkt die entsprechenden Module; deaktivierte Module werden ausgeblendet. Lokale Kennzahlen, zuletzt gehörte Titel und häufigster Künstler sind klar von vollständigen Spotify-Streamingstatistiken abgegrenzt.
+- Einstellungen in fünf Bereiche gegliedert: **Allgemein**, **Wallpapers**, **Module**, **Tastenkürzel**, **Daten & Backup**. Nur ein Bereich ist jeweils sichtbar.
+- Originalclip-Quellenwahl im Einstellungsbereich als einzelner Ein-/Ausschalter. Wallpaper-Verwaltung ist bei Bedarf aufklappbar; importierte Medien, Szenen und Clips bleiben erhalten. Kein automatischer Originalclip-Download.
+- Modulübersicht zeigt zuerst Ein/Aus; Namen und Sortierung liegen in aufklappbaren erweiterten Optionen. Pflichtmodule bleiben gesperrt.
+- Theme-Studio zeigt neben den 24 Palettenfarben und eigener HEX-Farbe eine echte Mini-Vorschau des ZuKaTo-Layouts.
+- Einheitliche Abstände, Oberflächen, Schaltflächen und responsive Ansichten auf engem Spotify-Fenster.
+- Der neue Dashboard-Summary-Algorithmus und Cover-URL-Filter sind isoliert und per Unit-Tests überprüfbar. Neue/überarbeitete Dateien sind kommentiert.
+
+**Prüfstand:** TypeScript 5.8.3 (global) erfolgreich; Projekt-Bundles mit dem vorhandenen Offline-Fallback erstellt; Sass-Styles kompiliert; automatisierte Tests einschließlich neuer Dashboard-/Settings-Tests erfolgreich. Wegen in dieser Umgebung nicht passender plattformspezifischer npm-Binaries wurde der Offline-Fallback genutzt. Ein echter Windows-/Spotify-Live-Test und die tatsächliche Oberflächenabnahme sind weiterhin offen.
+
+**Wichtig:** Bestehende Daten, Wallpaper-Dateien und Zuordnungen werden nicht gelöscht, migriert oder stillschweigend überschrieben. Offline-Build und Tests ersetzen keinen echten Spotify-Test.
+
+**Windows-Installation:** ZIP-Inhalt direkt in den bestehenden Projektordner entpacken, vorhandene Projektdateien überschreiben, `.git` und `node_modules` unangetastet lassen. Danach wie bisher `npm install`, `npm test`, `npm run install:spicetify` bzw. `INSTALLIEREN_WINDOWS.cmd`. Vor der Übernahme des neuen Standes zuerst in Spotify prüfen; keine Git-Aktionen durch die ZIP.
+
+---
+
+# ZuKaTo v1.8.0 – Projektstatus
+
+**Neue Oberfläche:** Songsuche (Favoriten, Queue, Notizen), 24 Theme-Farben plus HEX-Eingabe, Originalclips nur noch per Schalter.
+
+**Prüfstand dieser Bearbeitung:** Quellsyntax und gezielte Offline-Unit-Tests ausgeführt. TypeScript-Gesamtcheck, vollständiger npm-Build, die übrigen bestehenden Projekttests und Spotify-Live-Test konnten in der Entwicklungsumgebung ohne installierbare npm-Abhängigkeiten nicht wiederholt werden und müssen auf Windows mit `npm test` bestätigt werden.
+
+**Installationsart:** ZIP-Inhalt direkt in den bestehenden Projektordner entpacken und Dateien überschreiben; `.git` und `node_modules` werden nicht mitgeliefert. Anschließend `INSTALLIEREN_WINDOWS.cmd` oder `npm install`, `npm test`, `npm run install:spicetify`. Änderungen an Git werden nicht automatisiert.
+
+**Offene Originalvideo-Funktion:** Ein/Aus-Umschalter ist vorhanden, automatischer lizenzierter Originalclip-Abruf nicht. Alte Clip-URLs bleiben gespeichert.
+
+---
+
 # ZuKaTo – Projektstand / zielgerichtete Weiterentwicklung
 
 **Stand:** 14.10.2026 – v1.7.0, persistenter Songzähler, HTML-Player-Bridge und Wallpaper-Vorschau.

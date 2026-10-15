@@ -1,3 +1,46 @@
+# ZuKaTo v1.12.0 – derzeit nur Entwicklungsstand
+
+**Auf Wunsch noch nicht installieren!** Die Installationsanweisungen unten sind
+für eine spätere ausdrückliche Freigabe gedacht. Dieses Archiv enthält keinen
+Git-Patch und überschreibt weder eine lokale `.git`-Historie noch persönliche
+Wallpaper-Dateien auf der Festplatte.
+
+---
+
+# ZuKaTo v1.11.0 – Entwicklungsstand, derzeit NICHT übernehmen
+
+Der Nutzer behält zunächst die bestehende installierte Version. v1.11.0 enthält alle Änderungen von v1.8 bis v1.10 sowie die automatische Lyrics-Suche. **Kein Git-Commit/Push und keine Installation vor der ausdrücklichen Freigabe.** Die Befehle unten dienen ausschließlich der späteren Referenz.
+
+Beim späteren Test im Spotify-Client: Titel mit synchronisierten Lyrics, Titel nur mit unzeitgesteuertem Text, einen Instrumentaltitel sowie einen nicht gefundenen Titel anspielen. Prüfen, dass Songwechsel keine alten Zeilen anzeigen, dass eigene LRC-Korrekturen Vorrang haben und dass Schriftgröße/Position/Farbe weiterhin einstellbar sind. Bei fehlenden Texten Netzwerk/Provider prüfen; nicht davon ausgehen, dass Spotify selbst Lyrics bereitstellt.
+
+---
+
+# ZuKaTo v1.10.0 – Entwicklungsstand, derzeit NICHT übernehmen
+
+Der v1.10.0-Stand ist aus v1.9.0 entstanden; v1.8.0 muss dafür nicht separat installiert werden. Der Benutzer hat ausdrücklich festgelegt, vorerst keine Version zu übernehmen. Daher sind die folgenden Befehle **nur als spätere technische Referenz** dokumentiert.
+
+Wenn die Freigabe später erfolgt: ZIP-Inhalt direkt im bestehenden Projektordner überschreiben (kein zusätzlicher Oberordner; `.git` und `node_modules` werden nicht mitgeliefert) und bei Bedarf einzeln `npm install`, `npm test`, `npm run install:spicetify` ausführen. Commit und Push erfolgen ausschließlich auf ausdrücklichen Wunsch mit einzelnen Git-Befehlen.
+
+Der aktuelle Build/Unit-Test-Stand ist kein Ersatz für die Spotify-Abnahme auf dem Windows-Rechner.
+
+---
+
+# ZuKaTo v1.8.0 – Windows direkt überschreiben
+
+1. ZIP **direkt in deinen bestehenden `zukato-spicetify`-Ordner** entpacken. Die ZIP hat keinen zusätzlichen übergeordneten Projektordner. `.git` und vorhandene `node_modules` bleiben dabei erhalten.
+2. `INSTALLIEREN_WINDOWS.cmd` per Doppelklick starten, oder Git Bash öffnen und die folgenden Befehle **einzeln** ausführen:
+
+```bash
+npm install
+npm test
+npm run install:spicetify
+git status -sb
+```
+
+Bei Fehlern die exakte Ausgabe ansehen. **Erst nach erfolgreichen Tests/Installation** committen und auf GitLab/GitHub pushen. Keine Verkettungen mit `&&` erforderlich.
+
+---
+
 # ZuKaTo Spicetify v1.7.2 – direkt über deine Installation kopieren
 
 **Ausgangslage:** Dein Projekt baut bereits erfolgreich, aber `spicetify apply` bricht ab mit:

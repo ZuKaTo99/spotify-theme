@@ -5,7 +5,7 @@
 import type {
   ReactElement,
 } from "react";
-import { applyPalette, loadPalette, type PaletteId } from "../shared/appearance";
+import { applyPalette, loadPalette, type PaletteSelection } from "../shared/appearance";
 
 import {
   getFeatureTitle,
@@ -32,6 +32,8 @@ import {
 import {
   ModulePage,
 } from "./components/ModulePage";
+import { QuickTrackPanel } from "./components/QuickTrackPanel";
+import { readWorkspaceFeature, rememberWorkspaceFeature, resolveWorkspaceFeature } from "../shared/workspace-navigation";
 
 import {
   useSettings,
@@ -57,7 +59,7 @@ export function App(): ReactElement {
   ReactRuntime.useEffect(() => {
     const refresh = (): void => applyPalette(rootRef.current, loadPalette());
     const onPalette = (event: Event): void => {
-      const palette = (event as CustomEvent<PaletteId>).detail;
+      const palette = (event as CustomEvent<PaletteSelection>).detail;
       if (palette) applyPalette(rootRef.current, palette);
     };
     refresh();
@@ -65,13 +67,28 @@ export function App(): ReactElement {
     return () => window.removeEventListener("zukato-toolkit:appearance-changed", onPalette);
   }, []);
 
-  const [
-    activeFeatureId,
-    setActiveFeatureId,
-  ] =
-    ReactRuntime.useState<FeatureId>(
-      "dashboard",
-    );
+  // Letzten Bereich pro Sitzung merken; abgeschaltete Module nie öffnen.
+  const [activeFeatureId, setActiveFeatureId] = ReactRuntime.useState<FeatureId>(() =>
+    resolveWorkspaceFeature(readWorkspaceFeature(),
+      getEnabledFeaturesBySurface("custom-app", settings.features).map((feature) => feature.id)));
+  const [quickOpen, setQuickOpen] = ReactRuntime.useState(false);
+  const closeQuick = ReactRuntime.useCallback(() => setQuickOpen(false), []);
+
+  function navigate(feature: FeatureId): void {
+    setActiveFeatureId(feature);
+    rememberWorkspaceFeature(feature);
+  }
+
+  // Optionaler Shortcut: Ctrl+Shift+F; Standard-Spotify-Suche nicht überschreiben.
+  ReactRuntime.useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.ctrlKey && event.shiftKey && !event.altKey && event.code === "KeyF") {
+        event.preventDefault(); setQuickOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const resolvedLocale =
     resolveLocale(settings.locale);
@@ -116,6 +133,13 @@ export function App(): ReactElement {
     activeNavigationItem?.title ??
     settingsTitle;
 
+  // Sicherer Fallback, falls ein Modul in den Einstellungen deaktiviert wurde.
+  ReactRuntime.useEffect(() => {
+    if (!navigationItems.some((item) => item.id === activeFeatureId)) {
+      navigate(resolveWorkspaceFeature(null, navigationItems.map((item) => item.id)));
+    }
+  }, [activeFeatureId, settings.features]);
+
   const greeting =
     settings.showGreeting &&
       settings.displayName
@@ -153,17 +177,20 @@ export function App(): ReactElement {
         </p>
       </header>
 
+      <div className="zukato-app__commandbar">
+        <span>{t("quick.commandHint")}</span>
+        <button type="button" className="zukato-primary" onClick={() => setQuickOpen(true)}>
+          {t("quick.open")} <kbd>Ctrl+Shift+F</kbd>
+        </button>
+      </div>
       <AppNavigation
         items={navigationItems}
         activeFeatureId={
           visibleFeatureId
         }
-        ariaLabel={
-          settings.workspaceTitle
-        }
-        onSelect={
-          setActiveFeatureId
-        }
+        ariaLabel={settings.workspaceTitle}
+        t={t}
+        onSelect={navigate}
       />
       <ModulePage
         title={visibleFeatureTitle}
@@ -173,8 +200,11 @@ export function App(): ReactElement {
           settings={settings}
           t={t}
           onSettingsChange={update}
+          onNavigate={navigate}
+          onOpenQuick={() => setQuickOpen(true)}
         />
       </ModulePage>
+      {quickOpen && <QuickTrackPanel t={t} onClose={closeQuick} />}
     </main>
   );
 }

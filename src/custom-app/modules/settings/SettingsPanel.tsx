@@ -83,10 +83,10 @@ export function SettingsPanel(
 
   return (
     <section
-      className="zukato-settings"
+      className="zukato-settings zukato-settings--simple"
       aria-labelledby="settings-heading"
     >
-      <h2 id="settings-heading">
+      <h2 id="settings-heading" className="zukato-visually-hidden">
         {props.t("settings.heading")}
       </h2>
 
