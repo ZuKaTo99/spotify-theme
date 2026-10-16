@@ -59,7 +59,7 @@ test("Visualizer: Steuerung besitzt Quellschalter, Kinoansicht und Panels", asyn
   const tsx = await readFile(new URL("../src/custom-app/modules/visualizer/Visualizer.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../src/custom-app/app.scss", import.meta.url), "utf8");
   const translations = await readFile(new URL("../src/shared/i18n.ts", import.meta.url), "utf8");
-  assert.match(tsx, /setSceneSettings\(saveScenePreferences\(\{ \.\.\.sceneSettings, mode \}\)\)/);
+  assert.match(tsx, /setSceneSettings\(saveScenePreferences\(\{ \.\.\.loadScenePreferences\(\), mode \}\)\)/);
   assert.match(tsx, /VISUALIZER_PANELS\.map/);
   assert.match(tsx, /aria-pressed=\{cinemaMode\}/);
   assert.match(tsx, /activePanel === "wallpapers" && <>/);

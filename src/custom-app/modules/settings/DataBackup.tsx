@@ -36,23 +36,55 @@ async function importBackup(file: File): Promise<void> {
   const data = raw as Record<string, unknown>;
   if (data.format !== "zukato-toolkit-backup" || data.version !== 1 ||
       !data.settings || !data.library) throw new Error("Keine ZuKaTo-Backupdatei (Version 1).");
-  const settings = normalizeSettings(data.settings);
-  const library = normalizeLibrary(data.library);
-  const palette = normalizePalette(data.palette);
-  // Bestätigung vor allen destruktiven Ersetzungen; keine automatische Import-Aktion.
+  // Vor der ersten Änderung ALLE optionalen Blöcke normalisieren. Damit
+  // löst ein fehlerhaftes Zusatzfeld keine halbfertige Wiederherstellung aus.
+  const next = {
+    settings: normalizeSettings(data.settings),
+    library: normalizeLibrary(data.library),
+    palette: normalizePalette(data.palette),
+    visualizer: data.visualizer === undefined ? undefined : normalizeVisualizerConfig(data.visualizer),
+    presets: data.visualizerPresets,
+    trackScenes: data.trackVisualizerScenes,
+    scenePreferences: data.scenePreferences === undefined ? undefined : normalizeScenePreferences(data.scenePreferences),
+  };
+  // Vor der Bestätigung alle aktuellen Werte als kleine Sicherung im Speicher
+  // behalten. Die großen HTML-/Video-Blobs sind hiervon nicht betroffen.
   if (!window.confirm("Alle aktuellen ZuKaTo-Einstellungen, Favoriten, Notizen und den Hörverlauf durch dieses Backup ersetzen?")) return;
-  saveSettings(settings);
-  saveLibrary(library);
-  savePalette(palette);
-  // Alte Backups ohne Visualizer-Bereich behalten die lokal gespeicherten Regler.
-  if (data.visualizer !== undefined) saveVisualizerConfig(normalizeVisualizerConfig(data.visualizer));
-  // Bei v1.2-Backups ohne Presets die aktuellen Szenen nicht versehentlich löschen.
-  if (data.visualizerPresets !== undefined) replaceVisualizerPresets(data.visualizerPresets);
-  // Nur neue Backups enthalten individuelle Song-Styles; ältere überschreiben sie nicht.
-  if (data.trackVisualizerScenes !== undefined) replaceTrackVisualizerScenes(data.trackVisualizerScenes);
-  // Eigene HTML/Videodateien werden bewusst NICHT im JSON-Backup mitgesichert.
-  // Nur ihre Szene-IDs, Reihenfolge und vom Nutzer hinterlegte Original-URLs.
-  if (data.scenePreferences !== undefined) saveScenePreferences(normalizeScenePreferences(data.scenePreferences));
+  const previous = {
+    settings: loadSettings(), library: loadLibrary(), palette: loadPalette(),
+    visualizer: loadVisualizerConfig(), presets: loadVisualizerPresets(),
+    trackScenes: loadTrackVisualizerScenes(), scenePreferences: loadScenePreferences(),
+  };
+  try {
+    saveSettings(next.settings);
+    saveLibrary(next.library);
+    savePalette(next.palette);
+    if (next.visualizer !== undefined) saveVisualizerConfig(next.visualizer);
+    // Bei älteren Backups ohne Presets oder individuelle Song-Szenen keine
+    // bestehenden Einstellungen löschen.
+    if (next.presets !== undefined) replaceVisualizerPresets(next.presets);
+    if (next.trackScenes !== undefined) replaceTrackVisualizerScenes(next.trackScenes);
+    if (next.scenePreferences !== undefined) saveScenePreferences(next.scenePreferences);
+  } catch (cause) {
+    // Browser-Storage ist nicht transaktional. Bei Schreibfehlern versuchen
+    // wir daher jeden bereits bearbeiteten Bereich auf den alten Zustand
+    // zurückzusetzen. Die Original-Wallpaper-Dateien werden nie angerührt.
+    const rollback = [
+      () => saveSettings(previous.settings),
+      () => saveLibrary(previous.library),
+      () => savePalette(previous.palette),
+      () => saveVisualizerConfig(previous.visualizer),
+      () => replaceVisualizerPresets(previous.presets),
+      () => replaceTrackVisualizerScenes(previous.trackScenes),
+      () => saveScenePreferences(previous.scenePreferences),
+    ];
+    const results = rollback.map((restore) => {
+      try { restore(); return true; } catch { return false; }
+    });
+    const detail = results.every(Boolean) ? "Vorheriger Zustand wiederhergestellt."
+      : "Einige Daten konnten wegen des Speicherfehlers nicht zurückgesetzt werden. Bitte den aktuellen Stand prüfen.";
+    throw new Error(`Backup konnte nicht vollständig importiert werden. ${detail} Ursache: ${String(cause)}`);
+  }
   Spicetify.showNotification("ZuKaTo-Backup wiederhergestellt.");
 }
 

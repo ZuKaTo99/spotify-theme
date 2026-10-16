@@ -107,6 +107,29 @@ test("Extension: Titelwechsel werden einmal aufgezeichnet, Cleanup funktioniert"
   assert.equal(mock.intervals.size, 0);
 });
 
+/**
+ * Ein bloßer Wechsel der clientinternen playbackId nach Pause/Resume ist
+ * kein neuer Song. Derselbe Song wird nur bei echtem neuen Durchlauf gezählt.
+ */
+test("Hörverlauf: neue playbackId beim Fortsetzen zählt nicht doppelt", async () => {
+  const mock = makeMockEnvironment();
+  const bundle = await readFile(new URL("../dist/extension/zukato-extension.js", import.meta.url), "utf8");
+  vm.runInContext(bundle, mock.context, { timeout: 3000 });
+  const key = "zukato-toolkit.library.v1";
+  assert.equal(mock.storage.get(key).history.length, 1);
+  mock.player.data = { ...mock.player.data, playbackId: "id-after-resume" };
+  mock.player.emit("onplaypause");
+  assert.equal(mock.storage.get(key).history.length, 1,
+    "Pause/Fortsetzen darf auch bei neuer playbackId keinen neuen Verlaufseintrag erzeugen");
+  // Ein tatsächlicher Repeat wird vom Song-Session-Tracker erkannt, wenn
+  // nach dem Ende die Wiedergabe wieder von vorne beginnt.
+  mock.player.getProgress = () => 0;
+  mock.player.emit("songchange");
+  assert.equal(mock.storage.get(key).history.length, 2,
+    "Echter neuer Durchlauf desselben Liedes muss aufgenommen werden");
+  mock.window.dispatchEvent({ type: "beforeunload" });
+});
+
 /** Die Erweiterungen greifen nur nach expliziter Nutzeraktion auf Queue/Favoriten zu. */
 test("Kontextaktionen: Queue, Favoriten und Sleep-Timer sind nutzbar", async () => {
   const mock = makeMockEnvironment();

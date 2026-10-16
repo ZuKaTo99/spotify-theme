@@ -137,6 +137,93 @@ async function writeAssets(changes: Array<{ asset: StoredAsset | null; key: stri
   } finally { db.close(); }
 }
 
+/**
+ * Ein Videowallpaper und sein Vorschaubild als eine Transaktion speichern.
+ *
+ * WARUM HIER UND NICHT VORHER MIT listWallpapers() PRÜFEN?
+ * Zwei parallele Uploads konnten früher beide denselben alten Stand lesen
+ * und anschließend jeweils das 12-Videos-/256-MiB-Limit überschreiten.
+ * Eine readwrite-Transaktion sperrt den Store bis zu ihrem Abschluss. Die
+ * Kapazitätskontrolle läuft unmittelbar vor den put()-Operationen in der
+ * selben Transaktion, damit ein paralleler Import nicht dazwischenfunkt.
+ * Bei einem Fehler wird beides zurückgerollt – kein verwaistes Thumbnail.
+ */
+async function writeWallpaperAtomically(
+  key: string, imageKey: string, file: File, thumbnail: Blob | null, clip: VideoClip,
+): Promise<void> {
+  const db = await openStore();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      let finished = false;
+      const fail = (error: unknown): void => {
+        if (finished) return;
+        finished = true;
+        try { tx.abort(); } catch { /* Abgebrochene Transaktion. */ }
+        reject(error);
+      };
+      tx.oncomplete = () => { if (!finished) { finished = true; resolve(); } };
+      tx.onabort = () => { if (!finished) { finished = true; reject(tx.error ?? new Error("Wallpaper-Speicherung abgebrochen.")); } };
+      tx.onerror = () => { if (!finished) { finished = true; reject(tx.error ?? new Error("Wallpaper-Speicherung fehlgeschlagen.")); } };
+      const request = store.getAll();
+      request.onerror = () => fail(request.error ?? new Error("Wallpaper-Speicher konnte nicht geprüft werden."));
+      request.onsuccess = () => {
+        try {
+          const other = (request.result as StoredAsset[]).filter((entry) =>
+            entry.key.startsWith("wallpaper:") && entry.key !== key && entry.blob instanceof Blob);
+          if (other.length >= MAX_WALLPAPERS)
+            throw new Error("Maximal 12 Wallpapers gespeichert. Bitte ein anderes ersetzen oder löschen.");
+          const used = other.reduce((sum, entry) => sum + entry.blob!.size, 0);
+          if (used + file.size > MAX_TOTAL_WALLPAPER_BYTES)
+            throw new Error("Wallpapers belegen zusammen maximal 256 MiB. Bitte alte Videos entfernen.");
+          store.put({ key, filename: file.name.slice(0, 180), blob: file, savedAt: Date.now(), clip } satisfies StoredAsset);
+          if (thumbnail) store.put({ key: imageKey, filename: "preview.jpg", blob: thumbnail } satisfies StoredAsset);
+          else store.delete(imageKey);
+        } catch (error) { fail(error); }
+      };
+    });
+  } finally { db.close(); }
+}
+
+/**
+ * Ein bestehendes Video nur dann bearbeiten, wenn es NOCH vorhanden ist.
+ * Früher lag zwischen readAsset() und writeAsset() eine Transaktionslücke:
+ * Ein parallel gelöschtes Video konnte durch einen Clip-Edit ungewollt
+ * wiederhergestellt werden; ein Thumbnail konnte verwaist zurückbleiben.
+ */
+async function updateExistingWallpaper(
+  scope: string, edit: (store: IDBObjectStore, original: StoredAsset) => void,
+): Promise<void> {
+  const key = `wallpaper:${requireScope(scope)}`;
+  const db = await openStore();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("Wallpaper-Änderung abgebrochen."));
+      tx.onerror = () => reject(tx.error ?? new Error("Wallpaper konnte nicht aktualisiert werden."));
+      const request = store.get(key);
+      request.onsuccess = () => {
+        const original = request.result as StoredAsset | undefined;
+        if (!(original?.blob instanceof Blob)) {
+          // Rejection explizit auslösen: Manche Webview-/Test-Implementierungen
+          // melden nach abort() kein onabort, sonst bliebe die UI endlos busy.
+          reject(new Error("Wallpaper existiert nicht mehr."));
+          try { tx.abort(); } catch { /* Bereits beendet oder Testadapter. */ }
+          return;
+        }
+        edit(store, original);
+      };
+      request.onerror = () => {
+        reject(request.error ?? new Error("Wallpaper-Datei konnte nicht gelesen werden."));
+        try { tx.abort(); } catch { /* IndexedDB hat bereits abgebrochen. */ }
+      };
+    });
+  } finally { db.close(); }
+}
+
 /** Vor dem Import Platzverbrauch prüfen: QuotaExceeded wird zusätzlich von IndexedDB behandelt. */
 async function listWallpapers(): Promise<StoredAsset[]> {
   const db = await openStore();
@@ -160,17 +247,9 @@ export async function saveWallpaper(scope: string, file: File, thumbnail: Blob |
   validateWallpaper(file);
   const safeClip = validateVideoClip(clip.start, clip.end);
   const key = `wallpaper:${requireScope(scope)}`;
-  const otherVideos = (await listWallpapers()).filter((entry) => entry.key !== key);
-  if (otherVideos.length >= MAX_WALLPAPERS) throw new Error("Maximal 12 Wallpapers gespeichert. Bitte ein anderes ersetzen oder löschen.");
-  const bytesUsed = otherVideos.reduce((sum, entry) => sum + (entry.blob?.size ?? 0), 0);
-  if (bytesUsed + file.size > MAX_TOTAL_WALLPAPER_BYTES) throw new Error("Wallpapers belegen zusammen maximal 256 MiB. Bitte alte Videos entfernen.");
+  // Vorschaubild und Video benötigen dieselbe atomare Schreibtransaktion.
   const image = validThumbnail(thumbnail) ? thumbnail : null;
-  // Zweiter Datensatz statt Bild im Video-Blob: Vorschauliste kann ohne Decoder laden.
-  const imageKey = `thumbnail:${requireScope(scope)}`;
-  await writeAssets([
-    { key, asset: { key, filename: file.name.slice(0, 180), blob: file, savedAt: Date.now(), clip: safeClip } },
-    { key: imageKey, asset: image ? { key: imageKey, filename: "preview.jpg", blob: image } : null },
-  ]);
+  await writeWallpaperAtomically(key, `thumbnail:${requireScope(scope)}`, file, image, safeClip);
 }
 
 /**
@@ -203,12 +282,11 @@ export async function loadWallpaperThumbnail(scope: string): Promise<Blob | null
 
 /** Alte v1.2-Videos erhalten auf Nutzerwunsch nachträglich ein Standbild. */
 export async function saveWallpaperThumbnail(scope: string, image: Blob): Promise<void> {
-  const key = `wallpaper:${requireScope(scope)}`;
   if (!validThumbnail(image)) throw new Error("Ungültiges oder zu großes Vorschaubild.");
-  const original = await readAsset(key);
-  if (!(original?.blob instanceof Blob)) throw new Error("Wallpaper existiert nicht mehr.");
-  const imageKey = `thumbnail:${scope}`;
-  await writeAsset({ key: imageKey, filename: "preview.jpg", blob: image }, imageKey);
+  await updateExistingWallpaper(scope, (store) => {
+    const imageKey = `thumbnail:${requireScope(scope)}`;
+    store.put({ key: imageKey, filename: "preview.jpg", blob: image } satisfies StoredAsset);
+  });
 }
 
 /** Exakt ein Video laden; die Bibliothek darf NICHT zum Default-Slot zurückfallen. */
@@ -238,11 +316,10 @@ export async function assignStoredWallpaper(source: string, target: string): Pro
  * Bei einer bereits vorhandenen Zuordnung bleibt auch das Thumbnail erhalten.
  */
 export async function saveWallpaperClip(scope: string, clip: VideoClip, duration?: number): Promise<void> {
-  const key = `wallpaper:${requireScope(scope)}`;
   const safe = validateVideoClip(clip.start, clip.end, duration);
-  const original = await readAsset(key);
-  if (!(original?.blob instanceof Blob)) throw new Error("Wallpaper existiert nicht mehr.");
-  await writeAsset({ ...original, clip: safe }, key);
+  await updateExistingWallpaper(scope, (store, original) => {
+    store.put({ ...original, clip: safe });
+  });
 }
 
 /** Bei jedem Songwechsel: erst Titelvideo, dann globalen Hintergrund prüfen. */

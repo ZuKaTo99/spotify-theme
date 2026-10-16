@@ -7,9 +7,10 @@
 // =============================================================================
 import type { CSSProperties, ReactElement } from "react";
 import { loadScene, loadSceneProject } from "./scene-store";
-import { renderWallpaperProject, sceneFramePayload, type WallpaperRuntimeAsset } from "./wallpaper-project";
+import { renderWallpaperProject, sceneFramePayload, type WallpaperRuntimeAsset, type WallpaperRuntimeModule } from "./wallpaper-project";
 import type { OriginalRange } from "../../../shared/scene-playlists";
 import { ensureWallpaperCsp } from "./web-wallpaper";
+import { WallpaperFrameGate } from "./wallpaper-frame-gate";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 export type ChosenScene = { kind: "scene"; id: string } | { kind: "original"; url: string; range: OriginalRange } | { kind: "legacy" };
@@ -32,7 +33,7 @@ interface Content {
   url: string;
   srcDoc: string;
   /** Nur project-v2: Sandbox-Bootstrap und dort lokal erzeugte Blob-URLs. */
-  runtime?: { html: string; entry: string; assets: WallpaperRuntimeAsset[] };
+  runtime?: { html: string; entry: string; assets: WallpaperRuntimeAsset[]; modules: WallpaperRuntimeModule[] };
 }
 
 /** Bei jedem Wechsel alte Object-URL sauber freigeben und Lade-Rennen meiden. */
@@ -40,7 +41,11 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
   const [content, setContent] = ReactRuntime.useState<Content | null>(null);
   const frameRef = ReactRuntime.useRef<HTMLIFrameElement>(null);
   const videoRef = ReactRuntime.useRef<HTMLVideoElement>(null);
-  const initializedFrame = ReactRuntime.useRef("");
+  // Ein iframe kann ohne Songwechsel neu laden. Der Gate erkennt neue
+  // Dokumente, verhindert aber doppelte 256-MiB-Transfers bei document.write().
+  const frameGate = ReactRuntime.useRef(new WallpaperFrameGate());
+  const contentRef = ReactRuntime.useRef<Content | null>(content);
+  contentRef.current = content;
   const callback = ReactRuntime.useRef(onError);
   callback.current = onError;
   // Auch Fehler innerhalb der isolierten HTML-Sandbox sichtbar machen. Das
@@ -48,8 +53,20 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
   // in Gegenrichtung an die React-Oberfläche.
   ReactRuntime.useEffect(() => {
     const receive = (event: MessageEvent): void => {
-      if (event.source === frameRef.current?.contentWindow &&
-          event.data?.zukatoProjectError === true) {
+      if (event.source !== frameRef.current?.contentWindow) return;
+      if (event.data?.zukatoProjectReady === true) {
+        const current = contentRef.current;
+        const frame = frameRef.current?.contentWindow;
+        if (!current?.runtime || !frame || !frameGate.current.onReady(current.key, event.data.documentId)) return;
+        try {
+          frame.postMessage({ zukatoProjectInit: true, ...current.runtime }, "*");
+        } catch {
+          frameGate.current.failed(current.key);
+          callback.current("HTML-Wallpaper-Dateien konnten nicht erneut übertragen werden.");
+        }
+        return;
+      }
+      if (event.data?.zukatoProjectError === true) {
         // Fehlertypen statt lokaler Dateipfade melden: Keine privaten Inhalte
         // aus einem Wallpaper an andere Module oder Diagnoseberichte geben.
         const errors: Record<string, string> = {
@@ -57,6 +74,7 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
           PROJECT_RESOURCE_ERROR: "Ein Wallpaper-Bild oder anderes Asset konnte nicht geladen werden.",
           PROJECT_SCRIPT_ERROR: "Eine JavaScript-Animation des Wallpapers ist fehlgeschlagen.",
           PROJECT_INITIALIZATION_FAILED: "HTML-Wallpaper konnte in der Sandbox nicht gestartet werden.",
+          PROJECT_MODULE_ERROR: "Ein JavaScript-Modul des Wallpapers konnte nicht geladen werden.",
         };
         callback.current(errors[event.data?.code] ?? "HTML-Wallpaper meldet einen Laufzeitfehler.");
       }
@@ -146,12 +164,14 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
         // Die Sandbox löst nach document.write() ein zweites load aus.
         // Assets daher nur EINMAL übertragen; sonst würden 100+ Blobs erneut
         // initialisiert. Danach lediglich den aktuellen Playerstand senden.
-        if (content.runtime && initializedFrame.current !== content.key) {
-          initializedFrame.current = content.key;
-          try { frame.postMessage({
-            zukatoProjectInit: true, html: content.runtime.html, entry: content.runtime.entry,
-            assets: content.runtime.assets,
-          }, "*"); } catch { callback.current("HTML-Wallpaper-Dateien konnten nicht an die Sandbox übertragen werden."); }
+        if (content.runtime) {
+          if (frameGate.current.onLoad(content.key)) {
+            try { frame.postMessage({ zukatoProjectInit: true, ...content.runtime }, "*"); }
+            catch {
+              frameGate.current.failed(content.key);
+              callback.current("HTML-Wallpaper-Dateien konnten nicht an die Sandbox übertragen werden.");
+            }
+          }
         } else {
           frame.postMessage({
             zukatoWallpaper: true, playing, run: songRun,

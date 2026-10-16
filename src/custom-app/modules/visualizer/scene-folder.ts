@@ -1,122 +1,98 @@
 // =============================================================================
 // Datei: scene-folder.ts
-// Zweck: Aus einem gewählten Windows-/Chromium-Ordner komplette HTML-Projekte
-//        erkennen, statt einzelne index.html-Dateien als Wallpapers zu behandeln.
-// Wo ändern? Projekterkennung, Dateigruppierung und Sortierung genau hier.
-// Wichtig: Dateiinhalte werden nicht verändert; der Browser importiert Kopien.
+// Zweck: Vollständige Wallpaper-Engine-Webprojektordner sicher erkennen.
+// Wo ändern? Nur hier werden Ordnergrenzen und Projektgruppen bestimmt.
+//
+// WICHTIG: Ein index.html gehört mit ALLEN Geschwisterverzeichnissen zusammen.
+// Ein einzelnes HTML aus dem Dateidialog ist kein zulässiger Projektimport.
+// Ein Sammelordner mit mehreren Wallpaper-Verzeichnissen wird nach deren
+// oberster Verzeichnisebene getrennt; Assets werden nie still ausgelassen.
 // =============================================================================
 
 export interface WallpaperFolderItem {
-  /** Anzeigename für die Bibliothek; nicht als Dateipfad verwenden. */
   name: string;
-  /** Alle Dateien einschließlich Unterordnern und binären Assets einer Szene. */
+  /** Die Originaldateien inklusive webkitRelativePath und sämtlicher Assets. */
   files: File[];
 }
 
-/** Natürlich sortieren: 02 kommt vor 10, unabhängig vom Dateisystem. */
-function sortedNames(left: string, right: string): number {
-  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+/** Die Liste im Importdialog entspricht der natürlichen Windows-Sortierung. */
+function compareNames(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
 
-/** Traversal und ungültige Verzeichnisse vor dem Import verhindern. */
-function safePath(file: File): string {
-  const path = (file.webkitRelativePath || file.name).replace(/\\/g, "/");
-  if (!path || path.startsWith("/") || path.split("/").some((part) =>
-      !part || part === "." || part === "..")) {
-    throw new Error("Unsicherer Dateipfad im Wallpaper-Ordner.");
+/** Beseitigt gefährliche Pfadbestandteile VOR einer IndexedDB-Transaktion. */
+function relativePath(file: File): string {
+  const value = (file.webkitRelativePath || "").replace(/\\/g, "/");
+  if (!value || value.startsWith("/") || value.includes("\0") ||
+      value.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new Error("Unsicherer Dateipfad oder nur einzelne HTML-Datei. Bitte vollständigen Wallpaper-Ordner auswählen.");
   }
-  return path;
+  return value;
 }
 
-/** Eine HTML-Datei kann eine Webprojekt-Hauptseite oder eine Unterseite sein. */
-const htmlFile = (name: string): boolean => /\.html?$/i.test(name);
-const videoFile = (name: string): boolean => /\.(?:mp4|webm|ogv)$/i.test(name);
+const html = (name: string): boolean => /\.html?$/i.test(name);
+const video = (name: string): boolean => /\.(?:mp4|webm|ogv)$/i.test(name);
+const indexFile = (name: string): boolean => /(?:^|\/)index\.html?$/i.test(name);
 
 /**
- * Projektwurzel finden: project.json gilt auch dann, wenn die HTML-Einstiegsdatei
- * z. B. unter "web/index.html" liegt. Eine Unterseite mit eigener index.html
- * darf dabei niemals ein zweites Wallpaper derselben Projektwurzel erzeugen.
- */
-function projectDirectories(paths: readonly string[]): string[] {
-  const htmlDirectories = [...new Set(paths.filter(htmlFile).map((path) =>
-    path.slice(0, path.lastIndexOf("/") + 1)))];
-  const metadataDirectories = [...new Set(paths.filter((path) => /(^|\/)project\.json$/i.test(path))
-    .map((path) => path.slice(0, path.lastIndexOf("/") + 1)))];
-  const indexDirectories = htmlDirectories.filter((directory) => paths.some((path) =>
-    path.startsWith(directory) && /(^|\/)index\.html?$/i.test(path) &&
-    path.slice(0, path.lastIndexOf("/") + 1) === directory));
-  const candidates = [...new Set([
-    ...metadataDirectories.filter((directory) => paths.some((path) =>
-      path.startsWith(directory) && htmlFile(path))),
-    ...indexDirectories,
-    ...htmlDirectories.filter((directory) => !indexDirectories.some((parent) =>
-      directory.startsWith(parent)) && !metadataDirectories.some((parent) =>
-      directory.startsWith(parent))),
-  ])].sort((a, b) => a.length - b.length || sortedNames(a, b));
-
-  // Eine übergeordnete index.html oder project.json besitzt ihre Unterseiten.
-  return candidates.filter((directory, index) =>
-    !candidates.slice(0, index).some((parent) => directory.startsWith(parent)));
-}
-
-/**
- * Hauptordner in vollständige Wallpaper-Projekte aufteilen.
- *
- * A) Set/01/index.html + Set/02/index.html  -> zwei Wallpapers
- * B) Wallpaper/web/index.html + Wallpaper/assets/hero.png -> EIN Wallpaper
- * C) Wallpaper/index.html + Wallpaper/docs/index.html -> EIN Wallpaper
- *
- * Variante B ist für größere Webprojekte wichtig: Bilder, Fonts und Models
- * liegen häufig neben "web" statt darin. Diese Dateien dürfen nicht still
- * verloren gehen. Enthält der Ordner hingegen mehrere unabhängige Projekte,
- * werden Dateien niemals zwischen ihnen ausgetauscht.
+ * Der Browser liefert z. B. Sammlung/01/index.html. Nur der gemeinsame
+ * ausgewählte Oberordner wird entfernt, niemals zusätzlich 01/ oder web/.
  */
 export function groupWallpaperFolderFiles(files: readonly File[]): WallpaperFolderItem[] {
-  if (!files.length) throw new Error("Wallpaper-Ordner ist leer.");
-  const paths = files.map((file) => ({ file, path: safePath(file) }));
-  const root = paths[0].path.split("/")[0];
-  const prefix = paths.every((item) => item.path.startsWith(`${root}/`)) ? `${root}/` : "";
-  const entries = paths.map(({ file, path }) => ({ file, path: path.slice(prefix.length) }));
-  const directories = projectDirectories(entries.map((entry) => entry.path));
+  if (!files.length) throw new Error("Der gewählte Wallpaper-Ordner ist leer.");
+  const sources = files.map((file) => ({ file, path: relativePath(file) }));
+  const first = sources[0].path.split("/")[0];
+  if (!sources.every(({ path }) => path.startsWith(`${first}/`))) {
+    throw new Error("Die Dateien stammen nicht aus demselben gewählten Wallpaper-Ordner.");
+  }
+  const entries = sources.map(({ file, path }) => ({ file, path: path.slice(first.length + 1) }));
+  const filePaths = new Set(entries.map(({ path }) => path.toLowerCase()));
+  if (filePaths.size !== entries.length) throw new Error("Doppelte Dateipfade im Wallpaper-Ordner.");
 
-  // Spezialfall "web/index.html" und "assets/": Es handelt sich um EIN
-  // ausgewähltes Webprojekt, nicht um eine unvollständige Szene "web".
-  // Der Sonderfall greift nur, wenn es keine zweite HTML-Projektwurzel gibt.
-  const orphanAssets = entries.some((entry) =>
-    !directories.some((directory) => entry.path.startsWith(directory)) &&
-    !htmlFile(entry.path));
-  if (directories.length === 1 && directories[0] !== "" && orphanAssets) {
-    const main = directories[0];
-    const firstSection = main.split("/").filter(Boolean);
-    if (firstSection.length === 1) directories.splice(0, 1, "");
+  // Hat die gewählte Wurzel eine eigene Einstiegseite oder project.json,
+  // gehören web/, assets/, js/, model/ usw. ALLE zum selben Webprojekt.
+  const rootEntry = entries.some(({ path }) => indexFile(path) && !path.includes("/"));
+  const rootMetadata = entries.some(({ path }) => /^project\.json$/i.test(path));
+  if ((rootEntry || rootMetadata) && entries.some(({ path }) => html(path))) {
+    return [{ name: first, files: entries.map(({ file }) => file) }];
   }
 
-  const grouped = new Map<string, WallpaperFolderItem>();
-  for (const directory of directories) {
-    const display = directory
-      ? directory.replace(/\/$/, "").split("/").at(-1)!
-      : prefix ? root : "HTML-Wallpaper";
-    grouped.set(`project:${directory}`, { name: display, files: [] });
+  // Unabhängige Wallpaper-Projekte in einem Sammelordner haben eigene
+  // erste Unterverzeichnisse, auch bei Szenen/01/web/index.html.
+  const htmlRoots = [...new Set(entries.filter(({ path }) => html(path) && path.includes("/"))
+    .map(({ path }) => path.split("/")[0]))].sort(compareNames);
+  if (htmlRoots.length === 1) {
+    const root = htmlRoots[0];
+    const siblings = entries.some(({ path }) => !path.startsWith(`${root}/`));
+    const ownsMetadata = entries.some(({ path }) =>
+      path.toLowerCase() === `${root.toLowerCase()}/project.json`);
+    // Wird ein Sammelordner mit nur EINER Szene gewählt, erhält diese ihren
+    // Unterordnernamen. Bei web/index.html + assets/ behalten wir hingegen
+    // bewusst das gesamte gewählte Projekt als Einheit.
+    const nestedName = !siblings && (ownsMetadata || /^\d+[\s._-]/.test(root));
+    return [{ name: nestedName ? root : first, files: entries.map(({ file }) => file) }];
   }
-
-  for (const entry of entries) {
-    // Ein Projekt darf seine kompletten Unterordner enthalten; nicht an
-    // einer weiteren index.html oder einem 3D-Viewer-Unterordner auftrennen.
-    const directory = directories.find((value) => entry.path.startsWith(value));
-    if (directory !== undefined) {
-      grouped.get(`project:${directory}`)!.files.push(entry.file);
-    } else if (htmlFile(entry.path)) {
-      // Einzelne HTML-Datei außerhalb bekannter Projekte nicht verlieren.
-      grouped.set(`html:${entry.path}`, {
-        name: entry.path.replace(/\.html?$/i, ""), files: [entry.file],
-      });
-    } else if (videoFile(entry.path)) {
-      grouped.set(`video:${entry.path}`, { name: entry.path, files: [entry.file] });
+  if (htmlRoots.length > 1) {
+    const projects = htmlRoots.map((root) => ({
+      name: root,
+      files: entries.filter(({ path }) => path.startsWith(`${root}/`))
+        .map(({ file }) => file),
+    }));
+    const orphans = entries.filter(({ path }) => !htmlRoots.some((root) => path.startsWith(`${root}/`)));
+    // Gemeinsame Root-Dateien können sonst fälschlich verloren gehen oder
+    // nur EINEM von mehreren unabhängigen Projekten zugeordnet werden.
+    if (orphans.length) {
+      throw new Error("Sammelordner enthält Dateien außerhalb der Wallpaper-Projekte. Bitte Projekte einzeln importieren oder die Ordnerstruktur prüfen.");
     }
+    return projects;
   }
 
-  const result = [...grouped.values()].filter((item) => item.files.length)
-    .sort((a, b) => sortedNames(a.name, b.name));
-  if (!result.length) throw new Error("Kein HTML-Wallpaper (index.html) oder Video im Ordner gefunden.");
-  return result;
+  // Ein Hauptordner darf auch fertige Video-Dateien enthalten. Der Import
+  // einzelner HTML-Dateien (ohne kompletten Ordner) bleibt hingegen verboten.
+  const videos = entries.filter(({ path }) => video(path));
+  if (videos.length && videos.length === entries.length) {
+    return videos.map(({ file, path }) => ({ name: path, files: [file] }))
+      .sort((a, b) => compareNames(a.name, b.name));
+  }
+  throw new Error("Kein vollständiges HTML-Wallpaper-Projekt gefunden. Der Ordner muss eine HTML-Startseite und sämtliche Projektdateien enthalten.");
 }

@@ -37,7 +37,8 @@ interface AudioResources {
   stream: MediaStream;
   context: AudioContext;
   analyser: AnalyserNode;
-  track: MediaStreamTrack;
+  /** Alle Audio-/Videospuren tragen denselben End-Listener. */
+  tracks: MediaStreamTrack[];
   onEnded: () => void;
 }
 
@@ -71,7 +72,7 @@ export function useMicrophoneSpectrum(
     const old = resourcesRef.current;
     resourcesRef.current = null;
     if (old) {
-      old.track.removeEventListener("ended", old.onEnded);
+      for (const track of old.tracks) track.removeEventListener("ended", old.onEnded);
       releaseCapturedStream(old.stream);
       void old.context.close().catch(() => {});
     }
@@ -219,11 +220,12 @@ export function useMicrophoneSpectrum(
         return;
       }
       const onEnded = (): void => { setError("Die Audiofreigabe wurde beendet."); stop(); };
-      track.addEventListener("ended", onEnded);
-      // Beim expliziten Stoppen der Bildschirmfreigabe können auch die
-      // Videospuren enden, ohne dass die Audio-Spur ein `ended` auslöst.
-      for (const videoTrack of stream.getVideoTracks()) videoTrack.addEventListener("ended", onEnded, { once: true });
-      resourcesRef.current = { stream, context, analyser, track, onEnded };
+      // Auch die Videospuren der Bildschirmfreigabe können alleine enden.
+      // Beim Stoppen ALLE Listener entfernen; sonst feuern alte Freigaben
+      // nach dem Start einer neuen Session in den aktuellen Visualizer.
+      const tracks = [track, ...stream.getVideoTracks()];
+      for (const mediaTrack of tracks) mediaTrack.addEventListener("ended", onEnded);
+      resourcesRef.current = { stream, context, analyser, tracks, onEnded };
       startedAtRef.current = performance.now();
       lastSignalCheckRef.current = 0;
       setSignal("waiting");

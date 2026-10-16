@@ -87,12 +87,51 @@ export function prepareWallpaperProject(files: readonly File[]): PreparedProject
     if (!blob.size && /\.html?$/i.test(path)) throw new Error("Leere HTML-Datei im Wallpaper-Projekt.");
     seen.add(path.toLowerCase());
   }
+  const htmlFiles = normalized.filter(({ path }) => /\.html?$/i.test(path));
   const entry = normalized.find(({ path }) => /^index\.html?$/i.test(path))?.path ??
     normalized.find(({ path }) => /(^|\/)index\.html?$/i.test(path))?.path ??
-    (normalized.filter(({ path }) => /\.html?$/i.test(path)).length === 1
-      ? normalized.find(({ path }) => /\.html?$/i.test(path))?.path : undefined);
-  if (!entry) throw new Error("HTML-Projekt benötigt eine eindeutige index.html.");
+    (htmlFiles.length === 1 ? htmlFiles[0].path : undefined) ??
+    // Bei mehreren HTML-Seiten gibt project.json möglicherweise den Einstieg
+    // an. Das wird VOR dem Schreiben durch resolveWallpaperProjectEntry geprüft.
+    (normalized.some(({ path }) => path.toLowerCase() === "project.json")
+      ? htmlFiles[0]?.path : undefined);
+  if (!entry) throw new Error("HTML-Projekt benötigt index.html oder einen eindeutigen Einstieg in project.json.");
   return { entry, files: normalized, bytes };
+}
+
+/**
+ * Wallpaper Engine Webprojekte können in project.json das Feld `file` setzen.
+ * Anders als ein bloßes Dateinamen-Raten respektieren wir diesen Einstieg und
+ * prüfen vor der IndexedDB-Speicherung, dass er eine vorhandene lokale HTML-
+ * Datei im vollständig ausgewählten Projektordner referenziert.
+ */
+export async function resolveWallpaperProjectEntry(project: PreparedProject): Promise<PreparedProject> {
+  const manifest = project.files.find(({ path }) => path.toLowerCase() === "project.json");
+  if (!manifest) return project;
+  if (manifest.blob.size > 1024 * 1024)
+    throw new Error("Wallpaper Engine project.json ist ungewöhnlich groß (maximal 1 MiB).");
+  let metadata: unknown;
+  try { metadata = JSON.parse(await manifest.blob.text()); }
+  catch { throw new Error("Wallpaper Engine project.json enthält kein gültiges JSON."); }
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata))
+    throw new Error("Wallpaper Engine project.json benötigt ein JSON-Objekt.");
+  const file = (metadata as Record<string, unknown>).file;
+  if (file === undefined || file === null || file === "") {
+    // Wenn mehrere HTML-Seiten existieren, darf die Importlogik NICHT
+    // willkürlich die alphabetisch erste Unterseite auswählen.
+    const htmlFiles = project.files.filter(({ path }) => /\.html?$/i.test(path));
+    const hasIndex = htmlFiles.some(({ path }) => /(^|\/)index\.html?$/i.test(path));
+    if (htmlFiles.length > 1 && !hasIndex)
+      throw new Error("project.json muss die HTML-Startseite im Feld 'file' angeben.");
+    return project;
+  }
+  if (typeof file !== "string") throw new Error("Ungültiger Einstieg in project.json.");
+  let entry: string;
+  try { entry = validateProjectPath(file); }
+  catch { throw new Error("project.json verweist auf eine Datei außerhalb des Wallpaper-Projekts."); }
+  if (!/\.html?$/i.test(entry) || !project.files.some(({ path }) => path === entry))
+    throw new Error(`Wallpaper-Startseite aus project.json fehlt: ${entry}`);
+  return { ...project, entry };
 }
 
 /** Blob-Typen erweitern: Windows liefert bei vielen Modellen/Fonts kein MIME. */
@@ -114,7 +153,9 @@ function mimeFor(path: string): string {
 export const PROJECT_CSP = WEB_WALLPAPER_CSP
   .replace("img-src data: blob:", "img-src data: blob:")
   .replace("font-src data:", "font-src data: blob:")
-  .replace("connect-src 'none'", "connect-src blob: data:");
+  .replace("connect-src 'none'", "connect-src blob: data:")
+  // ES-Module verwenden eigene Blob-URLs INNERHALB der Sandbox.
+  .replace("script-src 'unsafe-inline'", "script-src 'unsafe-inline' blob:");
 
 function safeStyle(text: string): string { return text.replace(/<\/style/gi, "<\\/style"); }
 function safeScript(text: string): string { return text.replace(/<\/script/gi, "<\\/script"); }
@@ -134,6 +175,13 @@ export interface WallpaperRuntimeAsset {
   blob: Blob;
   mime: string;
 }
+/** Lokale ES-Module werden erst nach dem Isolieren des iframe instanziiert. */
+export interface WallpaperRuntimeModule {
+  /** Ein stabiler Import-Map-Schlüssel, niemals eine externe Adresse. */
+  specifier: string;
+  /** Quelltext mit lokal aufgelösten Importpfaden und Asset-Markern. */
+  code: string;
+}
 export interface RenderedProject {
   /** Fertiges HTML mit Platzhaltern statt ungültiger parent-Blob-URLs. */
   html: string;
@@ -143,6 +191,7 @@ export interface RenderedProject {
   bootstrap: string;
   /** Original-Blobs, die der Sandbox einmalig geschickt werden. */
   assets: WallpaperRuntimeAsset[];
+  modules: WallpaperRuntimeModule[];
   /** Keine parent-Blob-URLs mehr: bleibt für alte Aufrufer verfügbar. */
   dispose: () => void;
 }
@@ -154,11 +203,11 @@ export interface RenderedProject {
  */
 export function sceneFramePayload(project: RenderedProject): {
   srcDoc: string;
-  runtime: { html: string; entry: string; assets: WallpaperRuntimeAsset[] };
+  runtime: { html: string; entry: string; assets: WallpaperRuntimeAsset[]; modules: WallpaperRuntimeModule[] };
 } {
   return {
     srcDoc: project.bootstrap,
-    runtime: { html: project.html, entry: project.entry, assets: project.assets },
+    runtime: { html: project.html, entry: project.entry, assets: project.assets, modules: project.modules },
   };
 }
 
@@ -171,8 +220,8 @@ export function sceneFramePayload(project: RenderedProject): {
  * - Fehlende Dateien und kaputte Ressourcen werden ohne private Pfade gemeldet.
  * - Externe HTTP-Adressen bleiben wegen der restriktiven CSP gesperrt.
  *
- * Hinweis: ES-Modul-Imports, Wallpaper-Engine-Spezial-APIs und Worker koennen
- * nicht pauschal emuliert werden; dafuer sind gesonderte Adapter erforderlich.
+ * ES-Modul-Imports mit lokalen, literalen Pfaden erhalten eine Import-Map.
+ * Wallpaper-Engine-Spezial-APIs und Worker bleiben gesonderte Fälle.
  */
 export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" content="${PROJECT_CSP}">
 <script>(function(){
@@ -190,18 +239,61 @@ export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" con
     initialized=true;
     var data=event.data, documentHtml=String(data.html||'');
     var resources=Array.isArray(data.assets)?data.assets:[];
+    var modules=Array.isArray(data.modules)?data.modules:[];
     var entry=String(data.entry||'index.html');
     var paths=Object.create(null);
     var knownUrls=Object.create(null);
+    var markerUrls=Object.create(null);
+    // Ein globaler Ersetzungslauf statt N kompletter HTML-Kopien bei N
+    // Assets. Bei großen Animationen mit 1000 Dateien war die alte Schleife
+    // unnötig teuer und konnte den Spotify-Webview kurz einfrieren.
+    function replaceAssetMarkers(text){
+      return text.replace(/zukato-asset:\\d+:/g,function(marker){
+        if(Object.prototype.hasOwnProperty.call(markerUrls,marker))return markerUrls[marker];
+        report('PROJECT_ASSET_MISSING');
+        return marker;
+      });
+    }
     try{
       for(var i=0;i<resources.length;i++){
         var item=resources[i];
         if(!item||typeof item.marker!=='string'||typeof item.path!=='string'||!(item.blob instanceof Blob))continue;
-        var url=URL.createObjectURL(new Blob([item.blob],{type:String(item.mime||'application/octet-stream')}));
+        // Bereits passend typisierte Blobs nicht nochmals einpacken.
+        // Browser können so das Original-Blob statt einer zusätzlichen
+        // 200-MiB-Blob-Hülle direkt als temporäre Quelle nutzen.
+        var mime=String(item.mime||'application/octet-stream');
+        var typed=item.blob.type===mime?item.blob:new Blob([item.blob],{type:mime});
+        var url=URL.createObjectURL(typed);
         activeUrls.push(url);
         paths[item.path]=url;
         knownUrls[url]=true;
-        documentHtml=documentHtml.split(item.marker).join(url);
+        markerUrls[item.marker]=url;
+      }
+      documentHtml=replaceAssetMarkers(documentHtml);
+      // Import-Map VOR dem ersten <script type="module"> einfügen. Die
+      // Module werden als Blob-URLs im OPAQUEN iframe-Origin erzeugt; URLs aus
+      // dem Spotify-Elterndokument wären hier wegen Origin-Isolierung ungültig.
+      // Ein solches Mapping unterstützt auch zyklische ES-Modul-Importe.
+      if(modules.length){
+        var imports=Object.create(null);
+        for(var m=0;m<modules.length;m++){
+          var mod=modules[m];
+          if(!mod||typeof mod.specifier!=='string'||!/^zukato-module:/.test(mod.specifier)||
+            typeof mod.code!=='string')continue;
+          var moduleCode=mod.code;
+          // Auch Modultexte nur EINMAL durchlaufen. Die Markerliste wurde
+          // bereits beim Erstellen der lokalen Blob-URLs aufgebaut.
+          moduleCode=replaceAssetMarkers(moduleCode);
+          var moduleUrl=URL.createObjectURL(new Blob([moduleCode],{type:'text/javascript'}));
+          activeUrls.push(moduleUrl);
+          imports[mod.specifier]=moduleUrl;
+        }
+        // Import-Map-Inhalte niemals als ausführbaren HTML-Text interpretieren.
+        var mapText=JSON.stringify({imports:imports}).replace(/</g,'\\\\u003c');
+        var mapTag='<script type="importmap">'+mapText+'<\\/script>';
+        if(/<head\b[^>]*>/i.test(documentHtml)){
+          documentHtml=documentHtml.replace(/<head\b[^>]*>/i,function(tag){return tag+mapTag;});
+        }else documentHtml=mapTag+documentHtml;
       }
       // Sandbox-srcdoc erbt eine fremde baseURI (Spotify); lokale URLs ohne
       // diesen Resolver wuerden deshalb ins Leere oder gegen Spotify gehen.
@@ -304,7 +396,55 @@ export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" con
       report('PROJECT_INITIALIZATION_FAILED');
     }
   });
+  // Frischer Dokumentstart: Auch ein iframe, das ohne neue React-Szene
+  // intern neu geladen wurde, muss seine lokalen Blobs erneut erhalten.
+  // Keine Dateinamen, Spotify-Informationen oder sonstige Daten mitsenden.
+  window.parent.postMessage({zukatoProjectReady:true,
+    documentId:String(Date.now())+':'+Math.random().toString(36).slice(2)},'*');
 })();<\/script>`;
+
+/**
+ * Stabile Modulbezeichner vermeiden relative URLs gegen die Spotify-Adresse
+ * oder die blob:-Basis. Import-Maps lösen sie lokal im Sandbox-Origin auf.
+ */
+function localModuleSpecifier(path: string): string {
+  return `zukato-module:${encodeURIComponent(path)}`;
+}
+
+/**
+ * Einfache native ES-Importformen: import ... from, export ... from,
+ * import "datei.js" und import("datei.js") mit LITERAL-Pfaden.
+ * Dynamisch berechnete Modulnamen und fremde npm-Pakete werden nicht geraten.
+ * Nur vorhandene Dateien im Projektbaum bekommen einen Sandbox-Schlüssel.
+ */
+function rewriteModuleImports(
+  code: string, source: string, files: ReadonlyMap<string, Blob>, dependencies: Set<string>,
+): string {
+  const replace = (full: string, prefix: string, quote: string, reference: string): string => {
+    if (!reference.startsWith("./") && !reference.startsWith("../")) return full;
+    const candidate = resolveProjectReference(reference, source);
+    if (!candidate) throw new Error(`ES-Modul-Pfad verlässt das Wallpaper-Projekt: ${source}`);
+    const target = [candidate, `${candidate}.js`, `${candidate}.mjs`, `${candidate}/index.js`]
+      .find((item) => files.has(item) && /\.(?:js|mjs)$/i.test(item));
+    if (!target) throw new Error(`Lokales ES-Modul fehlt: ${candidate}`);
+    dependencies.add(target);
+    return `${prefix}${quote}${localModuleSpecifier(target)}${quote}`;
+  };
+  // Import-/Export-Deklarationen mit optionalem `from`, inklusive Zeilenwechsel.
+  // Keine externe JavaScript-Parser-Abhängigkeit im Spicetify-Client.
+  const declarations = /\b(?:import|export)\s+(?:(?:[\w*{},\s]+?)\s+from\s*)?(["'])([^"'\r\n]+)\1/g;
+  let updated = code.replace(declarations, (full: string, quote: string, reference: string) => {
+    const suffix = `${quote}${reference}${quote}`;
+    return replace(full, full.slice(0, -suffix.length), quote, reference);
+  });
+  // Dynamische Importe mit einem festen String werden ebenfalls unterstützt.
+  updated = updated.replace(/\bimport\s*\(\s*(["'])([^"'\r\n]+)\1\s*\)/g,
+    (full: string, quote: string, reference: string) => {
+      const suffix = `${quote}${reference}${quote}`;
+      return replace(full, full.slice(0, full.indexOf(suffix)), quote, reference) + full.slice(full.indexOf(suffix) + suffix.length);
+    });
+  return updated;
+}
 
 /**
  * Rendering bereitet ausschließlich HTML/Text und Blob-Marker vor. Niemals
@@ -331,6 +471,18 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
       return resolved && urls.has(resolved) ? `url("${urls.get(resolved)}")` : full;
     });
     return updated;
+  };
+  // Nur ES-Module von <script type="module"> aus verfolgen. Andere
+  // .js-Dateien bleiben klassische Skripte, damit alte Szenen funktionieren.
+  const moduleSources = new Map<string, string>();
+  const prepareModule = async (path: string): Promise<void> => {
+    if (moduleSources.has(path)) return;
+    const blob = files.get(path);
+    if (!blob) throw new Error(`ES-Modul fehlt: ${path}`);
+    const dependencies = new Set<string>();
+    const rewritten = rewriteModuleImports(await blob.text(), path, files, dependencies);
+    moduleSources.set(path, replaceReferences(rewritten, path));
+    for (const child of dependencies) await prepareModule(child);
   };
   const cssMemo = new Map<string, string>();
   /**
@@ -378,12 +530,30 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
       const attr = script.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
       const path = attr && resolveProjectReference(attr[1], project.entry);
       if (path && files.has(path)) {
-        const code = replaceReferences(await files.get(path)!.text(), path);
         const open = script.match(/^<script\b[^>]*>/i)?.[0] ?? "<script>";
-        // src-Attribut entfernen, sonst lädt der Browser extern statt inline.
-        const attrs = open.replace(/\s+src\s*=\s*["'][^"']+["']/i, "");
-        html = html.replace(script, `${attrs}${safeScript(code)}</script>`);
+        // Ein ES-Modul muss als echtes Modul laufen, NICHT als klassisches
+        // Inline-Skript. Relative Importketten werden separat aufgelöst.
+        if (/\btype\s*=\s*["']module["']/i.test(open)) {
+          await prepareModule(path);
+          html = html.replace(script, `<script type="module">import "${localModuleSpecifier(path)}";</script>`);
+        } else {
+          const code = replaceReferences(await files.get(path)!.text(), path);
+          // src-Attribut entfernen, sonst lädt Chromium gegen Spotify.
+          const attrs = open.replace(/\s+src\s*=\s*["'][^"']+["']/i, "");
+          html = html.replace(script, `${attrs}${safeScript(code)}</script>`);
+        }
       }
+    }
+    // Inline-Module mit import "./..." relativ zur Einstiegseite auflösen.
+    // Klassische Inline-Skripte und Import-Maps aus dem Wallpaper bleiben
+    // davon unberührt (deren Semantik darf nicht geändert werden).
+    const inlineModules = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+    for (const match of inlineModules) {
+      if (!/\btype\s*=\s*["']module["']/i.test(match[1])) continue;
+      const dependencies = new Set<string>();
+      const code = rewriteModuleImports(match[2], project.entry, files, dependencies);
+      for (const child of dependencies) await prepareModule(child);
+      html = html.replace(match[0], `<script${match[1]}>${safeScript(replaceReferences(code, project.entry))}</script>`);
     }
     // srcset besteht aus mehreren URLs und Breiten-/Dichte-Angaben.
     // Ein einfaches Ersetzen von Anführungszeichen übersieht diese Assets.
@@ -409,5 +579,9 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
     html = /<head\b[^>]*>/i.test(html)
       ? html.replace(/<head\b[^>]*>/i, (tag) => `${tag}${policy}${bridge}`)
       : `${policy}${bridge}${html}`;
-    return { html, entry: project.entry, bootstrap: PROJECT_BOOTSTRAP, assets, dispose: () => undefined };
+    return {
+      html, entry: project.entry, bootstrap: PROJECT_BOOTSTRAP, assets,
+      modules: [...moduleSources].map(([path, code]) => ({ specifier: localModuleSpecifier(path), code })),
+      dispose: () => undefined,
+    };
 }

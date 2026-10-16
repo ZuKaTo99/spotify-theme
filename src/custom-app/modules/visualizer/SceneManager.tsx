@@ -1,16 +1,16 @@
 // =============================================================================
 // Datei: SceneManager.tsx
 // Zweck: Eigene HTML-/Video-Wallpapers importieren und pro Song als Diashow ordnen.
-// Wo ändern? Bedienoberfläche für Reihenfolge, Import, URL und Quellenmodus hier.
+// Wo ändern? Ordnerimport, Reihenfolge und Bibliotheksbedienung hier.
 // Alte Einzelvideo-Zuordnungen werden separat im bestehenden Manager verwaltet.
 // =============================================================================
 import type { ChangeEvent, ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
 import {
-  saveScenePreferences, withoutScene,
+  loadScenePreferences, saveScenePreferences, withoutScene,
   MAX_PLAYLIST_ITEMS, MAX_PLAYLIST_SCOPES, type ScenePreferences,
 } from "../../../shared/scene-playlists";
-import { deleteScene, importScene, importSceneFolder, listScenes, loadScene, loadSceneProject, type SceneEntry } from "./scene-store";
+import { deleteScene, importSceneFolder, listScenes, loadScene, loadSceneProject, type SceneEntry } from "./scene-store";
 import { zipWallpaperProject } from "./wallpaper-export";
 import { groupWallpaperFolderFiles } from "./scene-folder";
 import { loadSongSession } from "../../../shared/song-session";
@@ -49,17 +49,20 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
 
   /** Persistenz zuerst, React-State erst nach erfolgreichem Schreibvorgang. */
   function persist(changes: Partial<ScenePreferences>): void {
-    try { onChange(saveScenePreferences({ ...settings, ...changes })); }
+    // Immer vom aktuellen Storage-Stand ausgehen: andere Einstellungsseiten
+    // können dieselbe Bibliothek zur gleichen Zeit bearbeiten.
+    try { onChange(saveScenePreferences({ ...loadScenePreferences(), ...changes })); }
     catch (cause) { onError(String(cause)); }
   }
 
   function changePlaylist(next: string[]): void {
     if (next.length > MAX_PLAYLIST_ITEMS) { onError(t("viz.sceneListFull")); return; }
-    const playlists = { ...settings.playlists };
+    const latest = loadScenePreferences();
+    const playlists = { ...latest.playlists };
     if (!playlists[effectiveScope] && Object.keys(playlists).length >= MAX_PLAYLIST_SCOPES) {
       onError(t("viz.sceneScopesFull")); return;
     }
-    const starts = { ...settings.starts };
+    const starts = { ...latest.starts };
     if (next.length) {
       playlists[effectiveScope] = next;
       // Nach einem neuen Import/Sortieren beginnt die ausgewählte Liste mit
@@ -70,20 +73,6 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
       delete starts[effectiveScope];
     }
     persist({ playlists, starts });
-  }
-
-  /** Einzelnes Projekt/video in die Bibliothek; manuelle Zuordnung möglich. */
-  async function importFiles(files: readonly File[]): Promise<void> {
-    if (!files.length) return;
-    setBusy(true);
-    setImportStatus("");
-    try {
-      const result = await importScene(files);
-      setRevision((value) => value + 1);
-      setSelected(result.id);
-      setImportStatus(t("viz.sceneImported", { count: "1" }));
-    } catch (cause) { onError(String(cause)); }
-    finally { setBusy(false); }
   }
 
   /**
@@ -99,19 +88,34 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     try {
       // Vor dem kostenintensiven Import zuerst die Playlist-Grenze prüfen.
       const projects = groupWallpaperFolderFiles(files);
+      setImportStatus(t("viz.sceneImportPreparing", {
+        count: String(projects.length), files: String(files.length),
+      }));
       if (playlist.length + projects.length > MAX_PLAYLIST_ITEMS)
         throw new Error(t("viz.sceneListFull"));
       if (!settings.playlists[effectiveScope] && Object.keys(settings.playlists).length >= MAX_PLAYLIST_SCOPES)
         throw new Error(t("viz.sceneScopesFull"));
       const imported = await importSceneFolder(files);
-      const playlists = { ...settings.playlists,
-        [effectiveScope]: [...playlist, ...imported.map((entry) => entry.id)] };
-      const starts = { ...settings.starts, [effectiveScope]: (loadSongSession()?.index ?? -1) + 1 };
+      // Nach langer IndexedDB-Verarbeitung aktuelle Einstellungen neu lesen.
+      // Sonst könnten parallele Änderungen aus dem Einstellungen-Panel durch
+      // den veralteten React-Snapshot zurückgesetzt werden.
+      const freshSettings = loadScenePreferences();
+      const currentList = freshSettings.playlists[effectiveScope] ?? [];
+      // Ein eventueller Konflikt nach dem Import wird im folgenden try/catch
+      // mit derselben Rollback-Logik behandelt wie ein Storage-Schreibfehler.
+      const playlists = { ...freshSettings.playlists,
+        [effectiveScope]: [...currentList, ...imported.map((entry) => entry.id)] };
+      const starts = { ...freshSettings.starts, [effectiveScope]: (loadSongSession()?.index ?? -1) + 1 };
       // Wenn die Playlist-Einstellung nicht gespeichert werden kann, keine
       // verwaisten (unter Umständen mehrere 100 MiB großen) Projektkopien
       // in der IndexedDB zurücklassen. Die Originalordner bleiben unberührt.
       try {
-        onChange(saveScenePreferences({ ...settings, playlists, starts }));
+        if (currentList.length + imported.length > MAX_PLAYLIST_ITEMS)
+          throw new Error(t("viz.sceneListFull"));
+        if (!freshSettings.playlists[effectiveScope] &&
+            Object.keys(freshSettings.playlists).length >= MAX_PLAYLIST_SCOPES)
+          throw new Error(t("viz.sceneScopesFull"));
+        onChange(saveScenePreferences({ ...freshSettings, playlists, starts }));
       } catch (error) {
         const rolledBack = await Promise.allSettled(imported.map((entry) => deleteScene(entry.id)));
         if (rolledBack.some((result) => result.status === "rejected")) {
@@ -126,12 +130,15 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     finally { setBusy(false); }
   }
 
-  function onImport(event: ChangeEvent<HTMLInputElement>, folder: boolean): void {
-    // FileList vor input.value="" kopieren, sonst verliert Chromium die Daten.
-    const copied = event.currentTarget.files ? Array.from(event.currentTarget.files) : [];
+  /**
+   * Chromium liefert beim Ordner-Picker den Dateibaum als FileList mit
+   * webkitRelativePath. Ein einzelnes index.html lässt sich hier absichtlich
+   * NICHT mehr auswählen, weil CSS, JS, Fonts und Assets sonst fehlen.
+   */
+  function onImportFolder(event: ChangeEvent<HTMLInputElement>): void {
+    const files = event.currentTarget.files ? Array.from(event.currentTarget.files) : [];
     event.currentTarget.value = "";
-    if (folder) void importFolder(copied);
-    else void importFiles(copied);
+    void importFolder(files);
   }
 
   async function removeScene(): Promise<void> {
@@ -141,9 +148,38 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     if (!window.confirm(t("viz.sceneDeleteConfirm"))) return;
     setBusy(true);
     try {
-      await deleteScene(selected);
-      const next = withoutScene(settings, selected);
-      onChange(saveScenePreferences(next));
+      // Erst Playlist bereinigen, danach Binärdateien löschen. Scheitert die
+      // Datenbanklöschung, restaurieren wir die alte Playlist unmittelbar.
+      // So bleiben niemals Playlist-Einträge auf bereits gelöschte Dateien.
+      // Eine andere Seite kann die Playlists während eines offenen
+      // Bestätigungsdialogs verändert haben. Deshalb den letzten dauerhaften
+      // Stand laden und nur die zu löschende Szene daraus entfernen.
+      const previous = loadScenePreferences();
+      onChange(saveScenePreferences(withoutScene(previous, selected)));
+      try { await deleteScene(selected); }
+      catch (cause) {
+        // Der Benutzer darf seine andere Szenenreihenfolge behalten, wenn
+        // IndexedDB die eigentliche Datei-Löschung verweigert.
+        const latest = loadScenePreferences();
+        const playlists = { ...latest.playlists };
+        const starts = { ...latest.starts };
+        for (const [scope, ids] of Object.entries(previous.playlists)) {
+          if (ids.includes(selected)) {
+            const updated = (playlists[scope] ?? []).filter((id) => id !== selected);
+            // Ursprünglichen Platz wiederherstellen, aber neue Elemente,
+            // die parallel hinzukamen, nicht zurücksetzen.
+            updated.splice(Math.min(ids.indexOf(selected), updated.length), 0, selected);
+            playlists[scope] = updated;
+            // withoutScene() hat unter Umständen auch den gespeicherten
+            // Listen-Start gelöscht. Bei einem Rollback diesen wiederherstellen,
+            // solange keine andere Ansicht ihn zwischenzeitlich neu gesetzt hat.
+            if (starts[scope] === undefined && previous.starts[scope] !== undefined)
+              starts[scope] = previous.starts[scope];
+          }
+        }
+        onChange(saveScenePreferences({ ...latest, playlists, starts }));
+        throw cause;
+      }
       setSelected("");
       setPreviewId("");
       setRevision((value) => value + 1);
@@ -192,30 +228,27 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     <p>{t("viz.sceneHelp")}</p>
     <div className="zukato-viz__scene-row">
       {showModeToggle && <label className="zukato-viz__checkbox">
-        <input type="checkbox" checked={settings.mode === "original"}
+        <input type="checkbox" disabled={busy} checked={settings.mode === "original"}
           onChange={(event) => persist({ mode: event.currentTarget.checked ? "original" : "wallpapers" })} />
         {t("viz.originalToggle")}
       </label>}
       <label>{t("viz.sceneScope")}
-        <select value={scope} onChange={(event) => setScope(event.currentTarget.value)}>
+        <select value={scope} disabled={busy} onChange={(event) => setScope(event.currentTarget.value)}>
           <option value="default">{t("viz.default")}</option>
           <option value="track" disabled={!trackUri}>{t("viz.forTrack")}</option>
         </select>
       </label>
     </div>
     <div className="zukato-viz__scene-row">
-      <label className="zukato-viz__upload">{t("viz.sceneImportFile")}
-        <input type="file" accept=".html,.htm,.mp4,.webm,.ogv" disabled={busy}
-          onChange={(event) => onImport(event, false)} />
-      </label>
+      {/* Dies ist absichtlich der EINZIGE HTML-Import. Der gesamte Ordner
+          wird ausgewählt, niemals nur eine index.html ohne Referenzen. */}
       <label className="zukato-viz__upload">{t("viz.sceneImportFolder")}
         <input type="file" disabled={busy} multiple ref={(element) => {
-          // HTMLInputElement hat je nach TypeScript-DOM-Version keine Property
-          // 'webkitdirectory'. Das echte Chromium-Attribut ist dennoch stabil.
           if (element) element.setAttribute("webkitdirectory", "");
-        }} onChange={(event) => onImport(event, true)} />
+        }} onChange={onImportFolder} />
       </label>
     </div>
+    <p className="zukato-viz__hint" role="note">{t("viz.sceneFolderOnlyHelp")}</p>
     <p className="zukato-viz__hint">{t("viz.sceneSandboxHelp")}</p>
     {importStatus && <p role="status">{importStatus}</p>}
     <div className="zukato-viz__scene-row">
@@ -249,9 +282,9 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     <h4>{t("viz.scenePlaylist")} ({playlist.length})</h4>
     {playlist.length ? <ol className="zukato-viz__scene-list">{playlist.map((id, index) => <li key={id}>
       <span>{scenes.find((scene) => scene.id === id)?.name ?? t("viz.sceneMissing")}</span>
-      <button type="button" title={t("viz.sceneUp")} disabled={index === 0} onClick={() => move(index, -1)}>↑</button>
-      <button type="button" title={t("viz.sceneDown")} disabled={index === playlist.length - 1} onClick={() => move(index, 1)}>↓</button>
-      <button type="button" title={t("viz.sceneRemove")} onClick={() => changePlaylist(playlist.filter((entry) => entry !== id))}>×</button>
+      <button type="button" title={t("viz.sceneUp")} disabled={busy || index === 0} onClick={() => move(index, -1)}>↑</button>
+      <button type="button" title={t("viz.sceneDown")} disabled={busy || index === playlist.length - 1} onClick={() => move(index, 1)}>↓</button>
+      <button type="button" title={t("viz.sceneRemove")} disabled={busy} onClick={() => changePlaylist(playlist.filter((entry) => entry !== id))}>×</button>
     </li>)}</ol> : <p className="zukato-viz__hint">{t("viz.sceneEmpty")}</p>}
     <p className="zukato-viz__hint">{t("viz.originalAutoNote")}</p>
   </section>;

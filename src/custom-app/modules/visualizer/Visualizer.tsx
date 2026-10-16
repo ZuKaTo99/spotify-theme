@@ -493,7 +493,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
               const mode = sceneSettings.mode === "original" ? "wallpapers" : "original";
               // Nur den Quellenmodus umschalten; alle bisher importierten
               // HTML-Projekte, Clip-Verweise und Playlists bleiben erhalten.
-              setSceneSettings(saveScenePreferences({ ...sceneSettings, mode }));
+              // Die Wallpaper-Verwaltung könnte seit dem letzten Rendern
+              // ihre Reihenfolge geändert haben. Nur den Modus aktualisieren.
+              setSceneSettings(saveScenePreferences({ ...loadScenePreferences(), mode }));
               setError("");
             } catch (cause) { setError(String(cause)); }
           }}>{sceneSettings.mode === "original" ? t("viz.switchToWallpapers") : t("viz.switchToOriginals")}</button>
@@ -550,11 +552,6 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         : canvasDiagnostic === "no-video" ? "Spotify zeigt für diesen Titel kein auslesbares HTML5-Canvas. Das Cover wird angezeigt."
         : canvasDiagnostic === "unreadable-source" ? "Canvas sichtbar, aber Spotify stellt keine kopierbare Video-URL bereit. Das Cover bleibt sichtbar."
         : "Suche nach dem Canvas. Spotify kann den Zugriff auf seine Videopipeline einschränken."}</p>}
-    {!cinemaMode && chosenScene.kind === "missing-original" && canvasAvailability !== "available" &&
-      <button type="button" className="zukato-viz__retry-canvas" onClick={() => {
-        setCanvasAvailability("searching");
-        setCanvasRetry((previous) => previous + 1);
-      }}>{t("viz.canvasRetry")}</button>}
     {!cinemaMode && config.lyricsEnabled && !lyrics.length && !plainLyrics.length && nativeLyricsPreview.length > 0 &&
       <p className="zukato-viz__source-note">Spotify zeigt nur eine kurze, nicht synchronisierte Lyrics-Vorschau. Für vollständige Lyrics wird Spotify/LRCLIB versucht.</p>}
     {!cinemaMode && chosenScene.kind === "missing-original" && canvasAvailability !== "available" &&

@@ -24,7 +24,9 @@ export function WallpaperSettings({ t, simpleOnly = false }: { t: Translator; si
   function toggleSource(original: boolean): void {
     try {
       setError("");
-      setSettings(saveScenePreferences({ ...settings, mode: original ? "original" : "wallpapers" }));
+      // Bestehende Playliständerungen aus dem Visualizer nicht durch einen
+      // alten React-State überschreiben.
+      setSettings(saveScenePreferences({ ...loadScenePreferences(), mode: original ? "original" : "wallpapers" }));
     } catch (cause) { setError(String(cause)); }
   }
 

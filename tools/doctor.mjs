@@ -67,6 +67,17 @@ function checkTypeScript() {
   report(result.status === 0,
     result.status === 0 ? `Lokales TypeScript: ${result.stdout.trim()}` : "Lokales TypeScript kann nicht starten",
     "Bitte npm install auf demselben Betriebssystem ausführen; node_modules nicht kopieren.");
+  // Eine durch Kopieren ältere node_modules-Version darf nicht als Beleg
+  // für einen Test gegen die in package.json verlangte Compiler-Version gelten.
+  if (result.status === 0) {
+    const expected = String(require("../package.json").devDependencies.typescript ?? "");
+    const expectedMajor = Number(/\d+/.exec(expected)?.[0]);
+    const actualMajor = Number(/Version\s+(\d+)/.exec(result.stdout)?.[1]);
+    if (expectedMajor && actualMajor && expectedMajor !== actualMajor) {
+      report(false, `TypeScript-Version abweichend: package.json erwartet ${expected}, lokal ist ${result.stdout.trim()}`,
+        "npm install ausführen und danach npm run check wiederholen.");
+    }
+  }
 }
 
 /** Liefert den vorhandenen Pfad zur Spicetify-CLI ohne sie zu starten. */
@@ -92,7 +103,7 @@ async function checkSources() {
   }
 }
 
-console.log("ZuKaTo v1.7.1 – Umgebung prüfen (schreibgeschützt)");
+console.log(`ZuKaTo v${require("../package.json").version} – Umgebung prüfen (schreibgeschützt)`);
 console.log(`Plattform: ${process.platform} | Node.js: ${process.version}`);
 await checkSources();
 checkTypeScript();

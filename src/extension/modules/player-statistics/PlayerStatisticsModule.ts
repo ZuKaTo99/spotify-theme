@@ -1,41 +1,53 @@
 // =============================================================================
 // Datei: src/extension/modules/player-statistics/PlayerStatisticsModule.ts
-// Zweck: Titelwechsel für die lokale Historie erfassen; keine Spotify-API-Abfrage.
+// Zweck: Lokalen Hörverlauf EINMAL pro echtem Spotify-Songdurchlauf erfassen.
+// Wo ändern? Wiederholungen und Playback-Identität hier; der kanonische
+//            Songdurchlauf wird in src/shared/song-session.ts verwaltet.
 // =============================================================================
 import { currentTrack, recordTrack } from "../../../shared/library";
+import { loadSongSession } from "../../../shared/song-session";
 import type { ExtensionModule } from "../ExtensionModule";
 
-let lastUri = "";
-let lastPlaybackId = "";
+let lastRecordedRun = "";
 
-/** Ein Songwechsel zählt genau einmal, auch wenn Spotify das Event doppelt sendet. */
+/**
+ * Spotify kann beim Fortsetzen eine neue playbackId vergeben, ohne einen neuen
+ * Song zu starten. Eine playbackId ist deshalb KEIN verlässlicher Schlüssel
+ * für die Statistik. Der dauerhafte Song-Session-Zähler wird schon vor diesem
+ * Modul von der Extension aktualisiert und zählt nur echte Titel/Durchläufe.
+ */
 function handleSongChange(): void {
   const track = currentTrack();
   if (!track || !Spicetify.Player.isPlaying()) return;
-  const playbackId = Spicetify.Player?.data?.playbackId ?? "";
-  // Gleiche Titel dürfen später erneut gezählt werden, wenn eine neue Playback-ID vorliegt.
-  if (lastUri === track.uri && (!playbackId || playbackId === lastPlaybackId)) return;
-  lastUri = track.uri;
-  lastPlaybackId = playbackId;
-  try { recordTrack(track); }
-  catch (error) { console.warn("[ZuKaTo] Der lokale Hörverlauf konnte nicht gespeichert werden.", error); }
+  const session = loadSongSession();
+  // Ist der Storage vorübergehend nicht erreichbar, lieber denselben Titel
+  // nicht doppelt zählen. Nach erfolgreichem Storage wird der Session-Index
+  // wieder als eindeutige Abspielidentität verwendet.
+  const identity = session?.uri === track.uri
+    ? `${track.uri}:${session.index}` : track.uri;
+  if (identity === lastRecordedRun) return;
+  try {
+    recordTrack(track);
+    // Erst nach erfolgreichem Speichern als erfasst markieren. Andernfalls
+    // soll ein späteres Player-Ereignis das Speichern erneut versuchen dürfen.
+    lastRecordedRun = identity;
+  } catch (error) {
+    console.warn("[ZuKaTo] Der lokale Hörverlauf konnte nicht gespeichert werden.", error);
+  }
 }
 
 export const playerStatisticsModule: ExtensionModule = {
   id: "player-statistics",
   start(): void {
-    lastUri = "";
-    lastPlaybackId = "";
+    lastRecordedRun = "";
     Spicetify.Player.addEventListener("songchange", handleSongChange);
-    // Beim Fortsetzen eines zuvor pausierten neuen Titels ebenfalls aufzeichnen.
+    // Ein neuer pausierter Titel wird beim ersten Play aufgenommen.
     Spicetify.Player.addEventListener("onplaypause", handleSongChange);
-    // Erster laufender Titel wird ebenfalls aufgenommen; vergangene Titel nicht nachträglich.
     handleSongChange();
   },
   stop(): void {
     Spicetify.Player.removeEventListener("songchange", handleSongChange);
     Spicetify.Player.removeEventListener("onplaypause", handleSongChange);
-    lastUri = "";
-    lastPlaybackId = "";
+    lastRecordedRun = "";
   },
 };

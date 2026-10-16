@@ -1,6 +1,6 @@
 {
   "name": "zukato-spicetify",
-  "version": "1.21.0",
+  "version": "1.26.0",
   "description": "Kommentiertes Spicetify-Workspace mit HTML-Wallpaper-Visualizer, Songverwaltung und Lyrics",
   "main": "index.js",
   "scripts": {

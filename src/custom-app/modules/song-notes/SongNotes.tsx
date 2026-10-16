@@ -14,9 +14,15 @@ export function SongNotes({ t }: { t: Translator }): ReactElement {
   const data = useToolkitData();
   const [active, setActive] = ReactRuntime.useState(currentTrack);
   const [draft, setDraft] = ReactRuntime.useState("");
-  // Songwechsel aktualisieren die Editor-Auswahl; lokale Entwürfe werden nicht automatisch gespeichert.
+  // Wählt jemand gezielt einen alten Titel aus Suche/Liste, darf ein Spotify-
+  // Songwechsel dessen Notiz NICHT unerwartet durch den aktuellen Titel ersetzen.
+  const manualSelection = ReactRuntime.useRef(false);
+  // Nur im Modus "aktueller Song" automatisch auf Player-Events reagieren.
+  // Entwürfe werden weiterhin erst auf ausdrücklichen Klick gespeichert.
   ReactRuntime.useEffect(() => {
-    const sync = (): void => setActive(currentTrack());
+    const sync = (): void => {
+      if (!manualSelection.current) setActive(currentTrack());
+    };
     Spicetify.Player.addEventListener("songchange", sync);
     return () => Spicetify.Player.removeEventListener("songchange", sync);
   }, []);
@@ -28,8 +34,14 @@ export function SongNotes({ t }: { t: Translator }): ReactElement {
   const selected = active;
   return <section className="zukato-panel">
     <p>{t("notes.intro")}</p>
-    <button type="button" onClick={() => setActive(currentTrack())}>{t("notes.choose")}</button>
-    <TrackSearch t={t} actionLabel={t("search.notes")} onChoose={(track) => setActive(track)} />
+    <button type="button" onClick={() => {
+      manualSelection.current = false;
+      setActive(currentTrack());
+    }}>{t("notes.choose")}</button>
+    <TrackSearch t={t} actionLabel={t("search.notes")} onChoose={(track) => {
+      manualSelection.current = true;
+      setActive(track);
+    }} />
     {selected ? <div className="zukato-note-editor">
       <h3>{selected.title} — {selected.artist}</h3>
       <label htmlFor="zukato-note">{t("notes.label")}</label>
@@ -41,7 +53,10 @@ export function SongNotes({ t }: { t: Translator }): ReactElement {
     <h3>{t("notes.savedCount", { count: data.notes.length })}</h3>
     <ul className="zukato-track-list">{data.notes.map((note) => <li className="zukato-track" key={note.uri}>
       <div className="zukato-track__info"><strong>{note.title}</strong><span>{note.artist}</span><small>{note.text.slice(0, 120)}</small></div>
-      <button type="button" onClick={() => setActive(note)}>{t("notes.edit")}</button>
+      <button type="button" onClick={() => {
+        manualSelection.current = true;
+        setActive(note);
+      }}>{t("notes.edit")}</button>
     </li>)}</ul>
   </section>;
 }

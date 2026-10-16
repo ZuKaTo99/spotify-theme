@@ -221,12 +221,21 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
     },
   };
   try {
-    const first = await sceneStore.importScene([new File(["<html><body>Hello</body></html>"], "index.html")]);
+    await assert.rejects(() => sceneStore.importScene([
+      new File(["<html></html>"], "index.html")
+    ]), /vollständigen Projektordner/);
+    const [first] = await sceneStore.importSceneFolder([
+      fileAt("EigenesWallpaper/index.html", "<html><body>Hello</body></html>"),
+      fileAt("EigenesWallpaper/css/theme.css", "body{color:red}"),
+    ]);
     const video = await sceneStore.importScene([new File(["webm"], "clip.webm", { type: "video/webm" })]);
     assert.equal(first.kind, "html");
     assert.equal(video.kind, "video");
     assert.equal((await sceneStore.listScenes()).length, 2);
-    assert.match(await (await sceneStore.loadScene(first.id)).blob.text(), /Content-Security-Policy/);
+    assert.equal((await sceneStore.loadScene(first.id)).format, "project-v2");
+    const firstFiles = await sceneStore.loadSceneProject(first.id);
+    assert.equal(firstFiles.files.length, 2);
+    assert.match(await firstFiles.files.find((entry) => entry.path === "index.html").blob.text(), /Hello/);
     assert.equal((await sceneStore.loadScene(video.id)).blob.size, 4);
     // Ein echter Sammelordner erzeugt in EINER Speicherung zwei Einträge.
     const multi = await sceneStore.importSceneFolder([
@@ -247,11 +256,11 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
     ]), /Nicht unterstützte/);
     assert.equal((await sceneStore.listScenes()).length, 4);
     assert.equal(await sceneStore.loadScene("wrong-id"), null);
-    await assert.rejects(() => sceneStore.importScene([new File(["bad"], "virus.exe")]), /Videodatei/);
+    await assert.rejects(() => sceneStore.importScene([new File(["bad"], "virus.exe")]), /vollständigen Projektordner/);
     await sceneStore.deleteScene(first.id);
     assert.equal((await sceneStore.listScenes()).length, 3);
     assert.ok(contents.has(video.id), "Löschen verändert nicht andere Szenen");
-    assert.equal(filesContent.size, 2, "Zugehörige Asset-Blobs bleiben bis zum eigenen Löschen bestehen");
+    assert.equal(filesContent.size, 3, "Beim Löschen bleiben nur noch die drei anderen Projektdateien erhalten");
     // Komplexes 70+-Dateien-Projekt wird nicht als riesige HTML-Base64-Datei
     // gespeichert, sondern separat und löschbar in IDB-v2-Asset-Blobs.
     const bulk = [fileAt("Set/Big/index.html", "<html><body>Viele Dateien</body></html>"),
@@ -262,9 +271,9 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
     assert.equal(big.format, "project-v2");
     const loaded = await sceneStore.loadSceneProject(big.id);
     assert.equal(loaded.files.length, 77);
-    assert.equal(filesContent.size, 79);
+    assert.equal(filesContent.size, 80);
     await sceneStore.deleteScene(big.id);
-    assert.equal(filesContent.size, 2, "Beim Löschen werden alle 77 Dateien freigegeben.");
+    assert.equal(filesContent.size, 3, "Beim Löschen werden alle 77 Dateien freigegeben.");
   } finally { if (oldIDB === undefined) delete globalThis.indexedDB; else globalThis.indexedDB = oldIDB; }
 });
 
@@ -314,7 +323,7 @@ test("Ein einzelnes HTML-Projekt mit Assets bleibt EIN Wallpaper", () => {
 
 test("Ungültige Pfade im ausgewählten Wallpaper-Ordner werden verworfen", () => {
   assert.throws(() => folders.groupWallpaperFolderFiles([fileAt("wallpapers/../index.html", "<html></html>")]), /Unsicherer/);
-  assert.throws(() => folders.groupWallpaperFolderFiles([fileAt("wallpapers/image.png", "png")]), /Kein HTML-Wallpaper/);
+  assert.throws(() => folders.groupWallpaperFolderFiles([fileAt("wallpapers/image.png", "png")]), /Kein vollständiges HTML-Wallpaper/);
 });
 
 test("Originalclip-Manifest validiert alle Songs, URLs und Zeitgrenzen vor Import", () => {

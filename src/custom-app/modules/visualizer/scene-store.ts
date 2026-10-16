@@ -6,11 +6,10 @@
 // Format v2: große Projektdateien liegen separat als unveränderte IDB-Blobs.
 // =============================================================================
 import { MAX_WALLPAPER_BYTES } from "./media-store";
-import { MAX_HTML_PROJECT_BYTES, packWebWallpaper } from "./web-wallpaper";
 import { groupWallpaperFolderFiles } from "./scene-folder";
 import {
   MAX_TOTAL_SCENE_BYTES,
-  prepareWallpaperProject, type PreparedProject, type ProjectAsset,
+  prepareWallpaperProject, resolveWallpaperProjectEntry, type PreparedProject, type ProjectAsset,
 } from "./wallpaper-project";
 
 export const MAX_SCENES = 128;
@@ -104,21 +103,50 @@ export async function loadSceneProject(id: string): Promise<PreparedProject | nu
   } finally { db.close(); }
 }
 
-/** Ein IDB-Commit für Metadaten und ALLE zugehörigen Asset-Blobs. */
+/**
+ * Speicherkontrolle und Schreiben in EINER schreibenden IndexedDB-Transaktion.
+ *
+ * Eine reine Vorabprüfung kann bei zwei gleichzeitig gestarteten Importen
+ * denselben alten Bibliotheksstand sehen. Die readwrite-Transaktion sperrt
+ * den Szenen-Store dagegen exklusiv, prüft die tatsächlich vorhandenen Daten
+ * und schreibt erst danach alle Blobs. So kann weder das Szenenlimit noch das
+ * 2-GiB-Limit durch parallel gestartete Importe umgangen werden.
+ */
 async function writeScenes(records: readonly NewScene[]): Promise<void> {
   const db = await openScenes();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction([STORE, ASSET_STORE], "readwrite");
+      const sceneStore = tx.objectStore(STORE);
       tx.oncomplete = () => resolve();
       tx.onabort = () => reject(tx.error ?? new Error("Wallpaper-Speicher voll oder Import abgebrochen."));
       tx.onerror = () => reject(tx.error ?? new Error("Wallpaper-Projektdaten konnten nicht gespeichert werden."));
-      for (const { record, project } of records) {
-        tx.objectStore(STORE).put(record);
-        if (project) for (const file of project.files) tx.objectStore(ASSET_STORE).put({
-          key: `${record.id}:${file.path}`, sceneId: record.id, path: file.path, blob: file.blob,
-        } satisfies StoredFile);
-      }
+      const existing = sceneStore.getAll();
+      existing.onsuccess = () => {
+        try {
+          const current = (existing.result ?? []) as SceneAsset[];
+          const currentBytes = current.reduce((sum, scene) => sum + (Number.isFinite(scene.bytes) ? scene.bytes : 0), 0);
+          const newBytes = records.reduce((sum, project) => sum + project.record.bytes, 0);
+          if (current.length + records.length > MAX_SCENES || currentBytes + newBytes > MAX_SCENE_BYTES) {
+            throw new Error("Szenenbibliothek voll (128 Szenen / 2 GiB). Bitte ungenutzte Wallpapers entfernen.");
+          }
+          const fileStore = tx.objectStore(ASSET_STORE);
+          for (const { record, project } of records) {
+            sceneStore.put(record);
+            if (project) for (const file of project.files) fileStore.put({
+              key: `${record.id}:${file.path}`, sceneId: record.id, path: file.path, blob: file.blob,
+            } satisfies StoredFile);
+          }
+        } catch (error) {
+          // Keine Teilimporte schreiben: Ein Abort verwirft auch bereits
+          // vorgemerkte Operationen dieser Transaktion vollständig.
+          try { tx.abort(); } catch { /* Abbruch kann bereits erfolgt sein. */ }
+          reject(error);
+        }
+      };
+      existing.onerror = () => {
+        reject(existing.error ?? new Error("Szenenbibliothek konnte nicht geprüft werden."));
+      };
     });
   } finally { db.close(); }
 }
@@ -136,14 +164,10 @@ async function buildRecord(files: readonly File[], name: string, index: number):
       throw new Error("Videodatei muss MP4, WebM oder OGV sein (max. 80 MiB).");
     return { record: { id, name, kind: "video", bytes: files[0].size, created, blob: files[0] } };
   }
-  // Einzelseiten im alten Format lassen sich weiterhin ohne Migration laden.
-  // Sobald weitere Dateien dazugehören, werden sie vollständig und effizient
-  // im neuen Projektformat gespeichert – inklusive project.json und 3D-Assets.
-  if (files.length === 1 && files[0].size <= MAX_HTML_PROJECT_BYTES) {
-    const blob = await packWebWallpaper(files);
-    return { record: { id, name, kind: "html", bytes: blob.size, created, blob } };
-  }
-  const project = prepareWallpaperProject(files);
+  // HTML wird NEU ausschließlich als vollständiges Projekt gespeichert.
+  // Bereits vorhandene ältere Ein-Datei-Einträge bleiben über loadScene()
+  // lesbar; kein automatischer Datenverlust durch dieses Upgrade.
+  const project = await resolveWallpaperProjectEntry(prepareWallpaperProject(files));
   return { record: {
     id, name, kind: "html", bytes: project.bytes, created, blob: new Blob(),
     format: "project-v2", entry: project.entry, paths: project.files.map((file) => file.path),
@@ -161,10 +185,10 @@ async function validateCapacity(projects: readonly NewScene[]): Promise<void> {
   }
 }
 
-/** Ein Webprojekt oder ein direktes Video importieren. */
+/** Nur noch für direkte Videodateien; HTML erfordert einen Ordnerimport. */
 export async function importScene(files: readonly File[]): Promise<SceneEntry> {
-  if (!files.length) throw new Error("Bitte eine Szene auswählen.");
-  // Der Aufruf wählt einen einzelnen Projektordner bzw. einzelne HTML-Datei.
+  if (files.length !== 1 || !/\.(?:mp4|webm|ogv)$/i.test(files[0].name))
+    throw new Error("HTML-Wallpapers bitte immer als vollständigen Projektordner importieren.");
   const prepared = await buildRecord(files, files[0].name.slice(0, 160), 0);
   await validateCapacity([prepared]);
   await writeScenes([prepared]);
@@ -185,19 +209,34 @@ export async function importSceneFolder(files: readonly File[]): Promise<SceneEn
   return records.map(({ record: { blob: _blob, entry: _entry, paths: _paths, ...metadata } }) => metadata);
 }
 
-/** Löscht Projekt und sämtliche eigenen Asset-Blobs in derselben Transaktion. */
+/**
+ * Projekt mitsamt ALLEN Asset-Blobs atomar entfernen.
+ *
+ * Der frühere Löschweg las erst `scene.paths` und löschte genau diese Keys.
+ * War der Haupteintrag bereits beschädigt/gelöscht, blieben alle zugehörigen
+ * Projektdateien als Speicherleichen zurück. Darum die tatsächlichen Asset-
+ * Einträge via IndexedDB-Index `byScene` lesen, unabhängig von der Metadatei.
+ */
 export async function deleteScene(id: string): Promise<void> {
   if (!VALID_ID.test(id)) throw new Error("Unbekannte Szene.");
-  const scene = await loadScene(id);
   const db = await openScenes();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction([STORE, ASSET_STORE], "readwrite");
+      const assetStore = tx.objectStore(ASSET_STORE);
       tx.oncomplete = () => resolve();
       tx.onabort = () => reject(tx.error ?? new Error("Szene konnte nicht gelöscht werden."));
       tx.onerror = () => reject(tx.error ?? new Error("Szenenlöschung fehlgeschlagen."));
-      tx.objectStore(STORE).delete(id);
-      for (const path of scene?.paths ?? []) tx.objectStore(ASSET_STORE).delete(`${id}:${path}`);
+      const request = assetStore.index("byScene").getAll(id);
+      request.onsuccess = () => {
+        // Während des laufenden Requests bleibt die Transaktion offen.
+        // Jede Löschung ist Teil derselben readwrite-Transaktion.
+        for (const file of request.result as StoredFile[]) assetStore.delete(file.key);
+        tx.objectStore(STORE).delete(id);
+      };
+      request.onerror = () => {
+        try { tx.abort(); } catch { /* IndexedDB kann bereits abgebrochen haben. */ }
+      };
     });
   } finally { db.close(); }
 }

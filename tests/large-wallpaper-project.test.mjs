@@ -212,3 +212,66 @@ test("Sandbox-Bootstrap enthält gültiges ausführbares JavaScript", () => {
   assert.ok(source);
   assert.doesNotThrow(() => new Script(source));
 });
+
+// -----------------------------------------------------------------------------
+// v1.22: Native ES-Module – kleine Wallpaper-Projekte sollen import/export und
+// spätere import()-Aufrufe ohne unsichere externe Netzwerkpfade benutzen können.
+// -----------------------------------------------------------------------------
+test("HTML-Webprojekt: verschachtelte statische und dynamische ES-Module", async () => {
+  const prepared = project.prepareWallpaperProject([
+    asFile("Web/web/index.html", '<head><script type="module" src="../js/main.mjs"></script></head><body></body>'),
+    asFile("Web/js/main.mjs", 'import {value} from "./lib/value.js"; export {value}; import("./dynamic.js");'),
+    asFile("Web/js/lib/value.js", 'export const value = 42;'),
+    asFile("Web/js/dynamic.js", 'export const result = "loaded";'),
+  ]);
+  const rendered = await project.renderWallpaperProject(prepared);
+  assert.match(rendered.html, /<script type="module">import "zukato-module:js%2Fmain\.mjs";<\/script>/);
+  assert.equal(rendered.modules.length, 3);
+  assert.match(rendered.modules.find((m) => m.specifier.includes('main.mjs')).code,
+    /import \{value\} from "zukato-module:js%2Flib%2Fvalue.js"/);
+  assert.match(rendered.modules.find((m) => m.specifier.includes('main.mjs')).code,
+    /import\("zukato-module:js%2Fdynamic.js"\)/);
+  assert.match(rendered.bootstrap, /type="importmap"/);
+  assert.match(project.PROJECT_CSP, /script-src 'unsafe-inline' blob:/);
+  assert.equal(project.sceneFramePayload(rendered).runtime.modules.length, 3);
+});
+
+test("Inline-Modul und klassisches Skript bleiben unabhängig", async () => {
+  const prepared = project.prepareWallpaperProject([
+    asFile("App/index.html", '<head><script src="classic.js"></script><script type="module">import {ok} from "./modules/util.js"; document.body.dataset.ok=ok;</script></head><body></body>'),
+    asFile("App/classic.js", 'window.classicLoaded=true;'),
+    asFile("App/modules/util.js", 'export const ok="yes";'),
+  ]);
+  const rendered = await project.renderWallpaperProject(prepared);
+  assert.match(rendered.html, /window.classicLoaded=true/);
+  assert.match(rendered.html, /import \{ok\} from "zukato-module:modules%2Futil.js"/);
+  assert.equal(rendered.modules.length, 1);
+});
+
+test("Lokale, fehlende und ausbrechende Modulpfade werden nicht über Netz geladen", async () => {
+  const make = (code) => project.prepareWallpaperProject([
+    asFile("App/index.html", '<script type="module" src="js/main.js"></script>'),
+    asFile("App/js/main.js", code),
+  ]);
+  await assert.rejects(project.renderWallpaperProject(make('import "./missing.js"')), /Lokales ES-Modul fehlt/);
+  await assert.rejects(project.renderWallpaperProject(make('import "../../../escape.js"')), /verlässt das Wallpaper-Projekt/);
+});
+
+test("ES-Module: zyklische lokale Importe dürfen vom Browser ausgewertet werden", async () => {
+  const rendered = await project.renderWallpaperProject(project.prepareWallpaperProject([
+    asFile("Cycle/index.html", '<head><script type="module" src="a.js"></script></head>'),
+    asFile("Cycle/a.js", 'import {b} from "./b.js"; export const a=b+1;'),
+    asFile("Cycle/b.js", 'import {a} from "./a.js"; export const b=1;'),
+  ]));
+  assert.equal(rendered.modules.length, 2);
+  assert.ok(rendered.modules.some((m) => m.code.includes('zukato-module:b.js')));
+});
+
+test("Laufzeit: Sandbox-Module bleiben getrennt von Spotify und haben gültiges Bootstrap-JS", () => {
+  const script = project.PROJECT_BOOTSTRAP.match(/<script>([\s\S]*?)<\/script>/i)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Script(script));
+  assert.match(project.PROJECT_BOOTSTRAP, /modules=Array\.isArray\(data\.modules\)/);
+  assert.match(project.PROJECT_BOOTSTRAP, /URL\.createObjectURL\(new Blob\(\[moduleCode\]/);
+  assert.doesNotMatch(project.PROJECT_BOOTSTRAP, /allow-same-origin/);
+});
