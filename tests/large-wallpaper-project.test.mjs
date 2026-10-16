@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
+import { Script } from "node:vm";
 
 async function loadSource(path, replace = (value) => value) {
   let code = await readFile(new URL(path, import.meta.url), "utf8");
@@ -158,4 +159,56 @@ test("Komplexes HTML: srcset, Inline-CSS und CSS-Import mit Media Query", async 
   assert.match(rendered.html, /body\{color:hotpink\}/);
   assert.match(rendered.html, /srcset="zukato-asset:[^\"]+ 1x, zukato-asset:[^\"]+ 2x"/);
   assert.equal(rendered.assets.length, 2);
+});
+
+/**
+ * Regression v1.20: Das Hauptfenster muss die BOOTSTRAP-Seite anzeigen,
+ * nicht das bereits umgeschriebene HTML mit unverarbeiteten Blob-Markern.
+ * Dieser Fehler ließ Bilder im eigentlichen Visualizer verschwinden, obwohl
+ * dieselbe Szene in der Vorschau korrekt angezeigt wurde.
+ */
+test("Visualizer und Vorschau erhalten dieselbe Sandbox-Startseite mit separaten Assets", async () => {
+  const prepared = project.prepareWallpaperProject([
+    asFile("Live/index.html", '<html><body><img src="images/a.png"><script src="js/a.js"></script></body></html>'),
+    asFile("Live/images/a.png", new Uint8Array([137, 80, 78, 71])),
+    asFile("Live/js/a.js", 'document.body.dataset.ready="yes"'),
+  ]);
+  const rendered = await project.renderWallpaperProject(prepared);
+  const frame = project.sceneFramePayload(rendered);
+  assert.equal(frame.srcDoc, rendered.bootstrap);
+  assert.notEqual(frame.srcDoc, rendered.html);
+  assert.match(frame.srcDoc, /zukatoProjectInit/);
+  assert.match(frame.runtime.html, /zukato-asset:0:/);
+  assert.equal(frame.runtime.assets.length, 1);
+});
+
+/**
+ * Regression v1.21: Dynamische JS-Dateizugriffe dürfen nicht versehentlich die
+ * Spotify-Seiten-URL verwenden. Auch eine Unterordner-Einstiegseite muss ihren
+ * Original-Basispfad behalten; Blob-URLs entstehen nur im iframe.
+ */
+test("Dynamische JSON- und Bilddateien sind in der Sandbox anhand ihres Pfads auffindbar", async () => {
+  const prepared = project.prepareWallpaperProject([
+    asFile("W/web/index.html", `<html><body><script src="../js/app.js"></script></body></html>`),
+    asFile("W/js/app.js", `const path="../config/"+"scene.json"; fetch(path).then(r=>r.json());`),
+    asFile("W/config/scene.json", `{"mode":"night"}`),
+    asFile("W/images/cloud.png", new Uint8Array([1, 2, 3])),
+  ]);
+  const payload = project.sceneFramePayload(await project.renderWallpaperProject(prepared));
+  assert.equal(payload.runtime.entry, "web/index.html");
+  assert.ok(payload.runtime.assets.some((a) => a.path === "config/scene.json" && a.mime === "application/json"));
+  assert.ok(payload.runtime.assets.some((a) => a.path === "images/cloud.png"));
+  assert.match(payload.runtime.html, /fetch\(path\)/);
+  assert.match(payload.srcDoc, /XMLHttpRequest\.prototype\.open/);
+  assert.match(payload.srcDoc, /PROJECT_ASSET_MISSING/);
+  assert.match(payload.srcDoc, /window\.zukatoWallpaperAssetUrl/);
+  assert.match(payload.srcDoc, /HTMLImageElement\.prototype/);
+  assert.match(payload.srcDoc, /Element\.prototype\.setAttribute/);
+});
+
+/** TypeScript-Kompilierung schützt nicht vor falsch escapter JS-Template-Syntax. */
+test("Sandbox-Bootstrap enthält gültiges ausführbares JavaScript", () => {
+  const source = project.PROJECT_BOOTSTRAP.match(/<script>([\s\S]*?)<\/script>/i)?.[1];
+  assert.ok(source);
+  assert.doesNotThrow(() => new Script(source));
 });

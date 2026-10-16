@@ -129,12 +129,16 @@ function safeScript(text: string): string { return text.replace(/<\/script/gi, "
  */
 export interface WallpaperRuntimeAsset {
   marker: string;
+  /** Projekt-relativer Originalpfad, benötigt für dynamische JS-Dateizugriffe. */
+  path: string;
   blob: Blob;
   mime: string;
 }
 export interface RenderedProject {
   /** Fertiges HTML mit Platzhaltern statt ungültiger parent-Blob-URLs. */
   html: string;
+  /** Einstiegspfad bestimmt die relativen URLs von fetch() und XHR. */
+  entry: string;
   /** Kleine, origin-isolierte Bootstrap-Seite für iframe.srcDoc. */
   bootstrap: string;
   /** Original-Blobs, die der Sandbox einmalig geschickt werden. */
@@ -144,39 +148,160 @@ export interface RenderedProject {
 }
 
 /**
- * Beim Laden der Sandbox wartet eine minimale, geschützte Seite auf die
- * Projektdaten. Nach Übergabe schreibt sie das Projekt innerhalb desselben
- * isolierten Origins in ihr eigenes Dokument. Bei Entladen des iframe werden
- * die temporären Blob-URLs automatisch ungültig.
+ * Einheitlicher Übergabevertrag für Bühne UND Bibliotheksvorschau.
+ * Niemals rendered.html als srcDoc setzen: Dann werden Assets nicht per
+ * postMessage übergeben, und Browser zeigen defekte Bilder/Fonts an.
+ */
+export function sceneFramePayload(project: RenderedProject): {
+  srcDoc: string;
+  runtime: { html: string; entry: string; assets: WallpaperRuntimeAsset[] };
+} {
+  return {
+    srcDoc: project.bootstrap,
+    runtime: { html: project.html, entry: project.entry, assets: project.assets },
+  };
+}
+
+/**
+ * Sandbox-Laufzeit fuer umfangreiche Webprojekte.
  *
- * Sicherheit: nur Nachrichten aus dem direkten Elternfenster, genau ein
- * Import, keine Tokens und kein allow-same-origin; der Hauptinhalt bekommt
- * zusätzlich wieder PROJECT_CSP.
+ * - Blob-URLs werden ausschliesslich IN der iframe-Sandbox erzeugt.
+ * - fetch()/XMLHttpRequest fuer projektlokale JSON-/Bild-/Audiodateien werden
+ *   auf diese Blob-URLs abgebildet, auch wenn der Pfad erst in JS entsteht.
+ * - Fehlende Dateien und kaputte Ressourcen werden ohne private Pfade gemeldet.
+ * - Externe HTTP-Adressen bleiben wegen der restriktiven CSP gesperrt.
+ *
+ * Hinweis: ES-Modul-Imports, Wallpaper-Engine-Spezial-APIs und Worker koennen
+ * nicht pauschal emuliert werden; dafuer sind gesonderte Adapter erforderlich.
  */
 export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" content="${PROJECT_CSP}">
 <script>(function(){
+  'use strict';
   var initialized=false;
+  var activeUrls=[];
+  var notices=Object.create(null);
+  function report(code){
+    if(notices[code])return;
+    notices[code]=true;
+    window.parent.postMessage({zukatoProjectError:true,code:code},'*');
+  }
   window.addEventListener('message',function(event){
     if(initialized||event.source!==window.parent||!event.data||event.data.zukatoProjectInit!==true)return;
     initialized=true;
     var data=event.data, documentHtml=String(data.html||'');
     var resources=Array.isArray(data.assets)?data.assets:[];
-    var urls=[];
+    var entry=String(data.entry||'index.html');
+    var paths=Object.create(null);
+    var knownUrls=Object.create(null);
     try{
       for(var i=0;i<resources.length;i++){
         var item=resources[i];
-        if(!item||typeof item.marker!=='string'||!(item.blob instanceof Blob))continue;
+        if(!item||typeof item.marker!=='string'||typeof item.path!=='string'||!(item.blob instanceof Blob))continue;
         var url=URL.createObjectURL(new Blob([item.blob],{type:String(item.mime||'application/octet-stream')}));
-        urls.push(url);
+        activeUrls.push(url);
+        paths[item.path]=url;
+        knownUrls[url]=true;
         documentHtml=documentHtml.split(item.marker).join(url);
       }
+      // Sandbox-srcdoc erbt eine fremde baseURI (Spotify); lokale URLs ohne
+      // diesen Resolver wuerden deshalb ins Leere oder gegen Spotify gehen.
+      function resolveAsset(ref){
+        if(typeof ref!=='string'||!ref||ref[0]==='/'||ref.slice(0,2)==='//'||ref[0]==='#'||/^[a-z][a-z0-9+.-]*:/i.test(ref))return null;
+        var raw=ref.split(/[?#]/,1)[0].replace(/\\\\/g,'/');
+        try{raw=decodeURIComponent(raw);}catch(error){return '';}
+        var segments=entry.split('/').slice(0,-1);
+        var parts=raw.split('/');
+        for(var j=0;j<parts.length;j++){
+          var part=parts[j];
+          if(!part||part==='.')continue;
+          if(part==='..'){
+            if(!segments.length)return '';
+            segments.pop();
+          }else segments.push(part);
+        }
+        return segments.join('/');
+      }
+      // Manche Animationen bauen Dateinamen erst zur Laufzeit zusammen, etwa
+      // eine Bildfolge ("frames/" + frame + ".png"). Diese URLs kommen nicht
+      // als statische HTML-Attribute vor und muessen im iframe aufgeloest werden.
+      function assetUrl(value){
+        if(typeof value!=='string')return null;
+        // Bereits durch die HTML-/JS-Vorbereitung ersetzte Blob-Adressen
+        // niemals ein zweites Mal als relative Dateinamen interpretieren.
+        if(Object.prototype.hasOwnProperty.call(knownUrls,value))return value;
+        var local=resolveAsset(value);
+        if(local===null)return null;
+        if(Object.prototype.hasOwnProperty.call(paths,local))return paths[local];
+        report('PROJECT_ASSET_MISSING');
+        return null;
+      }
+      function patchSrc(prototype,property){
+        var old=Object.getOwnPropertyDescriptor(prototype,property);
+        if(!old||!old.set||!old.get||!old.configurable)return;
+        Object.defineProperty(prototype,property,{
+          configurable:true,enumerable:old.enumerable,
+          get:function(){return old.get.call(this);},
+          set:function(value){return old.set.call(this,assetUrl(value)||value);}
+        });
+      }
+      patchSrc(HTMLImageElement.prototype,'src');
+      patchSrc(HTMLMediaElement.prototype,'src');
+      patchSrc(HTMLSourceElement.prototype,'src');
+      // setAttribute() wird von vielen Canvas-/3D-Bibliotheken statt .src
+      // verwendet. Nur bekannte Medienelemente auf lokale URLs umbiegen.
+      var nativeAttribute=Element.prototype.setAttribute;
+      Element.prototype.setAttribute=function(name,value){
+        if(typeof name==='string'&&name.toLowerCase()==='src'&&
+          /^(?:IMG|VIDEO|AUDIO|SOURCE)$/.test(this.tagName)){
+          value=assetUrl(value)||value;
+        }
+        return nativeAttribute.call(this,name,value);
+      };
+      // Bewusst kein Netzwerkfallback fuer unbekannte relative Pfade: Das
+      // Wallpaper darf damit nicht versehentlich auf Spotify-URLs zugreifen.
+      var nativeFetch=window.fetch.bind(window);
+      window.fetch=function(input,init){
+        var original=typeof input==='string'?input:null;
+        var canonical=resolveAsset(original);
+        if(canonical===null)return nativeFetch(input,init);
+        if(!Object.prototype.hasOwnProperty.call(paths,canonical)){
+          report('PROJECT_ASSET_MISSING');
+          return Promise.reject(new TypeError('Projektdatei nicht gefunden'));
+        }
+        return nativeFetch(paths[canonical],init);
+      };
+      var nativeOpen=XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open=function(method,url){
+        var canonical=resolveAsset(url);
+        if(canonical!==null){
+          if(!Object.prototype.hasOwnProperty.call(paths,canonical)){
+            report('PROJECT_ASSET_MISSING');
+            throw new TypeError('Projektdatei nicht gefunden');
+          }
+          arguments[1]=paths[canonical];
+        }
+        return nativeOpen.apply(this,arguments);
+      };
+      // Bewusst kleine Hilfs-API fuer dynamisch zusammengesetzte Bildpfade.
+      // Bei unbekannten Dateien wird KEINE Netzadresse zurueckgegeben.
+      window.zukatoWallpaperAssetUrl=assetUrl;
+      // Error capture funktioniert auch fuer Bildfehler ohne Promise.
+      window.addEventListener('error',function(e){
+        if(e.target!==window){report('PROJECT_RESOURCE_ERROR');}
+        else report('PROJECT_SCRIPT_ERROR');
+      },true);
+      window.addEventListener('unhandledrejection',function(){report('PROJECT_SCRIPT_ERROR');});
       document.open();
       document.write(documentHtml);
       document.close();
-      window.addEventListener('pagehide',function(){urls.forEach(function(url){URL.revokeObjectURL(url);});},{once:true});
+      window.addEventListener('pagehide',function(){
+        activeUrls.forEach(function(url){URL.revokeObjectURL(url);});
+        activeUrls=[];
+      },{once:true});
     }catch(error){
-      urls.forEach(function(url){URL.revokeObjectURL(url);});
-      window.parent.postMessage({zukatoProjectError:true,message:'HTML-Wallpaper konnte nicht gestartet werden.'},'*');
+      activeUrls.forEach(function(url){URL.revokeObjectURL(url);});
+      activeUrls=[];
+      report('PROJECT_INITIALIZATION_FAILED');
     }
   });
 })();<\/script>`;
@@ -194,7 +319,7 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
     if (/\.(?:css|js|mjs|cjs|html?|map)$/i.test(path)) continue;
     const marker = `zukato-asset:${assets.length}:`;
     urls.set(path, marker);
-    assets.push({ marker, blob, mime: mimeFor(path) });
+    assets.push({ marker, path, blob, mime: mimeFor(path) });
   }
   const replaceReferences = (content: string, source: string): string => {
     let updated = content.replace(/(["'`])([^"'`\r\n]+)\1/g, (full, quote: string, relative: string) => {
@@ -284,5 +409,5 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
     html = /<head\b[^>]*>/i.test(html)
       ? html.replace(/<head\b[^>]*>/i, (tag) => `${tag}${policy}${bridge}`)
       : `${policy}${bridge}${html}`;
-    return { html, bootstrap: PROJECT_BOOTSTRAP, assets, dispose: () => undefined };
+    return { html, entry: project.entry, bootstrap: PROJECT_BOOTSTRAP, assets, dispose: () => undefined };
 }

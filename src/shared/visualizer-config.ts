@@ -26,6 +26,8 @@ export interface VisualizerConfig {
   videoHue: number;
   vignette: number;
   dim: number;
+  /** Web-/Video-Szenen in ihren Originalfarben anzeigen, ohne ZuKaTo-Farbfilter. */
+  preserveSceneAppearance: boolean;
   blur: number;
   sensitivity: number;
   smoothing: number;
@@ -60,7 +62,8 @@ export const DEFAULT_VISUALIZER_CONFIG: Readonly<VisualizerConfig> = {
   videoSaturation: 100,
   videoHue: 0,
   vignette: 0,
-  dim: 35,
+  dim: 0,
+  preserveSceneAppearance: true,
   blur: 0,
   sensitivity: 1.7,
   smoothing: 0.75,
@@ -110,7 +113,11 @@ export function normalizeVisualizerConfig(source: unknown): VisualizerConfig {
     videoSaturation: Math.round(numberIn(input.videoSaturation, 100, 0, 200)),
     videoHue: Math.round(numberIn(input.videoHue, 0, -180, 180)),
     vignette: Math.round(numberIn(input.vignette, 0, 0, 100)),
-    dim: numberIn(input.dim, 35, 0, 90),
+    dim: numberIn(input.dim, 0, 0, 90),
+    // Auch ältere Nutzerkonfigurationen aktivieren den farbtreuen Modus;
+    // absichtlich gesetzte Dim-/Blur-Regler bleiben für andere Hintergründe.
+    preserveSceneAppearance: typeof input.preserveSceneAppearance === "boolean"
+      ? input.preserveSceneAppearance : true,
     blur: numberIn(input.blur, 0, 0, 20),
     sensitivity: numberIn(input.sensitivity, 1.7, 0.5, 5),
     smoothing: numberIn(input.smoothing, 0.75, 0, 0.95),
@@ -130,6 +137,24 @@ export function normalizeVisualizerConfig(source: unknown): VisualizerConfig {
     showTrackInfo: typeof input.showTrackInfo === "boolean" ? input.showTrackInfo : true,
     videoSpeed: numberIn(input.videoSpeed, 1, 0.5, 2),
     transitionMs: Math.round(numberIn(input.transitionMs, 700, 0, 3000)),
+  };
+}
+
+/**
+ * Farbwerte für die tatsächliche Bühne. Die Einstellungen bleiben unverändert:
+ * Nur das sichtbare Web-Wallpaper erhält beim Aktivieren der Originalfarben
+ * keinen zusätzlichen ZuKaTo-Filter. So bleiben alte Presets und Song-Szenen
+ * kompatibel, und ein Wechsel zurück stellt die alten Werte wieder her.
+ */
+export function effectiveBackdropColorSettings(config: VisualizerConfig, isScene: boolean): {
+  dim: number; blur: number; saturation: number; hue: number; vignette: number;
+} {
+  if (isScene && config.preserveSceneAppearance) {
+    return { dim: 0, blur: 0, saturation: 100, hue: 0, vignette: 0 };
+  }
+  return {
+    dim: config.dim, blur: config.blur, saturation: config.videoSaturation,
+    hue: config.videoHue, vignette: config.vignette,
   };
 }
 

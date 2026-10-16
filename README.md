@@ -3,7 +3,7 @@
 ZuKaTo ist eine kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung,
 Dashboard, Einstellungen und einem Visualizer für eigene HTML-Web-Wallpapers.
 
-**Entwicklungsstand:** v1.19.0. Der Build und die automatisierten Tests sind
+**Entwicklungsstand:** v1.21.0. Der Build und die automatisierten Tests sind
 prüfbar; die Canvas-, Lyrics- und Audiowiedergabe muss in deinem tatsächlichen
 Spotify-Client getestet werden. Es gibt keine mitgelieferten Wallpaper-Videos.
 
@@ -41,17 +41,40 @@ Client. `npm run doctor` hilft bei Installationsproblemen. Der Build erzeugt
 - **Speicherung:** Größere Projekte werden als einzelne Original-Blobs in
   IndexedDB abgelegt. Der ZIP-Export erhält die Dateien samt relativen Pfaden.
   Das JSON-Einstellungsbackup enthält **nicht** die großen Originaldateien.
-- **Wiedergabe großer Webprojekte (neu in v1.19):** HTML, CSS und JavaScript
+- **Wiedergabe großer Webprojekte (v1.20 korrigiert):** HTML, CSS und JavaScript
   werden für die isolierte Ansicht vorbereitet. Große Bilder, Fonts und weitere
   Medien werden als Blobs übergeben und erhalten ihre temporären URLs erst
   **innerhalb des Sandbox-iframes**. Damit umgeht ZuKaTo eine Browser-Sperre,
   die parent-seitige Blob-URLs für isolierte iframes unzugänglich macht. Auch
   `srcset`-Bilder und lokale CSS-Imports mit einfachen Media Queries werden
-  nun aufgelöst. Nach Szenenwechsel entlädt das iframe seine Ressourcen.
+  nun aufgelöst. In v1.20 wurde ein Fehler in der Hauptbühne behoben:
+  Die Bühne benutzte zuvor das fertige HTML statt des Bootstrap-Dokuments,
+  deshalb wurden die Assets im Player nicht initialisiert, obwohl die
+  Bibliotheksvorschau funktionierte. Nach Szenenwechsel entlädt das iframe
+  seine Ressourcen.
+- **Dynamische lokale Projektdateien (v1.21):** JavaScript kann relative
+  Konfigurations- und Mediendateien zur Laufzeit über `fetch()` oder
+  `XMLHttpRequest` laden. Auch dynamisch zugewiesene `img.src`-, Video-/Audio-
+  `src`-Attribute und `setAttribute("src", ...)` werden für vorhandene lokale
+  Dateien aufgelöst. Optional gibt `zukatoWallpaperAssetUrl(relativePath)`
+  eine sichere lokale Blob-URL zurück. Fehlende Dateien und JavaScript-Fehler
+  werden im Visualizer angezeigt, ohne lokale Dateipfade zu übertragen. **Es
+  werden keine externen Netzwerkverbindungen freigeschaltet.**
+- **Originaldarstellung:** Unter Visualizer → Wallpapers ist „Eigene
+  Wallpapers in Originalfarben anzeigen“ standardmäßig aktiv – auch für alte
+  gespeicherte Konfigurationen. Der Effekt nimmt nur ZuKaTos eigene
+  Abdunklung, Unschärfe, Vignette und Farbfilter weg. Die Wallpaper-eigenen
+  Licht-/Wettereffekte bleiben erhalten. Der Schalter ist reversibel.
+- **Grenzen:** Absolute Dateipfade, externe Internet-Assets, Wallpaper-Engine-
+  spezifische APIs, ES-Modulimporte und Web-Worker funktionieren nicht
+  generell in der Sandbox. Falls „AUTO: LÄDT…“ im Wallpaper stehenbleibt,
+  kann dessen Originalprojekt auch einen blockierten externen Dienst erwarten.
+
 - **Sicherheit:** Eigener JavaScript-Code läuft nur in einem isolierten iframe.
   Keine Spotify-Kontotokens, kein stiller Netzwerkzugriff. Wallpaper-Engine-
   Sonder-APIs, Worker und dynamische JS-Modulimporte sind noch nicht allgemein
-  unterstützt; solche Projekte müssen wir gezielt testen. Die Browserprüfung
+  unterstützt; solche Projekte müssen wir gezielt testen. Die neuen lokalen
+  `fetch()`-/XHR-Zugriffe sind **keine** Internetfreigabe. Die Browserprüfung
   testete eine Beispielszene in Chromium, nicht deine echten Wallpaper-Ordner.
 
 ### Schnittstelle für eigene HTML-Animationen
@@ -77,9 +100,14 @@ window.addEventListener('zukato:player', (event) => {
 - **Lyrics:** Lokale Korrekturen, nach Möglichkeit synchronisierte Spotify-
   Lyrics und LRCLIB als Fallback. Nicht für jeden Song garantiert; der
   Spotify-interne Dienst ist versionsabhängig.
-- **Audioeffekte:** Nur bei tatsächlich freigegebener Mikrofon- oder
-  System-/Tab-Audioquelle. Keine vorgetäuschten Frequenzwerte. Freigaben können
-  vom Desktop-Client blockiert werden.
+- **Audioeffekte:** Kein Mikrofon zwingend nötig. Im Visualizer zuerst
+  **System-/Tab-Audio** wählen und, falls der Dialog dies anbietet, die
+  Audiofreigabe aktivieren. Nur bei tatsächlich freigegebener Tonspur
+  werden Frequenzen analysiert. Falls der Spotify-Desktop-Client keine
+  System-Audiofreigabe unterstützt, kann ein aktiviertes Windows-Loopback-
+  Gerät (z. B. Stereo Mix) oder ein Mikrofon als Audioeingang helfen. ZuKaTo
+  besitzt keinen offiziellen direkten Spotify-PCM-Audiozugang und zeigt
+  ohne Audiodaten keine erfundenen Frequenzen.
 
 Über **Visualizer → Verbindung prüfen** lassen sich Medienfehler ohne private
 Song- oder Accountdaten diagnostizieren.

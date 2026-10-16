@@ -7,7 +7,7 @@
 // =============================================================================
 import type { ReactElement } from "react";
 import { loadScene, loadSceneProject } from "./scene-store";
-import { renderWallpaperProject, type WallpaperRuntimeAsset } from "./wallpaper-project";
+import { renderWallpaperProject, sceneFramePayload, type WallpaperRuntimeAsset } from "./wallpaper-project";
 import { ensureWallpaperCsp } from "./web-wallpaper";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
@@ -50,8 +50,9 @@ export function ScenePreview({ id, onError }: { id: string; onError: (message: s
           if (!project) throw new Error("Projektdateien wurden nicht gefunden.");
           const rendered = await renderWallpaperProject(project);
           disposeProject = rendered.dispose;
-          html = rendered.bootstrap;
-          runtime = { html: rendered.html, assets: rendered.assets };
+          const frame = sceneFramePayload(rendered);
+          html = frame.srcDoc;
+          runtime = frame.runtime;
         } else {
           html = ensureWallpaperCsp(await scene.blob.text());
         }

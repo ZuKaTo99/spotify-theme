@@ -8,7 +8,7 @@ import type { ChangeEvent, CSSProperties, ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
 import { currentTrack } from "../../../shared/library";
 import {
-  loadVisualizerConfig, saveVisualizerConfig, VISUALIZER_CONFIG_CHANGED_EVENT,
+  loadVisualizerConfig, saveVisualizerConfig, effectiveBackdropColorSettings, VISUALIZER_CONFIG_CHANGED_EVENT,
   loadTrackVisualizerScene, saveTrackVisualizerScene, deleteTrackVisualizerScene,
   VISUALIZER_TRACK_SCENES_CHANGED_EVENT, type VisualizerConfig,
 } from "../../../shared/visualizer-config";
@@ -441,9 +441,15 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
       setDiagnosticCopyState("manual");
     }
   }
-  const stageStyle = { "--zukato-video-dim": config.dim / 100, "--zukato-video-blur": `${config.blur}px`,
-    "--zukato-video-saturation": `${config.videoSaturation}%`,
-    "--zukato-video-hue": `${config.videoHue}deg`, "--zukato-vignette": config.vignette / 100,
+  // Für selbst importierte Szenen niemals ungefragt eine schwarze Deckschicht
+  // oder Farbfilter anwenden – viele Wallpaper haben eigene Licht-/Wettereffekte.
+  // Der Schalter in den Feinoptionen erlaubt absichtlich wieder ZuKaTo-Filter.
+  const displayColors = effectiveBackdropColorSettings(config, chosenScene.kind === "scene");
+  const stageStyle = { "--zukato-video-dim": displayColors.dim / 100,
+    "--zukato-video-blur": `${displayColors.blur}px`,
+    "--zukato-video-saturation": `${displayColors.saturation}%`,
+    "--zukato-video-hue": `${displayColors.hue}deg`,
+    "--zukato-vignette": displayColors.vignette / 100,
     "--zukato-caption-scale": config.lyricScale,
     "--zukato-caption-color": config.lyricColor,
     "--zukato-caption-highlight": config.lyricHighlight,
@@ -602,6 +608,17 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
       </nav>
       <div className="zukato-viz__settings">
       {activePanel === "wallpapers" && <>
+        <section className="zukato-viz__controls">
+          <label className="zukato-viz__checkbox">
+            <input type="checkbox" checked={config.preserveSceneAppearance}
+              onChange={(event) => changeConfig({ preserveSceneAppearance: event.currentTarget.checked })} />
+            {t("viz.preserveAppearance")}
+          </label>
+          <p className="zukato-viz__hint">{t("viz.preserveAppearanceHelp")}</p>
+          {!config.preserveSceneAppearance && <RangeControl label={t("viz.dim")}
+            value={config.dim} min={0} max={90} suffix="%"
+            onChange={(dim) => changeConfig({ dim })} />}
+        </section>
         <SceneManager t={t} trackUri={player.uri} settings={sceneSettings} onChange={setSceneSettings} onError={setError} showModeToggle={false} />
         <details className="zukato-viz__library-panel">
         <summary>{t("viz.manageLegacyLibrary")}</summary>

@@ -54,6 +54,19 @@ test("Visualizer-Konfiguration: ungültige Werte werden normalisiert", () => {
   assert.equal(result.videoSpeed, 2);
   assert.equal(result.lyricOffsetMs, -5000);
   assert.equal(result.sensitivity, 1.7);
+  // Bestehende dunkle v1.19-Konfigurationen werden für eigene Web-Szenen
+  // standardmäßig farbtreu dargestellt; die Werte selbst bleiben erhalten.
+  assert.equal(result.preserveSceneAppearance, true);
+  assert.equal(config.normalizeVisualizerConfig({ dim: 85 }).dim, 85);
+  assert.equal(config.normalizeVisualizerConfig({ preserveSceneAppearance: false }).preserveSceneAppearance, false);
+  assert.equal(config.DEFAULT_VISUALIZER_CONFIG.dim, 0);
+  const olderSettings = config.normalizeVisualizerConfig({dim: 75, videoSaturation: 40, blur: 15, vignette: 90});
+  assert.deepEqual(config.effectiveBackdropColorSettings(olderSettings, true),
+    {dim: 0, blur: 0, saturation: 100, hue: 0, vignette: 0});
+  assert.deepEqual(config.effectiveBackdropColorSettings(olderSettings, false),
+    {dim: 75, blur: 15, saturation: 40, hue: 0, vignette: 90});
+  const customTint = config.normalizeVisualizerConfig({...olderSettings, preserveSceneAppearance: false});
+  assert.equal(config.effectiveBackdropColorSettings(customTint, true).dim, 75);
   assert.equal(result.transitionMs, 700, "Ältere v1.1-Einstellungen bekommen einen Standard-Crossfade.");
   assert.equal(config.normalizeVisualizerConfig({ transitionMs: 4000 }).transitionMs, 3000);
   assert.equal(config.normalizeVisualizerConfig({ transitionMs: -100 }).transitionMs, 0);

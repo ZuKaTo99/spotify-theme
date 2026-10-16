@@ -7,7 +7,7 @@
 // =============================================================================
 import type { CSSProperties, ReactElement } from "react";
 import { loadScene, loadSceneProject } from "./scene-store";
-import { renderWallpaperProject, type WallpaperRuntimeAsset } from "./wallpaper-project";
+import { renderWallpaperProject, sceneFramePayload, type WallpaperRuntimeAsset } from "./wallpaper-project";
 import type { OriginalRange } from "../../../shared/scene-playlists";
 import { ensureWallpaperCsp } from "./web-wallpaper";
 
@@ -32,7 +32,7 @@ interface Content {
   url: string;
   srcDoc: string;
   /** Nur project-v2: Sandbox-Bootstrap und dort lokal erzeugte Blob-URLs. */
-  runtime?: { html: string; assets: WallpaperRuntimeAsset[] };
+  runtime?: { html: string; entry: string; assets: WallpaperRuntimeAsset[] };
 }
 
 /** Bei jedem Wechsel alte Object-URL sauber freigeben und Lade-Rennen meiden. */
@@ -50,7 +50,15 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
     const receive = (event: MessageEvent): void => {
       if (event.source === frameRef.current?.contentWindow &&
           event.data?.zukatoProjectError === true) {
-        callback.current("HTML-Wallpaper konnte in der Sandbox nicht geladen werden.");
+        // Fehlertypen statt lokaler Dateipfade melden: Keine privaten Inhalte
+        // aus einem Wallpaper an andere Module oder Diagnoseberichte geben.
+        const errors: Record<string, string> = {
+          PROJECT_ASSET_MISSING: "Eine dynamisch geladene Wallpaper-Datei fehlt.",
+          PROJECT_RESOURCE_ERROR: "Ein Wallpaper-Bild oder anderes Asset konnte nicht geladen werden.",
+          PROJECT_SCRIPT_ERROR: "Eine JavaScript-Animation des Wallpapers ist fehlgeschlagen.",
+          PROJECT_INITIALIZATION_FAILED: "HTML-Wallpaper konnte in der Sandbox nicht gestartet werden.",
+        };
+        callback.current(errors[event.data?.code] ?? "HTML-Wallpaper meldet einen Laufzeitfehler.");
       }
     };
     window.addEventListener("message", receive);
@@ -80,7 +88,13 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
             if (!project) throw new Error("HTML-Projektdateien wurden nicht gefunden.");
             const rendered = await renderWallpaperProject(project);
             disposeProject = rendered.dispose;
-            srcDoc = rendered.html;
+            // WICHTIG: Große Projekte benötigen zunächst die isolierte
+            // Bootstrap-Seite. Sie empfängt Blobs per postMessage und erzeugt
+            // die Objekt-URLs IN der Sandbox. Direktes srcDoc=rendered.html
+            // würde die Asset-Platzhalter niemals auflösen.
+            const frame = sceneFramePayload(rendered);
+            srcDoc = frame.srcDoc;
+            runtime = frame.runtime;
           } else {
             srcDoc = ensureWallpaperCsp(await scene.blob.text());
           }
@@ -135,7 +149,8 @@ export function SceneBackdrop({ choice, songRun, playing, fit, speed, progressMs
         if (content.runtime && initializedFrame.current !== content.key) {
           initializedFrame.current = content.key;
           try { frame.postMessage({
-            zukatoProjectInit: true, html: content.runtime.html, assets: content.runtime.assets,
+            zukatoProjectInit: true, html: content.runtime.html, entry: content.runtime.entry,
+            assets: content.runtime.assets,
           }, "*"); } catch { callback.current("HTML-Wallpaper-Dateien konnten nicht an die Sandbox übertragen werden."); }
         } else {
           frame.postMessage({
