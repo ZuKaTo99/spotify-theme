@@ -125,6 +125,35 @@
     filter: blur(var(--zukato-video-blur, 0)) saturate(var(--zukato-video-saturation, 100%))
       hue-rotate(var(--zukato-video-hue, 0deg)); }
 
+  /* Native Spotify-Canvas-Integration: das Albumcover füllt die Bühne, falls
+   * Spotify keine HTML5-Video-URL offenlegt. Nie einen schwarzen Fehlerkasten. */
+  .zukato-viz__native-canvas { background: #111; }
+  .zukato-viz__native-poster {
+    position: absolute; inset: -5%; width: 110%; height: 110%; object-fit: cover;
+    filter: blur(20px) brightness(.5) saturate(1.1); opacity: .9;
+  }
+  .zukato-viz__native-canvas .zukato-viz__video { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .zukato-viz__native-neutral { position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 55% 32%, #283449, #090b10 80%); }
+  .zukato-viz__source-note { display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    padding: 8px 12px; font-size: 12px; line-height: 1.5; color: var(--spice-subtext, #bdc1cb);
+    background: var(--zukato-panel); border-radius: 9px; }
+  .zukato-viz__source-note button { padding: 5px 10px; }
+  /* Optionaler Live-Check: Bericht ist bewusst kein Teil der Videobühne.
+   * Er ist mit Tastatur markierbar und nimmt im Kinomodus keinen Platz ein. */
+  .zukato-viz__diagnostics { display: grid; justify-items: start; gap: 9px; padding: 6px 0; }
+  .zukato-viz__diagnostics > button { padding: 6px 12px; }
+  .zukato-viz__diagnostics-detail { display: grid; gap: 10px; width: 100%; max-width: 720px;
+    border: 1px solid var(--zukato-border); border-radius: 12px; padding: 14px;
+    background: var(--zukato-panel); }
+  .zukato-viz__diagnostics-detail p { margin: 0; }
+  .zukato-viz__diagnostics-detail ul { margin: 0; padding-left: 22px; }
+  .zukato-viz__diagnostics-detail li { margin-bottom: 5px; }
+  .zukato-viz__diagnostics-detail button { justify-self: start; }
+  .zukato-viz__diagnostics-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;
+    font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+    border-radius: 8px; padding: 12px; margin: 0; max-width: 100%;
+    background: rgba(0,0,0,.2); color: var(--spice-text, #fff); }
   .zukato-viz__fallback {
     background: radial-gradient(circle at 68% 35%, rgba(30,215,96,.26), transparent 38%),
       radial-gradient(ellipse at 30% 80%, #254871 0%, transparent 58%), #080b13;

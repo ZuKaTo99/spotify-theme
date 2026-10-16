@@ -28,6 +28,13 @@ import {
   loadScenePreferences, saveScenePreferences, resolveScene, scenePosition, SCENE_PLAYLIST_CHANGED_EVENT,
 } from "../../../shared/scene-playlists";
 import { SceneBackdrop } from "./SceneBackdrop";
+import { SpotifyCanvasBackdrop, type CanvasAvailability, type CanvasDiagnostic } from "./SpotifyCanvasBackdrop";
+import { readSpotifyLyricsPreview } from "./spotify-lyrics-preview";
+import { lookupSpotifyLyrics } from "./spotify-lyrics";
+import { chooseLyricsSource } from "./lyrics-source-selection";
+import { lyricsMetadataReady, lyricsLookupSignature } from "./lyrics-identity";
+import { buildSafeDiagnosticReport, diagnosticSummary, type LyricsCheck, type VisualizerDiagnostics } from "./visualizer-diagnostics";
+import { spotifyArtworkUrl } from "../../../shared/artwork";
 import { SceneManager } from "./SceneManager";
 import { loadSongSession, observeSongSession, SONG_SESSION_EVENT } from "../../../shared/song-session";
 import { readVisualizerPanel, rememberVisualizerPanel, sourceStatus, VISUALIZER_PANELS, type VisualizerPanel } from "../../../shared/visualizer-workspace";
@@ -103,9 +110,32 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   // Eigene LRCs sind Overrides; automatische Texte werden nie in IndexedDB geschrieben.
   const [localLyricsLoaded, setLocalLyricsLoaded] = ReactRuntime.useState(false);
   const [plainLyrics, setPlainLyrics] = ReactRuntime.useState<string[]>([]);
+  const [nativeLyricsPreview, setNativeLyricsPreview] = ReactRuntime.useState<string[]>([]);
+  const [canvasAvailability, setCanvasAvailability] = ReactRuntime.useState<CanvasAvailability>("searching");
+  const [canvasDiagnostic, setCanvasDiagnostic] = ReactRuntime.useState<CanvasDiagnostic>("no-sidebar");
+  // Ein erneuter Check setzt den Adapter zurück, ohne den gesamten Visualizer
+  // neu zu laden oder seine Lyrics-/Audio-Zustände zu verlieren.
+  const [canvasRetry, setCanvasRetry] = ReactRuntime.useState(0);
   const [remoteLyrics, setRemoteLyrics] = ReactRuntime.useState<AutomaticLyrics | null>(null);
-  const [lyricsState, setLyricsState] = ReactRuntime.useState<"idle" | "loading" | "local" | "synced" | "plain" | "instrumental" | "not-found" | "rate-limited" | "error">("idle");
+  const [lyricsState, setLyricsState] = ReactRuntime.useState<LyricsCheck>("idle");
   const [lyricsRetry, setLyricsRetry] = ReactRuntime.useState(0);
+  // Technische Details standardmäßig AUS. Keine Tokens, URIs, Songtexte oder
+  // Kontodaten in exportierten Diagnoseberichten (siehe Hilfsmodul).
+  const [diagnosticsOpen, setDiagnosticsOpen] = ReactRuntime.useState(false);
+  const [diagnosticCopyState, setDiagnosticCopyState] = ReactRuntime.useState<"idle" | "copied" | "manual">("idle");
+  // Spotify zeigt rechts gelegentlich schon eine Lyrics-Vorschau, obwohl
+  // LRCLIB wegen Netzwerk-/CORS-Sperren nicht erreichbar ist. Diese wenigen
+  // Zeilen sind ein UNsynchronisierter Anzeige-Fallback, niemals Full-Lyrics.
+  ReactRuntime.useEffect(() => {
+    const read = (): void => {
+      const next = readSpotifyLyricsPreview(document, player.title);
+      setNativeLyricsPreview((previous) => previous.join("\n") === next.join("\n") ? previous : next);
+    };
+    setNativeLyricsPreview([]);
+    read();
+    const id = window.setInterval(read, 1500);
+    return () => window.clearInterval(id);
+  }, [player.uri, player.title]);
   // Erzwingt eine neue API-Anfrage nur beim gezielten Klick auf „Erneut suchen“.
   const retryUriRef = ReactRuntime.useRef("");
   const [message, setMessage] = ReactRuntime.useState("");
@@ -191,6 +221,8 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   // Lokale LRC-Dateien behalten Vorrang. Änderungen am Fortschrittsbalken
   // dürfen NICHT erneut das Netz anfragen. Langsame Altantworten werden
   // durch AbortController und das alive-Flag zuverlässig verworfen.
+  const lyricsQueryKey = lyricsLookupSignature(player);
+  const lyricsReady = lyricsMetadataReady(player);
   ReactRuntime.useEffect(() => {
     let alive = true;
     const controller = new AbortController();
@@ -212,6 +244,36 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           setLyricsState("local");
           return;
         }
+        // ZUERST den bereits angemeldeten Spotify-Client versuchen: Genau
+        // dieser kann rechts Lyrics anzeigen, auch wenn LRCLIB nicht antwortet.
+        // CosmosAsync ist intern und kann ausfallen -> LRCLIB bleibt Fallback.
+        const spotifyResult = await lookupSpotifyLyrics(player.uri);
+        if (!alive || controller.signal.aborted) return;
+        if (spotifyResult.kind === "synced") {
+          const lines = parseLrc(spotifyResult.text);
+          if (lines.length) {
+            setLyrics(lines);
+            setLyricsState("spotify-synced");
+            return;
+          }
+        }
+        // WICHTIG: Bei Spotify-UNSYNCED nicht sofort aufhören. LRCLIB
+        // könnte eine synchronisierte, genau zum Track passende LRC-Datei
+        // anbieten. Diese hat Vorrang vor einem ungetimten Text. Bis die
+        // vollständigen Metadaten vorliegen, dürfen Spotify-Zeilen aber schon
+        // als Fallback sichtbar sein.
+        if (spotifyResult.kind === "plain") {
+          setPlainLyrics(spotifyResult.lines);
+          setLyricsState("spotify-plain");
+        }
+        // WICHTIG: Spotify liefert die URI häufig VOR Titel/Künstler. Nicht
+        // mit "Unbekannter Künstler" suchen und diesen Fehlversuch cachen.
+        // Sobald echte Metadaten eintreffen, ändert sich lyricsQueryKey und
+        // dieser Effect startet automatisch neu – ohne manuelles Retry.
+        if (!lyricsMetadataReady(player)) {
+          if (spotifyResult.kind !== "plain") setLyricsState("waiting-metadata");
+          return;
+        }
         // Songmetadaten stammen aus dem Spotify-Player; LRCLIB benötigt
         // nur Titel, Künstler, Album und Dauer. Keine Account-/Tokendaten.
         const forceRefresh = retryUriRef.current === player.uri;
@@ -222,13 +284,22 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         }, { signal: controller.signal, skipCache: forceRefresh });
         if (!alive || controller.signal.aborted) return;
         setRemoteLyrics(result);
-        if (result.kind === "synced") {
-          const lines = parseLrc(result.text);
-          setLyrics(lines);
-          setLyricsState(lines.length ? "synced" : "not-found");
-        } else if (result.kind === "plain") {
-          setPlainLyrics(result.lines);
-          setLyricsState("plain");
+        // Die Spotify-Antwort kann theoretisch LINE_SYNCED ankündigen, aber
+        // ungültige Zeitmarken enthalten. In diesem Fall muss LRCLIB noch
+        // gewinnen können, statt ebenfalls als fehlerhaft verworfen zu werden.
+        const validNative = spotifyResult.kind === "synced"
+          ? { kind: "unavailable" as const } : spotifyResult;
+        const chosen = chooseLyricsSource(validNative, result);
+        if (chosen.kind === "synced") {
+          const lines = parseLrc(chosen.text);
+          if (lines.length) {
+            setLyrics(lines);
+            setPlainLyrics([]);
+            setLyricsState(chosen.source === "spotify" ? "spotify-synced" : "synced");
+          } else setLyricsState("not-found");
+        } else if (chosen.kind === "plain") {
+          setPlainLyrics(chosen.lines);
+          setLyricsState(chosen.source === "spotify" ? "spotify-plain" : "plain");
         } else {
           setLyricsState(result.kind);
         }
@@ -241,7 +312,8 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
     }
     void loadCurrentLyrics();
     return () => { alive = false; controller.abort(); };
-  }, [player.uri, lyricsRevision, lyricsRetry, config.lyricsEnabled]);
+  // Weder player.progress noch player.playing dürfen einen Request auslösen.
+  }, [lyricsQueryKey, lyricsRevision, lyricsRetry, config.lyricsEnabled]);
 
   /** Persistiert einen einzelnen Reglerwert sofort. */
   function changeConfig(changes: Partial<VisualizerConfig>): void {
@@ -333,12 +405,42 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   const progress = player.duration ? Math.min(100, (player.progress / player.duration) * 100) : 0;
   const canAssignTrack = Boolean(player.uri);
   const selectedScope = assignment === "track" ? player.uri : DEFAULT_WALLPAPER_KEY;
-  const chosenScene = resolveScene(sceneSettings, player.uri, songRun);
+  // Original-Modus bedeutet nach Nutzerwunsch Spotify Canvas, NICHT mehr
+  // das manuelle URL-Manifest früherer Versionen. Alte Daten bleiben erhalten.
+  const chosenScene = sceneSettings.mode === "original"
+    ? { kind: "missing-original" as const }
+    : resolveScene(sceneSettings, player.uri, songRun);
   // Statusanzeige aus tatsächlich ausgewählter Quelle und geladenem Legacyvideo.
   // "missing" bedeutet gerade NICHT, dass bereits automatisch ein Originalclip
   // im Internet gefunden wurde (dafür gibt es derzeit keine legitime Quelle).
   const backgroundStatus = sourceStatus(chosenScene.kind, Boolean(wallpaperInfo.filename));
+  // Wenn ein nativer Canvas nicht kopierbar ist, wenigstens das gültige
+  // Spotify-Cover statt einer komplett schwarzen Bühne darstellen.
+  const artwork = spotifyArtworkUrl(Spicetify.Player?.data?.item?.metadata?.image_large_url);
   const sceneOrder = scenePosition(sceneSettings, player.uri, songRun);
+  // Die Report-Funktion akzeptiert nur feste Statuswerte. Auch im Fall eines
+  // Browserfehlers werden keine Rohfehler oder privaten Spotify-Daten kopiert.
+  const diagnostics: VisualizerDiagnostics = {
+    hasTrack: Boolean(player.uri), metadataReady: lyricsReady,
+    originalMode: sceneSettings.mode === "original",
+    canvas: canvasAvailability, canvasReason: canvasDiagnostic,
+    lyricsEnabled: config.lyricsEnabled, lyrics: lyricsState,
+    spectrumEnabled: config.spectrum !== "off",
+    audioSource: spectrum.activeSource, audioSignal: spectrum.signal,
+    displayCaptureSupported: typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia),
+    microphoneSupported: typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia),
+  };
+  const diagnosticReport = buildSafeDiagnosticReport(diagnostics);
+
+  /** Nutzeraktion: bei gesperrtem Clipboard bleibt ein markierbarer Bericht. */
+  async function copyDiagnosticReport(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(diagnosticReport);
+      setDiagnosticCopyState("copied");
+    } catch {
+      setDiagnosticCopyState("manual");
+    }
+  }
   const stageStyle = { "--zukato-video-dim": config.dim / 100, "--zukato-video-blur": `${config.blur}px`,
     "--zukato-video-saturation": `${config.videoSaturation}%`,
     "--zukato-video-hue": `${config.videoHue}deg`, "--zukato-vignette": config.vignette / 100,
@@ -358,9 +460,26 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
     <div className="zukato-viz__commandbar">
       <div className="zukato-viz__commandbar-info">
         <strong>{player.title || t("viz.noTrack")}</strong>
-        <small>{player.artist || t("viz.noTrack")} · {t(`viz.status.${backgroundStatus}`)}</small>
+        <small>{player.artist || t("viz.noTrack")} · {chosenScene.kind === "missing-original"
+          ? "Spotify Canvas aus der Seitenleiste (experimentell)" : t(`viz.status.${backgroundStatus}`)}</small>
       </div>
       <div className="zukato-viz__commandbar-actions">
+        {/* Audio ist absichtlich opt-in: Hier gibt es zwei echte Quellen.
+            Die Systemtonfreigabe ist nur in kompatiblen Clients verfügbar. */}
+        {spectrum.active ? <button type="button" aria-pressed onClick={spectrum.stop}>
+          Audio stoppen ({spectrum.activeSource === "system" ? "System/Tab" : "Mikrofon"})
+        </button> : <>
+          <button type="button" title="Bildschirm oder Tab MIT Audio freigeben; abhängig vom Spotify-Client"
+            onClick={() => {
+              if (config.spectrum === "off") changeConfig({ spectrum: "bars" });
+              void spectrum.startSystem();
+            }}>System-/Tab-Audio</button>
+          <button type="button" title="Audio aus deinem ausdrücklich freigegebenen Mikrofon analysieren"
+            onClick={() => {
+              if (config.spectrum === "off") changeConfig({ spectrum: "bars" });
+              void spectrum.start();
+            }}>Mikrofon</button>
+        </>}
         <button type="button" aria-pressed={sceneSettings.mode === "original"}
           title={t("viz.originalModeInfo")}
           onClick={() => {
@@ -379,9 +498,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
       </div>
     </div>
     <div className="zukato-viz__stage" ref={stageRef} style={stageStyle}>
-      {chosenScene.kind === "missing-original" ? <div className="zukato-viz__missing-source" role="status">
-        {t("viz.originalMissing")}
-      </div> : chosenScene.kind === "legacy" ? <WallpaperBackdrop uri={player.uri} revision={mediaRevision} playing={player.playing}
+      {chosenScene.kind === "missing-original" ? <SpotifyCanvasBackdrop title={player.title} artist={player.artist} trackUri={player.uri} retryToken={canvasRetry}
+        playing={player.playing} artwork={artwork} fit={config.wallpaperFit}
+        onAvailability={setCanvasAvailability} onDiagnostic={setCanvasDiagnostic} /> : chosenScene.kind === "legacy" ? <WallpaperBackdrop uri={player.uri} revision={mediaRevision} playing={player.playing}
         videoSpeed={config.videoSpeed} videoSync={config.videoSync} progressMs={player.progress + config.videoOffsetMs}
         wallpaperFit={config.wallpaperFit} transitionMs={config.transitionMs}
         onInfo={setWallpaperInfo} onError={backdropError}
@@ -390,7 +509,11 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           speed={config.videoSpeed} progressMs={player.progress}
           durationMs={player.duration} onError={backdropError} />}
       <div className="zukato-viz__veil" aria-hidden="true" />
-      {config.spectrum !== "off" && <canvas ref={spectrum.canvasRef} className="zukato-viz__spectrum" aria-label={t("viz.spectrumLabel")} role="img" />}
+      {/* Canvas bleibt bei "off" gemountet, damit der ref beim Umschalten auf
+          einen Effekt nicht verloren geht. Ohne Freigabe keine erfundenen Peaks. */}
+      <canvas ref={spectrum.canvasRef} className="zukato-viz__spectrum"
+        style={{ display: config.spectrum === "off" ? "none" : undefined }}
+        aria-label={t("viz.spectrumLabel")} role="img" />
       <div className="zukato-viz__overlay">
         {config.showTrackInfo && <div className="zukato-viz__track">
           <strong>{player.title || t("viz.noTrack")}</strong><span>{player.artist}</span>
@@ -399,21 +522,67 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           style={{ textAlign: config.lyricAlign }} aria-live="off">
           {lines.length ? lines.map((line, offset) => <p key={`${line.timeMs}-${offset}`}
             className={lineStart + offset === index ? "is-current" : ""}>{line.text}</p>)
-            : plainLyrics.length ? <div className="zukato-viz__plain" tabIndex={0} aria-label={t("viz.plainLyricsLabel")}>
-              {plainLyrics.map((line, offset) => <p key={offset}>{line}</p>)}
-            </div> : <span className="zukato-viz__hint">{lyricsState === "loading" ? t("viz.lyricsLoading")
-              : lyricsState === "instrumental" ? t("viz.lyricsInstrumental")
-                : lyricsState === "rate-limited" ? t("viz.lyricsRateLimited")
-                  : lyricsState === "error" ? t("viz.lyricsError")
-                    : lyricsState === "idle" ? t("viz.noTrack") : t("viz.noLyrics")}</span>}
+            : plainLyrics.length || (lyricsState !== "loading" && nativeLyricsPreview.length) ?
+              <div className="zukato-viz__plain" tabIndex={0} aria-label={t("viz.plainLyricsLabel")}>
+                {(plainLyrics.length ? plainLyrics : nativeLyricsPreview).map((line, offset) => <p key={offset}>{line}</p>)}
+              </div> : lyricsState === "loading" && player.uri
+                ? <p className="zukato-viz__lyrics-loading">{t("viz.lyricsLoading")}</p>
+                : null}
         </div>}
       </div>
       <div className="zukato-viz__timeline" aria-hidden="true"><div style={{ width: `${progress}%` }} /></div>
     </div>
+    {/* Mikrofon-/WebAudio-Fehler direkt anzeigen, weil der Audioregler häufig
+        unter einem anderen Panel liegt und sonst 'kaputt' wirkt. */}
+    {!cinemaMode && spectrum.error && <p className="zukato-error" role="alert">Audioquelle: {spectrum.error}</p>}
+    {!cinemaMode && chosenScene.kind === "missing-original" &&
+      <p className="zukato-viz__source-note" role="status">{canvasAvailability === "available"
+        ? "Spotify Canvas erkannt – Wiedergabe erfolgt aus der bereits angezeigten Videoquelle."
+        : canvasAvailability === "unsupported" ? "Spotify Canvas wurde erkannt, kann hier aber nicht abgespielt werden. Das Cover bleibt sichtbar."
+        : canvasDiagnostic === "no-sidebar" ? "Die Spotify-Seitenleiste ist nicht sichtbar. Öffne rechts die Jetzt-läuft-Ansicht; sonst wird das Cover gezeigt."
+        : canvasDiagnostic === "different-track" ? "Spotify lädt die Seitenleiste noch für den aktuellen Titel. Vorübergehend erscheint das Cover."
+        : canvasDiagnostic === "no-video" ? "Spotify zeigt für diesen Titel kein auslesbares HTML5-Canvas. Das Cover wird angezeigt."
+        : canvasDiagnostic === "unreadable-source" ? "Canvas sichtbar, aber Spotify stellt keine kopierbare Video-URL bereit. Das Cover bleibt sichtbar."
+        : "Suche nach dem Canvas. Spotify kann den Zugriff auf seine Videopipeline einschränken."}</p>}
+    {!cinemaMode && chosenScene.kind === "missing-original" && canvasAvailability !== "available" &&
+      <button type="button" className="zukato-viz__retry-canvas" onClick={() => {
+        setCanvasAvailability("searching");
+        setCanvasRetry((previous) => previous + 1);
+      }}>{t("viz.canvasRetry")}</button>}
+    {!cinemaMode && config.lyricsEnabled && !lyrics.length && !plainLyrics.length && nativeLyricsPreview.length > 0 &&
+      <p className="zukato-viz__source-note">Spotify zeigt nur eine kurze, nicht synchronisierte Lyrics-Vorschau. Für vollständige Lyrics wird Spotify/LRCLIB versucht.</p>}
+    {!cinemaMode && chosenScene.kind === "missing-original" && canvasAvailability !== "available" &&
+      <button type="button" className="zukato-viz__retry-canvas" onClick={() => {
+        setCanvasAvailability("searching");
+        setCanvasRetry((previous) => previous + 1);
+      }}>{t("viz.canvasRetry")}</button>}
+    {!cinemaMode && config.lyricsEnabled && !lyrics.length && !plainLyrics.length && !nativeLyricsPreview.length &&
+      <p className="zukato-viz__source-note" role="status">{lyricsState === "loading" ? "Suche automatische Lyrics …"
+        : lyricsState === "waiting-metadata" ? t("viz.waitingMetadata")
+        : lyricsState === "error" ? "Lyrics-Abfrage fehlgeschlagen (Netzwerk oder Webview)."
+          : lyricsState === "rate-limited" ? "Lyrics-Dienst ist vorübergehend begrenzt."
+            : "Für diesen Titel wurden noch keine Lyrics gefunden."}
+        <button type="button" onClick={() => { retryUriRef.current = player.uri; setLyricsRetry((value) => value + 1); }}
+          disabled={!player.uri || lyricsState === "loading"}>Erneut suchen</button></p>}
+    {/* Diagnose nur auf Wunsch: normale Bedienung bleibt aufgeräumt. */}
+    {!cinemaMode && <section className="zukato-viz__diagnostics">
+      <button type="button" aria-expanded={diagnosticsOpen}
+        onClick={() => { setDiagnosticsOpen((previous) => !previous); setDiagnosticCopyState("idle"); }}>
+        {diagnosticsOpen ? t("viz.diagnosticsClose") : t("viz.diagnosticsOpen")}
+      </button>
+      {diagnosticsOpen && <div className="zukato-viz__diagnostics-detail">
+        <p>{t("viz.diagnosticsIntro")}</p>
+        <ul>{diagnosticSummary(diagnostics).map((entry) => <li key={entry}>{entry}</li>)}</ul>
+        <button type="button" onClick={() => void copyDiagnosticReport()}>{t("viz.diagnosticsCopy")}</button>
+        {diagnosticCopyState === "copied" && <span role="status">{t("viz.diagnosticsCopied")}</span>}
+        {diagnosticCopyState === "manual" && <span role="status">{t("viz.diagnosticsManual")}</span>}
+        <pre tabIndex={0} aria-label={t("viz.diagnosticsReport")}>{diagnosticReport}</pre>
+      </div>}
+    </section>}
     {!cinemaMode && <div className="zukato-toolbar">
-      <span>{chosenScene.kind === "scene" ? `${t("viz.background")}: ${t("viz.sceneCurrent")} ${sceneOrder.index + 1}`
+      <span>{chosenScene.kind === "missing-original" ? "Spotify Canvas (aus rechter Seitenleiste, sofern verfügbar)"
+        : chosenScene.kind === "scene" ? `${t("viz.background")}: ${t("viz.sceneCurrent")} ${sceneOrder.index + 1}`
         : chosenScene.kind === "original" ? t("viz.sceneOriginalActive")
-        : chosenScene.kind === "missing-original" ? t("viz.originalMissing")
         : wallpaperInfo.filename ? `${t("viz.background")}: ${wallpaperInfo.filename} (${wallpaperInfo.key.endsWith(":default") ? t("viz.default") : t("viz.forTrack")})` : t("viz.noWallpaper")}</span>
       <span>{Spicetify.Player.formatTime(player.progress)} / {Spicetify.Player.formatTime(player.duration)} · {player.playing ? t("visualizer.playing") : t("visualizer.paused")}</span>
     </div>}
@@ -490,9 +659,20 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
             <option value="particles">{t("viz.modeParticles")}</option>
           </select>
         </label>
-        <button type="button" disabled={config.spectrum === "off"} onClick={() => { if (spectrum.active) spectrum.stop(); else void spectrum.start(); }}>
-          {spectrum.active ? t("viz.stopMic") : t("viz.startMic")}
-        </button>
+        <div className="zukato-toolbar">
+          {spectrum.active ? <button type="button" onClick={spectrum.stop}>{t("viz.stopMic")}</button> : <>
+            <button type="button" disabled={config.spectrum === "off"} onClick={() => void spectrum.startSystem()}>System-/Tab-Audio freigeben</button>
+            <button type="button" disabled={config.spectrum === "off"} onClick={() => void spectrum.start()}>{t("viz.startMic")}</button>
+          </>}
+        </div>
+        <p className="zukato-viz__source-note" role="status">{config.spectrum === "off"
+          ? "Visualizer ist ausgeschaltet. Wähle zuerst Balken, Ring, Welle oder Partikel."
+          : spectrum.activeSource === "system" ? "Audioanalyse läuft über die freigegebene System-/Tab-Audiospur."
+            : spectrum.activeSource === "microphone" ? "Audioanalyse läuft über dein freigegebenes Mikrofon."
+            : "Noch keine Audioquelle aktiv. System-/Tab-Audio benötigt eine Freigabe MIT Ton und wird nicht von jedem Spotify-Client unterstützt. Alternativ Mikrofon freigeben."}
+          {spectrum.active && <> <strong>· {spectrum.signal === "detected" ? t("viz.signalDetected")
+            : spectrum.signal === "silent" ? t("viz.signalSilent")
+            : spectrum.signal === "paused" ? t("viz.signalPaused") : t("viz.signalChecking")}</strong></>}</p>
         {spectrum.error && <p className="zukato-error" role="alert">{spectrum.error}</p>}
         <details className="zukato-viz__options">
           <summary>{t("viz.moreAudioOptions")}</summary>
@@ -513,7 +693,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         <label className="zukato-viz__checkbox"><input type="checkbox" checked={config.lyricsEnabled} onChange={(event) => changeConfig({ lyricsEnabled: event.currentTarget.checked })} /> {t("viz.showLyrics")}</label>
         <label className="zukato-viz__checkbox"><input type="checkbox" checked={config.showTrackInfo} onChange={(event) => changeConfig({ showTrackInfo: event.currentTarget.checked })} /> {t("viz.showTitle")}</label>
         <div className="zukato-viz__lyrics-source" role="status">
-          <span>{lyricsState === "local" ? t("viz.lyricsOwn")
+          <span>{lyricsState === "spotify-synced" ? "Spotify-Lyrics: synchronisiert (interne Quelle)"
+            : lyricsState === "spotify-plain" ? "Spotify-Lyrics: ohne Zeitmarken (interne Quelle)"
+            : lyricsState === "local" ? t("viz.lyricsOwn")
             : lyricsState === "synced" ? t("viz.lyricsAutoSynced")
               : lyricsState === "plain" ? t("viz.lyricsAutoPlain")
                 : lyricsState === "loading" ? t("viz.lyricsLoading")

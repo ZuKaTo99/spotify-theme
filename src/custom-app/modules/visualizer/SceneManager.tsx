@@ -10,7 +10,8 @@ import {
   saveScenePreferences, withoutScene,
   MAX_PLAYLIST_ITEMS, MAX_PLAYLIST_SCOPES, type ScenePreferences,
 } from "../../../shared/scene-playlists";
-import { deleteScene, importScene, importSceneFolder, listScenes, loadScene, type SceneEntry } from "./scene-store";
+import { deleteScene, importScene, importSceneFolder, listScenes, loadScene, loadSceneProject, type SceneEntry } from "./scene-store";
+import { zipWallpaperProject } from "./wallpaper-export";
 import { groupWallpaperFolderFiles } from "./scene-folder";
 import { loadSongSession } from "../../../shared/song-session";
 import { ScenePreview } from "./ScenePreview";
@@ -106,7 +107,18 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
       const playlists = { ...settings.playlists,
         [effectiveScope]: [...playlist, ...imported.map((entry) => entry.id)] };
       const starts = { ...settings.starts, [effectiveScope]: (loadSongSession()?.index ?? -1) + 1 };
-      onChange(saveScenePreferences({ ...settings, playlists, starts }));
+      // Wenn die Playlist-Einstellung nicht gespeichert werden kann, keine
+      // verwaisten (unter Umständen mehrere 100 MiB großen) Projektkopien
+      // in der IndexedDB zurücklassen. Die Originalordner bleiben unberührt.
+      try {
+        onChange(saveScenePreferences({ ...settings, playlists, starts }));
+      } catch (error) {
+        const rolledBack = await Promise.allSettled(imported.map((entry) => deleteScene(entry.id)));
+        if (rolledBack.some((result) => result.status === "rejected")) {
+          throw new Error("Playlist konnte nicht gespeichert werden; bitte unzugeordnete Projekte in der Bibliothek prüfen.");
+        }
+        throw error;
+      }
       setRevision((value) => value + 1);
       setSelected(imported[0]?.id ?? "");
       setImportStatus(t("viz.sceneImported", { count: String(imported.length) }));
@@ -145,11 +157,17 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     try {
       const asset = await loadScene(selected);
       if (!asset) throw new Error(t("viz.sceneMissing"));
-      const url = URL.createObjectURL(asset.blob);
+      // Große HTML-Projekte als vollständige ZIP inklusive aller Originaldateien
+      // exportieren. Ein HTML-Export allein würde JS/CSS/Fonts/3D-Assets verlieren.
+      const project = asset.format === "project-v2" ? await loadSceneProject(asset.id) : null;
+      if (asset.format === "project-v2" && !project) throw new Error("Projektdateien fehlen.");
+      const exported = project ? await zipWallpaperProject(project.files) : asset.blob;
+      const url = URL.createObjectURL(exported);
       try {
         const link = document.createElement("a");
         link.href = url;
-        link.download = asset.kind === "html" ? `${asset.name.replace(/\.html?$/i, "")}.html` : asset.name;
+        link.download = project ? `${asset.name.replace(/\.html?$/i, "")}.zip`
+          : asset.kind === "html" ? `${asset.name.replace(/\.html?$/i, "")}.html` : asset.name;
         document.body.append(link);
         link.click();
         link.remove();
@@ -220,6 +238,11 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
       <button type="button" disabled={!selected || busy} onClick={() => void exportSelected()}>{t("viz.sceneExport")}</button>
       <button type="button" disabled={!selected || busy} onClick={() => void removeScene()}>{t("viz.sceneDelete")}</button>
     </div>
+    {selected && scenes.find((scene) => scene.id === selected)?.format === "project-v2" &&
+      <p className="zukato-viz__hint" role="status">HTML-Webprojekt: {
+        scenes.find((scene) => scene.id === selected)?.fileCount} Dateien · {
+        ((scenes.find((scene) => scene.id === selected)?.bytes ?? 0) / 1048576).toFixed(1)} MiB
+        · Export als vollständiges ZIP mit Ordnerstruktur</p>}
     {previewId && <ScenePreview id={previewId} onError={onError} />}
     <p className="zukato-viz__hint">{t("viz.sceneUsage", { count: String(scenes.length), size: totalMiB })}</p>
     {missingCount > 0 && <p role="alert" className="zukato-error">{t("viz.libraryMissing", { count: String(missingCount) })}</p>}

@@ -140,16 +140,31 @@ test("Persistenz: Wallpaper-Fallback, LRC-Speicherung und Löschen", async () =>
   }
 });
 
+/**
+ * Audio-Hook als isoliertes Modul ausführen: Die neue Validierung stammt aus
+ * audio-capture.ts. Beides wird hier ohne Paket-Bundler inline transpilert,
+ * damit diese Legacy-Unit-Tests unverändert offline laufen können.
+ */
+async function inlineAudioHookCode() {
+  const hook = await readFile(new URL("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts", import.meta.url), "utf8");
+  const helper = await readFile(new URL("../src/custom-app/modules/visualizer/audio-capture.ts", import.meta.url), "utf8");
+  const code = stripTypeScriptTypes(hook, { mode: "strip" });
+  const helperCode = stripTypeScriptTypes(helper, { mode: "strip" });
+  const replaced = code.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-capture["'];?/, helperCode);
+  assert.notEqual(replaced, code, "Audio-Capture muss für den Test eingebunden sein.");
+  return replaced;
+}
+
 /** Mikrofon wird ausschließlich nach explizitem start() angefordert und dann beendet. */
 test("Audioanalyse: Opt-in und vollständige Freigabe der MediaStream-Ressourcen", async () => {
-  const source = await readFile(new URL("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts", import.meta.url), "utf8");
-  const code = stripTypeScriptTypes(source, { mode: "strip" });
+  const code = await inlineAudioHookCode();
   const previous = {
     spotify: globalThis.Spicetify, context: globalThis.AudioContext,
     navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
     raf: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame,
   };
   let requested = 0; let stopped = 0; let closed = 0;
+  const track = { readyState: "live", stop() { stopped += 1; }, addEventListener() {}, removeEventListener() {} };
   try {
     globalThis.Spicetify = {
       React: {
@@ -160,7 +175,7 @@ test("Audioanalyse: Opt-in und vollständige Freigabe der MediaStream-Ressourcen
       },
     };
     Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
-      mediaDevices: { async getUserMedia() { requested += 1; return { getTracks: () => [{ stop() { stopped += 1; } }] }; } },
+      mediaDevices: { async getUserMedia() { requested += 1; return { getTracks: () => [track], getAudioTracks: () => [track], getVideoTracks: () => [] }; } },
     } });
     globalThis.AudioContext = class {
       createAnalyser() { return { fftSize: 0, smoothingTimeConstant: 0, frequencyBinCount: 1024 }; }
@@ -466,14 +481,14 @@ test("Audioeffekte: Partikelmodus und Style-Regler sind validiert", () => {
 
 /** Partikel werden nur bei Freigabe aus echten Frequenzbins gezeichnet. */
 test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben", async () => {
-  const source = await readFile(new URL("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts", import.meta.url), "utf8");
-  const code = stripTypeScriptTypes(source, { mode: "strip" });
+  const code = await inlineAudioHookCode();
   const former = {
     spotify: globalThis.Spicetify, audio: globalThis.AudioContext, win: globalThis.window,
     navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
     raf: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame,
   };
   let frame = null; let count = 0; let spectrumRead = 0; let fillColor = ""; let opacity = 0;
+  const track = { readyState: "live", stop() {}, addEventListener() {}, removeEventListener() {} };
   const context2d = {
     setTransform() {}, clearRect() {}, save() {}, restore() {}, beginPath() {},
     arc() { count += 1; }, fill() { fillColor = this.fillStyle; opacity = this.globalAlpha; },
@@ -485,7 +500,7 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
     } };
     globalThis.window = { devicePixelRatio: 1 };
     Object.defineProperty(globalThis, "navigator", { configurable: true, value: { mediaDevices: {
-      async getUserMedia() { return { getTracks: () => [{ stop() {} }] }; },
+      async getUserMedia() { return { getTracks: () => [track], getAudioTracks: () => [track], getVideoTracks: () => [] }; },
     } } });
     globalThis.AudioContext = class {
       createAnalyser() { return {

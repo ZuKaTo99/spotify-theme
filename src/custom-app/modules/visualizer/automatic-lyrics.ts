@@ -108,45 +108,58 @@ export function parseRetryAfter(header: string | null, now: number): number {
 }
 
 /** Statuswerte sind ausdrücklich keine Texte: keine Render-Crashes bei Netzausfall. */
-async function requestJson(url: string, fetcher: typeof fetch, signal: AbortSignal, now: () => number): Promise<{
+async function requestJson(url: string, fetcher: typeof fetch, signal: AbortSignal, now: () => number,
+  timeoutMs = 10_000): Promise<{
   status: "ok"; data: unknown
 } | { status: "missing" } | { status: "rate-limited"; retryAfterMs: number } |
   { status: "error"; reason: "network" | "server" | "invalid-response" }> {
-  let response: Response;
-  // Manche eingebetteten Webviews lassen Netzwerk-Anfragen minutenlang offen.
-  // 10-s-Timeout und Eltern-Abbruchsignal verhindern hängende Spinner.
+  // Ein Fetch ist erst abgeschlossen, wenn AUCH der Antwortkörper gelesen ist.
+  // Früher wurde der Timer bereits nach den HTTP-Headern gelöscht: ein hängender
+  // Body ließ den Songtext anschließend endlos im Zustand „Lädt“ stehen.
   const requestController = new AbortController();
-  const abortRequest = (): void => requestController.abort();
-  const timeout = setTimeout(abortRequest, 10_000);
+  // Eine zusätzliche Promise-Grenze schützt auch gegen eine fehlerhafte
+  // Webview-Implementierung, die den Abort des Response-Body ignoriert.
+  let rejectDeadline: (reason: Error) => void = () => {};
+  const deadline = new Promise<never>((_resolve, reject) => { rejectDeadline = reject; });
+  const abortRequest = (): void => {
+    requestController.abort();
+    rejectDeadline(new DOMException("Abgebrochen", "AbortError"));
+  };
+  const timeout = setTimeout(() => {
+    requestController.abort();
+    rejectDeadline(new Error("Lyrics-Zeitüberschreitung"));
+  }, timeoutMs);
   signal.addEventListener("abort", abortRequest, { once: true });
+  let readingBody = false;
   try {
-    response = await fetcher(url, {
+    if (signal.aborted) throw new DOMException("Abgebrochen", "AbortError");
+    const response = await Promise.race([fetcher(url, {
       method: "GET", signal: requestController.signal, cache: "no-store",
       headers: { "Lrclib-Client": CLIENT_ID, "Accept": "application/json" },
-    });
+    }), deadline]);
+    if (response.status === 404) return { status: "missing" };
+    if (response.status === 429) {
+      const retryAfterMs = parseRetryAfter(response.headers.get("Retry-After"), now());
+      rateLimitedUntil = Math.max(rateLimitedUntil, now() + retryAfterMs);
+      return { status: "rate-limited", retryAfterMs };
+    }
+    if (!response.ok) return { status: "error", reason: "server" };
+    const length = Number(response.headers.get("Content-Length"));
+    if (Number.isFinite(length) && length > MAX_RESPONSE_CHARS) {
+      return { status: "error", reason: "invalid-response" };
+    }
+    readingBody = true;
+    const raw = await Promise.race([response.text(), deadline]);
+    if (raw.length > MAX_RESPONSE_CHARS) return { status: "error", reason: "invalid-response" };
+    try { return { status: "ok", data: JSON.parse(raw) as unknown }; }
+    catch { return { status: "error", reason: "invalid-response" }; }
   } catch (cause) {
     if (signal.aborted) throw cause;
-    return { status: "error", reason: "network" };
+    return { status: "error", reason: readingBody ? "invalid-response" : "network" };
   } finally {
+    // Auch bei HTTP 404, ungültigem JSON und Abbruch garantiert freigeben.
     clearTimeout(timeout);
     signal.removeEventListener("abort", abortRequest);
-  }
-  if (response.status === 404) return { status: "missing" };
-  if (response.status === 429) {
-    const retryAfterMs = parseRetryAfter(response.headers.get("Retry-After"), now());
-    rateLimitedUntil = Math.max(rateLimitedUntil, now() + retryAfterMs);
-    return { status: "rate-limited", retryAfterMs };
-  }
-  if (!response.ok) return { status: "error", reason: "server" };
-  try {
-    // Obergrenze schon anhand Header prüfen und nach dem Lesen erneut prüfen.
-    if (Number(response.headers.get("Content-Length")) > MAX_RESPONSE_CHARS) return { status: "error", reason: "invalid-response" };
-    const raw = await response.text();
-    if (raw.length > MAX_RESPONSE_CHARS) return { status: "error", reason: "invalid-response" };
-    return { status: "ok", data: JSON.parse(raw) as unknown };
-  } catch (cause) {
-    if (signal.aborted) throw cause;
-    return { status: "error", reason: "invalid-response" };
   }
 }
 
@@ -166,6 +179,8 @@ export async function lookupAutomaticLyrics(track: LyricsLookupTrack, options: {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   skipCache?: boolean;
+  /** Nur für lokale Regressionstests; Standard bleibt zehn Sekunden. */
+  requestTimeoutMs?: number;
 } = {}): Promise<AutomaticLyrics> {
   if (!/^spotify:track:[A-Za-z0-9]+$/.test(track.uri) || !track.title.trim() || !track.artist.trim()) {
     return { kind: "not-found" };
@@ -188,7 +203,7 @@ export async function lookupAutomaticLyrics(track: LyricsLookupTrack, options: {
   /** Weder bei 429 noch bei Netzwerkfehlern weitere Anbieter bombardieren. */
   async function fetchCandidate(url: string): Promise<{ kind: "found"; result: AutomaticLyrics } | { kind: "missing" } | { kind: "other"; result: AutomaticLyrics }> {
     await pauseBeforeRequest(now, sleep, signal);
-    const response = await requestJson(url, fetcher, signal, now);
+    const response = await requestJson(url, fetcher, signal, now, options.requestTimeoutMs ?? 10_000);
     if (response.status === "rate-limited") return { kind: "other", result: { kind: "rate-limited", retryAfterMs: response.retryAfterMs ?? 60_000 } };
     if (response.status === "error") return { kind: "other", result: { kind: "error", reason: response.reason ?? "server" } };
     if (response.status === "missing") return { kind: "missing" };

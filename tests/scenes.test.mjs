@@ -167,34 +167,51 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
   const mediaSrc = await readFile(new URL("../src/custom-app/modules/visualizer/media-store.ts", import.meta.url), "utf8");
   const webSrc = await readFile(new URL("../src/custom-app/modules/visualizer/web-wallpaper.ts", import.meta.url), "utf8");
   const folderSrc = await readFile(new URL("../src/custom-app/modules/visualizer/scene-folder.ts", import.meta.url), "utf8");
+  const projectSrc = await readFile(new URL("../src/custom-app/modules/visualizer/wallpaper-project.ts", import.meta.url), "utf8");
+  const projectModule = projectSrc.replace('from "./web-wallpaper"', `from "${toModuleUrl(webSrc, "web-wallpaper.ts")}"`);
   const sceneSrc = await readFile(new URL("../src/custom-app/modules/visualizer/scene-store.ts", import.meta.url), "utf8");
   const source = sceneSrc.replace('from "./media-store"', `from "${toModuleUrl(mediaSrc, "media-store.ts")}"`)
     .replace('from "./web-wallpaper"', `from "${toModuleUrl(webSrc, "web-wallpaper.ts")}"`)
-    .replace('from "./scene-folder"', `from "${toModuleUrl(folderSrc, "scene-folder.ts")}"`);
+    .replace('from "./scene-folder"', `from "${toModuleUrl(folderSrc, "scene-folder.ts")}"`)
+    .replace('from "./wallpaper-project"', `from "${toModuleUrl(projectModule, "wallpaper-project.ts")}"`);
   const sceneStore = await import(toModuleUrl(source, "scene-store.ts"));
   const oldIDB = globalThis.indexedDB;
   const contents = new Map();
+  const filesContent = new Map();
+  // IDB-v2-Fake mit getrennten Stores. Ein Transaktionsabschluss kommt erst
+  // nach allen synchron vorgemerkten put()/delete()-Operationen.
   globalThis.indexedDB = {
     open() {
       const db = {
-        objectStoreNames: { contains: () => false }, createObjectStore() {}, close() {},
+        objectStoreNames: { contains: () => false },
+        createObjectStore() { return { createIndex() {} }; }, close() {},
         transaction() {
-          const tx = { oncomplete: null, onabort: null, onerror: null, error: null, objectStore() {
-            return {
-              get(id) {
-                const request = { result: undefined, onsuccess: null, onerror: null };
-                queueMicrotask(() => { request.result = contents.get(id); request.onsuccess?.(); });
-                return request;
-              },
-              getAll() {
-                const request = { result: undefined, onsuccess: null, onerror: null };
-                queueMicrotask(() => { request.result = [...contents.values()]; request.onsuccess?.(); });
-                return request;
-              },
-              put(record) { contents.set(record.id, record); queueMicrotask(() => tx.oncomplete?.()); },
-              delete(id) { contents.delete(id); queueMicrotask(() => tx.oncomplete?.()); },
-            };
-          } };
+          const tx = { oncomplete: null, onabort: null, onerror: null, error: null,
+            objectStore(storeName) {
+              const map = storeName === "scene-files" ? filesContent : contents;
+              return {
+                index() {
+                  return { getAll(id) {
+                    const request = { result: undefined, onsuccess: null, onerror: null };
+                    queueMicrotask(() => { request.result = [...filesContent.values()].filter((f) => f.sceneId === id); request.onsuccess?.(); });
+                    return request;
+                  } };
+                },
+                get(id) {
+                  const request = { result: undefined, onsuccess: null, onerror: null };
+                  queueMicrotask(() => { request.result = map.get(id); request.onsuccess?.(); });
+                  return request;
+                },
+                getAll() {
+                  const request = { result: undefined, onsuccess: null, onerror: null };
+                  queueMicrotask(() => { request.result = [...map.values()]; request.onsuccess?.(); });
+                  return request;
+                },
+                put(record) { map.set(record.key ?? record.id, record); queueMicrotask(() => tx.oncomplete?.()); },
+                delete(id) { map.delete(id); queueMicrotask(() => tx.oncomplete?.()); },
+              };
+            },
+          };
           return tx;
         },
       };
@@ -219,7 +236,9 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
     ]);
     assert.equal(multi.length, 2);
     assert.equal((await sceneStore.listScenes()).length, 4);
-    assert.match(await (await sceneStore.loadScene(multi[1].id)).blob.text(), /Scene 2/);
+    const secondProject = await sceneStore.loadSceneProject(multi[1].id);
+    assert.equal(secondProject.files.length, 2);
+    assert.match(await secondProject.files.find((file) => file.path === "index.html").blob.text(), /Scene 2/);
     // Scheitert das Packen eines Projekts, kommt NICHT die Hälfte in die DB.
     await assert.rejects(() => sceneStore.importSceneFolder([
       fileAt("BadPack/01/index.html", "<html>valid</html>"),
@@ -232,6 +251,20 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
     await sceneStore.deleteScene(first.id);
     assert.equal((await sceneStore.listScenes()).length, 3);
     assert.ok(contents.has(video.id), "Löschen verändert nicht andere Szenen");
+    assert.equal(filesContent.size, 2, "Zugehörige Asset-Blobs bleiben bis zum eigenen Löschen bestehen");
+    // Komplexes 70+-Dateien-Projekt wird nicht als riesige HTML-Base64-Datei
+    // gespeichert, sondern separat und löschbar in IDB-v2-Asset-Blobs.
+    const bulk = [fileAt("Set/Big/index.html", "<html><body>Viele Dateien</body></html>"),
+      fileAt("Set/Big/project.json", "{}")];
+    for (let i = 0; i < 75; i++) bulk.push(fileAt(`Set/Big/images/frame-${i}.png`, "asset"));
+    const [big] = await sceneStore.importSceneFolder(bulk);
+    assert.equal(big.fileCount, 77);
+    assert.equal(big.format, "project-v2");
+    const loaded = await sceneStore.loadSceneProject(big.id);
+    assert.equal(loaded.files.length, 77);
+    assert.equal(filesContent.size, 79);
+    await sceneStore.deleteScene(big.id);
+    assert.equal(filesContent.size, 2, "Beim Löschen werden alle 77 Dateien freigegeben.");
   } finally { if (oldIDB === undefined) delete globalThis.indexedDB; else globalThis.indexedDB = oldIDB; }
 });
 
@@ -337,4 +370,57 @@ test("HTML-Wallpaper: verschachtelte CSS/JS-Pfade und unquotiertes url() funktio
   assert.match(result, /zukato:player/);
   assert.match(result, /positionMs/);
   assert.match(result, /document\.body\.dataset\.wallpaper/);
+});
+
+test("Verschachtelte index.html wird als Unterseite, nicht zweites Wallpaper erkannt", () => {
+  const results = folders.groupWallpaperFolderFiles([
+    fileAt("Set/01/index.html", "<h1>Main</h1>"),
+    fileAt("Set/01/info/index.html", "<h1>Subpage</h1>"),
+    fileAt("Set/01/info/data.json", "{}"),
+    fileAt("Set/02/project.json", '{"file":"site/index.html"}'),
+    fileAt("Set/02/site/index.html", "<h1>Site</h1>"),
+    fileAt("Set/02/site/css/main.css", "body{}"),
+  ]);
+  assert.deepEqual(results.map((scene) => scene.name), ["01", "02"]);
+  assert.deepEqual(results.map((scene) => scene.files.length), [3, 3]);
+});
+
+test("Wallpaper-Engine-Projekt mit wallpaper.html statt index.html wird zusammen importiert", () => {
+  const scenes = folders.groupWallpaperFolderFiles([
+    fileAt("Pack/01/project.json", '{"file":"web/wallpaper.html"}'),
+    fileAt("Pack/01/web/wallpaper.html", "<html></html>"),
+    fileAt("Pack/01/web/css/app.css", "body{}"),
+  ]);
+  assert.equal(scenes.length, 1);
+  assert.equal(scenes[0].name, "01");
+  assert.equal(scenes[0].files.length, 3);
+});
+
+// Zusätzliche Regressionen: vollständige Wallpaper-Engine-Webprojekt-Ordner.
+test("Großes Einzelprojekt: Assets neben web/index.html nicht verlieren", () => {
+  const projectFiles = [
+    fileAt("Stadtregen/web/index.html", '<script src="../js/scene.js"></script>'),
+    fileAt("Stadtregen/js/scene.js", "console.log('okay')"),
+    fileAt("Stadtregen/assets/background.png", "PNG"),
+    fileAt("Stadtregen/assets/intro.mp4", "VIDEO"),
+    fileAt("Stadtregen/fonts/main.woff2", "FONT"),
+  ];
+  const found = folders.groupWallpaperFolderFiles(projectFiles);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].name, "Stadtregen");
+  assert.equal(found[0].files.length, projectFiles.length);
+});
+
+test("Mehrere Projekte bleiben getrennt, inklusive verschachtelter Assets", () => {
+  const found = folders.groupWallpaperFolderFiles([
+    fileAt("Sammlung/01/index.html", "<html></html>"),
+    fileAt("Sammlung/01/js/start.js", "first"),
+    fileAt("Sammlung/01/info/index.html", "<html></html>"),
+    fileAt("Sammlung/02/project.json", '{"file":"web/index.html"}'),
+    fileAt("Sammlung/02/web/index.html", "<html></html>"),
+    fileAt("Sammlung/02/assets/hero.png", "second"),
+  ]);
+  assert.deepEqual(found.map((x) => x.name), ["01", "02"]);
+  assert.deepEqual(found.map((x) => x.files.length), [3, 3]);
+  assert.equal(found[0].files.some((file) => file.webkitRelativePath.includes("02/")), false);
 });
