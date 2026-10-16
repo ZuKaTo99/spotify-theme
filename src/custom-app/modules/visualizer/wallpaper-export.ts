@@ -22,9 +22,15 @@ async function crc32(blob: Blob): Promise<number> {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-/** Little-Endian ZIP32-Felder ohne Zusatzpaket schreiben. */
-function words(size: number): DataView {
-  return new DataView(new ArrayBuffer(size));
+/**
+ * Little-Endian ZIP32-Felder ohne Zusatzpaket schreiben.
+ * Den konkreten ArrayBuffer mitführen: DataView.buffer ist laut DOM-Typen
+ * nur ArrayBufferLike (könnte also auch SharedArrayBuffer sein). BlobPart
+ * akzeptiert insbesondere unter TypeScript 7 keinen SharedArrayBuffer.
+ */
+function words(size: number): { view: DataView; buffer: ArrayBuffer } {
+  const buffer = new ArrayBuffer(size);
+  return { view: new DataView(buffer), buffer };
 }
 
 export async function zipWallpaperProject(files: readonly ProjectAsset[]): Promise<Blob> {
@@ -37,10 +43,15 @@ export async function zipWallpaperProject(files: readonly ProjectAsset[]): Promi
   let centralSize = 0;
   for (const { path, blob } of files) {
     const name = encoder.encode(path);
+    // Den UTF-8-Dateinamen in einen echten ArrayBuffer kopieren. Die
+    // TextEncoder-Rückgabe ist in neueren TypeScript-Versionen nur als
+    // Uint8Array<ArrayBufferLike> deklariert und damit kein sicherer BlobPart.
+    const nameBuffer = new ArrayBuffer(name.byteLength);
+    new Uint8Array(nameBuffer).set(name);
     if (name.length > 65535 || blob.size >= 0xffffffff || offset >= 0xffffffff)
       throw new Error("Wallpaper-ZIP überschreitet das unterstützte ZIP32-Format.");
     const checksum = await crc32(blob);
-    const local = words(30);
+    const { view: local, buffer: localBuffer } = words(30);
     local.setUint32(0, 0x04034b50, true);
     local.setUint16(4, 20, true);
     local.setUint16(6, 0x0800, true); // UTF-8-Dateinamen
@@ -48,8 +59,8 @@ export async function zipWallpaperProject(files: readonly ProjectAsset[]): Promi
     local.setUint32(18, blob.size, true);
     local.setUint32(22, blob.size, true);
     local.setUint16(26, name.byteLength, true);
-    chunks.push(local.buffer, name, blob);
-    const entry = words(46);
+    chunks.push(localBuffer, nameBuffer, blob);
+    const { view: entry, buffer: entryBuffer } = words(46);
     entry.setUint32(0, 0x02014b50, true);
     entry.setUint16(4, 20, true);
     entry.setUint16(6, 20, true);
@@ -59,16 +70,16 @@ export async function zipWallpaperProject(files: readonly ProjectAsset[]): Promi
     entry.setUint32(24, blob.size, true);
     entry.setUint16(28, name.byteLength, true);
     entry.setUint32(42, offset, true);
-    central.push(entry.buffer, name);
+    central.push(entryBuffer, nameBuffer);
     centralSize += 46 + name.byteLength;
     offset += 30 + name.byteLength + blob.size;
   }
   if (offset + centralSize >= 0xffffffff) throw new Error("Wallpaper-ZIP zu groß.");
-  const trailer = words(22);
+  const { view: trailer, buffer: trailerBuffer } = words(22);
   trailer.setUint32(0, 0x06054b50, true);
   trailer.setUint16(8, files.length, true);
   trailer.setUint16(10, files.length, true);
   trailer.setUint32(12, centralSize, true);
   trailer.setUint32(16, offset, true);
-  return new Blob([...chunks, ...central, trailer.buffer], { type: "application/zip" });
+  return new Blob([...chunks, ...central, trailerBuffer], { type: "application/zip" });
 }
