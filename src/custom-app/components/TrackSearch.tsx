@@ -8,17 +8,20 @@ import type { FormEvent, ReactElement } from "react";
 import type { Translator } from "../../shared/i18n";
 import type { TrackInfo } from "../../shared/library";
 import { findSpotifyTrack, parseSpotifyTrackInput, searchSpotifyTracks } from "../../shared/track-search";
+import { createSingleFlight } from "../../shared/single-flight";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
 export interface TrackSearchAction { label: string; onChoose: (track: TrackInfo) => void | Promise<void> }
 
-export function TrackSearch({ t, actionLabel, onChoose, actions }: {
+export function TrackSearch({ t, actionLabel, onChoose, actions, disabled = false }: {
   t: Translator;
   actionLabel: string;
   onChoose: (track: TrackInfo) => void | Promise<void>;
   /** Mehrere direkte Aktionen sparen das Wechseln zwischen Modulen. */
   actions?: readonly TrackSearchAction[];
+  /** Sperrt Suche und Resultat-Aktionen bei laufender externer Queue-Operation. */
+  disabled?: boolean;
 }): ReactElement {
   const [query, setQuery] = ReactRuntime.useState("");
   const [results, setResults] = ReactRuntime.useState<TrackInfo[]>([]);
@@ -26,6 +29,13 @@ export function TrackSearch({ t, actionLabel, onChoose, actions }: {
   const [error, setError] = ReactRuntime.useState("");
   const [chosenUri, setChosenUri] = ReactRuntime.useState("");
   const requestNumber = ReactRuntime.useRef(0);
+  // Ref statt ausschließlich setState: zwei Klicks im selben Render-Takt
+  // dürfen nicht zweimal denselben Favoriten-/Queue-Auftrag auslösen.
+  const actionGate = ReactRuntime.useRef(createSingleFlight());
+
+  // Eine API-Antwort darf nach dem Verlassen des Moduls keine veralteten
+  // Suchergebnisse mehr zurück in eine inzwischen entfernte Ansicht schreiben.
+  ReactRuntime.useEffect(() => () => { requestNumber.current++; }, []);
 
   // Ein neuer Request entwertet die Ergebnisse älterer, langsamerer Suchen.
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -66,13 +76,18 @@ export function TrackSearch({ t, actionLabel, onChoose, actions }: {
   }
 
   async function choose(track: TrackInfo, callback: (track: TrackInfo) => void | Promise<void>): Promise<void> {
-    setChosenUri(track.uri);
-    setError("");
-    try { await callback(track); }
-    catch (cause) {
-      console.warn("[ZuKaTo] Song-Aktion:", cause);
-      setError(t("search.actionFailed"));
-    } finally { setChosenUri(""); }
+    if (disabled) return;
+    // Die synchrone Single-Flight-Sperre blockiert auch Doppelklicks, die vor
+    // dem renderbedingten disabled-Zustand eintreffen.
+    await actionGate.current.run(async () => {
+      setChosenUri(track.uri);
+      setError("");
+      try { await callback(track); }
+      catch (cause) {
+        console.warn("[ZuKaTo] Song-Aktion:", cause);
+        setError(t("search.actionFailed"));
+      } finally { setChosenUri(""); }
+    });
   }
 
   return <section className="zukato-track-search" aria-label={t("search.heading")}>
@@ -80,6 +95,7 @@ export function TrackSearch({ t, actionLabel, onChoose, actions }: {
     <p className="zukato-viz__hint">{t("search.help")}</p>
     <form className="zukato-toolbar" onSubmit={(event) => { void submit(event); }}>
       <input type="search" aria-label={t("search.placeholder")} value={query} maxLength={150}
+        disabled={disabled}
         placeholder={t("search.placeholder")} onChange={(event) => {
           // Schon beim Editieren ältere laufende Requests und deren Treffer verwerfen.
           requestNumber.current++;
@@ -88,14 +104,14 @@ export function TrackSearch({ t, actionLabel, onChoose, actions }: {
           setError("");
           setBusy(false);
         }} />
-      <button type="submit" disabled={busy || !query.trim()}>{busy ? t("search.loading") : t("search.button")}</button>
+      <button type="submit" disabled={disabled || busy || !query.trim()}>{busy ? t("search.loading") : t("search.button")}</button>
     </form>
     {error && <p role="alert" className="zukato-error">{error}</p>}
     {results.length > 0 && <ul className="zukato-track-list" aria-label={t("search.results")}>
       {results.map((track) => <li className="zukato-track" key={track.uri}>
         <div className="zukato-track__info"><strong>{track.title}</strong><span>{track.artist}{track.album ? ` · ${track.album}` : ""}</span></div>
         <div className="zukato-track__actions">{(actions ?? [{ label: actionLabel, onChoose }]).map((action) =>
-          <button key={action.label} type="button" disabled={Boolean(chosenUri)}
+          <button key={action.label} type="button" disabled={disabled || Boolean(chosenUri)}
             onClick={() => { void choose(track, action.onChoose); }}>{action.label}</button>)}</div>
       </li>)}
     </ul>}

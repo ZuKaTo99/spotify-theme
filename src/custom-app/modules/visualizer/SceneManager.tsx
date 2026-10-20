@@ -10,11 +10,12 @@ import {
   loadScenePreferences, saveScenePreferences, withoutScene,
   MAX_PLAYLIST_ITEMS, MAX_PLAYLIST_SCOPES, type ScenePreferences,
 } from "../../../shared/scene-playlists";
-import { deleteScene, importSceneFolder, listScenes, loadScene, loadSceneProject, type SceneEntry } from "./scene-store";
+import { deleteScene, importSceneFolder, replaceSceneFolder, listScenes, loadScene, loadSceneProject, type SceneEntry } from "./scene-store";
 import { zipWallpaperProject } from "./wallpaper-export";
 import { groupWallpaperFolderFiles } from "./scene-folder";
 import { loadSongSession } from "../../../shared/song-session";
 import { ScenePreview } from "./ScenePreview";
+import { deleteWallpaperPrefs, loadWallpaperPrefs, WALLPAPER_PREFS_CHANGED } from "./wallpaper-preferences";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -37,6 +38,22 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
   const [revision, setRevision] = ReactRuntime.useState(0);
   const [busy, setBusy] = ReactRuntime.useState(false);
   const [importStatus, setImportStatus] = ReactRuntime.useState("");
+  // Diagnose statt Vermutung: Anhand der gespeicherten Schlüssel sieht man,
+  // ob das HTML-Wallpaper überhaupt die von ZuKaTo angebotenen Browser-
+  // Speicherwege benutzt. Weder Schlüssel noch Werte werden hier angezeigt.
+  const [preferenceCounts, setPreferenceCounts] = ReactRuntime.useState({ local: 0, session: 0 });
+  ReactRuntime.useEffect(() => {
+    const refresh = (): void => setPreferenceCounts(selected ? {
+      local: Object.keys(loadWallpaperPrefs(selected)).length,
+      session: Object.keys(loadWallpaperPrefs(selected, "session")).length,
+    } : { local: 0, session: 0 });
+    const onChange = (event: Event): void => {
+      if ((event as CustomEvent<{ sceneId: string }>).detail?.sceneId === selected) refresh();
+    };
+    refresh();
+    window.addEventListener(WALLPAPER_PREFS_CHANGED, onChange);
+    return () => window.removeEventListener(WALLPAPER_PREFS_CHANGED, onChange);
+  }, [selected]);
   const effectiveScope = scope === "track" && trackUri ? trackUri : "default";
   const playlist = settings.playlists[effectiveScope] ?? [];
 
@@ -141,6 +158,32 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
     void importFolder(files);
   }
 
+  /**
+   * Aktualisiert den gespeicherten Projektordner ohne neue sceneId.
+   * Playlist-Positionen und projektbezogene Nebula-Regler bleiben erhalten.
+   * Ein gerade laufendes Wallpaper lädt die Dateien beim nächsten Song neu.
+   */
+  async function updateProjectFolder(files: File[], sceneId: string): Promise<void> {
+    setBusy(true);
+    setImportStatus("");
+    try {
+      await replaceSceneFolder(sceneId, files);
+      // Alte Vorschau entladen; die nächste Vorschau verwendet neue Dateien.
+      setPreviewId("");
+      setRevision((value) => value + 1);
+      setImportStatus("Wallpaper aktualisiert. Playlist und gespeicherte Einstellungen bleiben erhalten. Wiedergabe ab dem nächsten Song.");
+    } catch (cause) { onError(String(cause)); }
+    finally { setBusy(false); }
+  }
+
+  /** Nur Verzeichnisse akzeptieren; eine einzelne index.html reicht NICHT. */
+  function onUpdateProjectFolder(event: ChangeEvent<HTMLInputElement>): void {
+    const sceneId = selected;
+    const files = event.currentTarget.files ? Array.from(event.currentTarget.files) : [];
+    event.currentTarget.value = "";
+    if (sceneId && files.length) void updateProjectFolder(files, sceneId);
+  }
+
   async function removeScene(): Promise<void> {
     if (!selected) return;
     // Nutzer selbst erstellte Szenen niemals ohne explizite Bestätigung
@@ -156,7 +199,12 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
       // Stand laden und nur die zu löschende Szene daraus entfernen.
       const previous = loadScenePreferences();
       onChange(saveScenePreferences(withoutScene(previous, selected)));
-      try { await deleteScene(selected); }
+      try {
+        await deleteScene(selected);
+        // Erst NACH dem erfolgreichen Entfernen der eigentlichen Dateien:
+        // Sonst gingen bei einem IDB-Rollback auch die Reglerwerte verloren.
+        deleteWallpaperPrefs(selected);
+      }
       catch (cause) {
         // Der Benutzer darf seine andere Szenenreihenfolge behalten, wenn
         // IndexedDB die eigentliche Datei-Löschung verweigert.
@@ -272,10 +320,25 @@ export function SceneManager({ t, trackUri, settings, onChange, onError, showMod
       <button type="button" disabled={!selected || busy} onClick={() => void removeScene()}>{t("viz.sceneDelete")}</button>
     </div>
     {selected && scenes.find((scene) => scene.id === selected)?.format === "project-v2" &&
+      <div className="zukato-viz__scene-row">
+        {/* Die Dateien der bestehenden Szene ersetzen, statt versehentlich
+            eine zweite Nebula Engine mit anderer ID zu importieren. */}
+        <label className="zukato-viz__upload">Projektordner aktualisieren (Presets behalten)
+          <input type="file" disabled={busy} multiple ref={(element) => {
+            if (element) element.setAttribute("webkitdirectory", "");
+          }} onChange={onUpdateProjectFolder} />
+        </label>
+      </div>}
+    {selected && scenes.find((scene) => scene.id === selected)?.format === "project-v2" &&
       <p className="zukato-viz__hint" role="status">HTML-Webprojekt: {
         scenes.find((scene) => scene.id === selected)?.fileCount} Dateien · {
         ((scenes.find((scene) => scene.id === selected)?.bytes ?? 0) / 1048576).toFixed(1)} MiB
         · Export als vollständiges ZIP mit Ordnerstruktur</p>}
+    {selected && scenes.find((scene) => scene.id === selected)?.format === "project-v2" &&
+      <p className="zukato-viz__hint" role="status">{t("viz.scenePrefsStatus", {
+        local: String(preferenceCounts.local), session: String(preferenceCounts.session),
+      })}{preferenceCounts.local === 0 && preferenceCounts.session === 0
+        ? ` ${t("viz.scenePrefsEmptyHelp")}` : ""}</p>}
     {previewId && <ScenePreview id={previewId} onError={onError} />}
     <p className="zukato-viz__hint">{t("viz.sceneUsage", { count: String(scenes.length), size: totalMiB })}</p>
     {missingCount > 0 && <p role="alert" className="zukato-error">{t("viz.libraryMissing", { count: String(missingCount) })}</p>}

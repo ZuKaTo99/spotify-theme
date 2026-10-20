@@ -51,7 +51,9 @@ test("Sandbox: 100 Assets werden nur einmal ersetzt; bereits typisierte Blobs we
   const listeners = new Map();
   const sent = [];
   const objects = [];
-  const document = { html: "", open() {}, write(value) { this.html = value; }, close() {} };
+  // Ein echter Browser entfernt bei document.open() ALLE Window-Listener.
+  // Der Test emuliert das: Der Bootstrap muss StorageSync danach neu anbinden.
+  const document = { html: "", open() { listeners.clear(); }, write(value) { this.html = value; }, close() {} };
   const parent = { postMessage(message) { sent.push(message); } };
   class Image { }
   class Media { }
@@ -62,6 +64,7 @@ test("Sandbox: 100 Assets werden nur einmal ersetzt; bereits typisierte Blobs we
   const sandbox = {
     window: {
       parent, addEventListener(type, handler) { listeners.set(type, handler); },
+      removeEventListener(type, handler) { if (listeners.get(type) === handler) listeners.delete(type); },
       fetch() { return Promise.resolve({ ok: true }); },
     },
     document, URL: { createObjectURL(blob) { objects.push(blob); return `blob:local/${objects.length}`; },

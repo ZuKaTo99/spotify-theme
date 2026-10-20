@@ -24,8 +24,12 @@ export const contextActionsModule: ExtensionModule = {
   start(): void {
     item = new Spicetify.ContextMenu.Item(
       "ZuKaTo: Lesezeichen umschalten",
-      (uris) => { if (uris[0]) rememberUri(uris[0]); },
-      (uris) => uris.some((uri) => /^spotify:(track|episode):/.test(uri)),
+      // Mehrfachauswahl: nicht blind das erste (ggf. ungültige) URI übernehmen.
+      (uris) => {
+        const uri = uris.find((value) => /^spotify:(track|episode):[A-Za-z0-9]+$/.test(value));
+        if (uri) rememberUri(uri);
+      },
+      (uris) => uris.some((uri) => /^spotify:(track|episode):[A-Za-z0-9]+$/.test(uri)),
     );
     item.register();
     menu = new Spicetify.Menu.Item("ZuKaTo: laufenden Titel merken", false, () => {

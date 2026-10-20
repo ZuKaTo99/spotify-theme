@@ -58,10 +58,41 @@ function track(value: unknown): TrackInfo | null {
   };
 }
 function safeArray<T>(value: unknown, max: number, read: (value: unknown) => T | null): T[] {
-  return (Array.isArray(value) ? value : []).slice(0, max).flatMap((entry) => {
-    const result = read(entry);
-    return result ? [result] : [];
-  });
+  // Alte Backups können ungültige Einträge am Anfang enthalten. Erst gültige
+  // Werte zählen: Sonst verdrängen beschädigte Werte spätere Favoriten/Notizen.
+  const entries: unknown[] = Array.isArray(value) ? value : [];
+  const result: T[] = [];
+  for (const entry of entries) {
+    const valid = read(entry);
+    if (valid !== null) result.push(valid);
+    if (result.length >= max) break;
+  }
+  return result;
+}
+
+/** Alte Backups können dieselbe URI mehrfach enthalten. Diese Funktion
+ * akzeptiert nur einzigartige Titel; das Limit zählt erst NACH der Bereinigung.
+ * Bei Notizen gewinnt im Konflikt der neuere gespeicherte Zeitstempel. */
+function uniqueTracks<T extends TrackInfo>(
+  values: unknown, max: number, read: (item: unknown) => T | null,
+  isNewer?: (candidate: T, previous: T) => boolean,
+): T[] {
+  const result: T[] = [];
+  const indexByUri = new Map<string, number>();
+  if (!Array.isArray(values)) return result;
+  for (const item of values) {
+    const valid = read(item);
+    if (!valid) continue;
+    const existing = indexByUri.get(valid.uri);
+    if (existing !== undefined) {
+      if (isNewer?.(valid, result[existing])) result[existing] = valid;
+      continue;
+    }
+    if (result.length >= max) continue;
+    indexByUri.set(valid.uri, result.length);
+    result.push(valid);
+  }
+  return result;
 }
 
 /** Erstellt jederzeit eine neue, unabhängige leere Datenbank. */
@@ -80,8 +111,8 @@ export function normalizeLibrary(value: unknown): ToolkitLibrary {
       return base && typeof item.playedAt === "number" && Number.isFinite(item.playedAt)
         ? { ...base, playedAt: Math.max(0, item.playedAt) } : null;
     }),
-    favorites: safeArray(source.favorites, MAX_FAVORITES, track),
-    notes: safeArray(source.notes, MAX_NOTES, (entry) => {
+    favorites: uniqueTracks(source.favorites, MAX_FAVORITES, track),
+    notes: uniqueTracks(source.notes, MAX_NOTES, (entry) => {
       const item = object(entry);
       const base = track(item);
       return base ? {
@@ -90,7 +121,7 @@ export function normalizeLibrary(value: unknown): ToolkitLibrary {
         updatedAt: typeof item.updatedAt === "number" && Number.isFinite(item.updatedAt)
           ? item.updatedAt : 0,
       } : null;
-    }),
+    }, (candidate, previous) => candidate.updatedAt > previous.updatedAt),
   };
 }
 

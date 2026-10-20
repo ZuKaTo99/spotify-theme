@@ -15,6 +15,7 @@ import { spotifyArtworkUrl } from "../../../shared/artwork";
 import { normalizedPlayerProgress, type PlayerProgress } from "../../../shared/player-progress";
 import { useToolkitData } from "../../hooks/useToolkitData";
 import { TrackList } from "../../components/TrackList";
+import { dashboardProgressDelayMs, sameDashboardProgress } from "./dashboard-polling";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -54,16 +55,44 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
   const visible = new Set(getEnabledFeaturesBySurface("custom-app", features).map((item) => item.id));
   const isFavorite = Boolean(track && favorites.some((favorite) => favorite.uri === track.uri));
   const [message, setMessage] = ReactRuntime.useState("");
-  // Nur die Dashboard-Anzeige wird sekündlich aktualisiert; kein globales Polling.
+  // Bei Wiedergabe bleibt die Zeitanzeige sekundengenau. Während Pause und
+  // Hintergrundbetrieb sinkt die Zahl der Timerläufe deutlich; Songwechsel,
+  // Pause/Play und Tab-Rückkehr werden unabhängig davon sofort verarbeitet.
   const [position, setPosition] = ReactRuntime.useState<PlayerProgress>(() => normalizedPlayerProgress(
     Spicetify.Player.getProgress(), Spicetify.Player.getDuration()));
   ReactRuntime.useEffect(() => {
-    const refresh = (): void => setPosition(normalizedPlayerProgress(
-      Spicetify.Player.getProgress(), Spicetify.Player.getDuration()));
-    refresh();
-    const timer = window.setInterval(refresh, 1000);
-    Spicetify.Player.addEventListener("songchange", refresh);
-    return () => { window.clearInterval(timer); Spicetify.Player.removeEventListener("songchange", refresh); };
+    let stopped = false;
+    let timer: number | null = null;
+    const refresh = (): void => {
+      const next = normalizedPlayerProgress(Spicetify.Player.getProgress(), Spicetify.Player.getDuration());
+      setPosition((previous) => sameDashboardProgress(previous, next) ? previous : next);
+    };
+    const schedule = (): void => {
+      if (stopped) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        refresh();
+        schedule();
+      }, dashboardProgressDelayMs(Spicetify.Player.isPlaying(), document.hidden));
+    };
+    const refreshAndSchedule = (): void => {
+      if (stopped) return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      refresh();
+      schedule();
+    };
+    Spicetify.Player.addEventListener("songchange", refreshAndSchedule);
+    Spicetify.Player.addEventListener("onplaypause", refreshAndSchedule);
+    document.addEventListener("visibilitychange", refreshAndSchedule);
+    refreshAndSchedule();
+    return () => {
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+      Spicetify.Player.removeEventListener("songchange", refreshAndSchedule);
+      Spicetify.Player.removeEventListener("onplaypause", refreshAndSchedule);
+      document.removeEventListener("visibilitychange", refreshAndSchedule);
+    };
   }, []);
   // Beim nächsten Song keinen alten Favoriten-Hinweis stehen lassen.
   ReactRuntime.useEffect(() => setMessage(""), [track?.uri]);
@@ -150,7 +179,7 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
           <h3>{t("dashboard.recent")}</h3>
           {visible.has("listening-history") && <button type="button" onClick={() => onNavigate("listening-history")}>{t("dashboard.viewAll")}</button>}
         </div>
-        <TrackList tracks={summary.latest} emptyText={t("dashboard.emptyHistory")} />
+        <TrackList playLabel={t("common.play")} tracks={summary.latest} emptyText={t("dashboard.emptyHistory")} />
       </section>
       <aside className="zukato-dashboard__insights">
         <h3>{t("dashboard.yourWorkspace")}</h3>

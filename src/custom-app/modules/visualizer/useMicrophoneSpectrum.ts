@@ -15,7 +15,8 @@
 // =============================================================================
 import type { RefObject } from "react";
 import type { SpectrumStyle } from "../../../shared/visualizer-config";
-import { displayCaptureOptions, releaseCapturedStream, requireLiveAudioTrack, type CaptureSource, hasMeasuredAudioSignal } from "./audio-capture";
+import { shouldDrawSpectrum } from "./audio-performance";
+import { displayCaptureOptions, releaseCapturedStream, requireLiveAudioTrack, type CaptureSource, hasMeasuredAudioSignal, spectrum64FromByteBins, explainCaptureError } from "./audio-capture";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -28,15 +29,23 @@ export interface SpectrumControls {
   /** Diagnose: verbunden ist nicht dasselbe wie hörbares Audiosignal. */
   signal: AudioSignalState;
   error: string;
+  /** Eine noch offene Browser-Freigabe darf kein zweites Dialogfenster öffnen. */
+  starting: boolean;
   start: () => Promise<void>;
   startSystem: () => Promise<void>;
   stop: () => void;
+  /** Snapshot, nie Audio-Rohdaten: 64 Frequenzwerte aus freigegebener Quelle. */
+  getSpectrum: () => number[] | null;
 }
 
 interface AudioResources {
   stream: MediaStream;
   context: AudioContext;
   analyser: AnalyserNode;
+  /** Einmal pro Freigabe anlegen statt 20-60 Arrays pro Sekunde. */
+  frequencyBytes: Uint8Array<ArrayBuffer>;
+  /** Waveform nutzt die volle FFT-Laenge; die Frequenz nur deren Haelfte. */
+  waveformBytes: Uint8Array<ArrayBuffer>;
   /** Alle Audio-/Videospuren tragen denselben End-Listener. */
   tracks: MediaStreamTrack[];
   onEnded: () => void;
@@ -56,19 +65,25 @@ export function useMicrophoneSpectrum(
   const generation = ReactRuntime.useRef(0);
   const pendingRef = ReactRuntime.useRef(false);
   const startedAtRef = ReactRuntime.useRef(0);
-  const lastSignalCheckRef = ReactRuntime.useRef(0);
+  // Signalzustand ist von den gezeichneten Balken unabhängig.
+  // Bei ausgeblendetem Overlay läuft nur diese günstige 700-ms-Prüfung.
+  const signalTimerRef = ReactRuntime.useRef<number | null>(null);
   const [signal, setSignal] = ReactRuntime.useState<AudioSignalState>("idle");
   const settingsRef = ReactRuntime.useRef({ style, bars, gain, smoothing, playing, color, opacity, glow });
   settingsRef.current = { style, bars, gain, smoothing, playing, color, opacity, glow };
   const [activeSource, setActiveSource] = ReactRuntime.useState<CaptureSource | null>(null);
+  const [starting, setStarting] = ReactRuntime.useState(false);
   const [error, setError] = ReactRuntime.useState("");
 
   /** Beendet jede Spur (auch Bildschirm-Video), WebAudio und die Animation. */
   const stop = ReactRuntime.useCallback((): void => {
     generation.current += 1;
     pendingRef.current = false;
+    setStarting(false);
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
+    if (signalTimerRef.current !== null) window.clearInterval(signalTimerRef.current);
+    signalTimerRef.current = null;
     const old = resourcesRef.current;
     resourcesRef.current = null;
     if (old) {
@@ -82,13 +97,38 @@ export function useMicrophoneSpectrum(
     setSignal("idle");
   }, []);
 
-  /** Alle dargestellten Werte stammen unverändert aus einem echten Analyser. */
+  /**
+   * Audioerkennung unabhängig vom Canvas: auch im Modus „off“ bleibt die
+   * Statusanzeige korrekt, ohne einen versteckten 60-fps-Zeichenloop zu fahren.
+   * Diese Messwerte verlassen den Prozess nicht und werden nicht gespeichert.
+   */
+  const measureSignal = ReactRuntime.useCallback((): void => {
+    const resource = resourcesRef.current;
+    if (!resource) return;
+    const now = performance.now();
+    let next: AudioSignalState = "paused";
+    if (settingsRef.current.playing) {
+      resource.analyser.getByteFrequencyData(resource.frequencyBytes);
+      next = hasMeasuredAudioSignal(resource.frequencyBytes) ? "detected"
+        : now - startedAtRef.current < 2200 ? "waiting" : "silent";
+    }
+    setSignal((previous) => previous === next ? previous : next);
+  }, []);
+
   const draw = ReactRuntime.useCallback((): void => {
     const resources = resourcesRef.current;
     const canvas = canvasRef.current;
-    if (!resources || !canvas) return;
+    if (!resources || !canvas) { frameRef.current = null; return; }
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) { frameRef.current = null; return; }
+    if (!shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, (typeof document !== "undefined" && document.hidden))) {
+      // Pause, Overlay=off oder Hintergrund: den letzten Peak entfernen und
+      // KEINEN weiteren RAF einplanen. Spotify-Songwechsel/Visibility-Event
+      // aktivieren die Zeichenschleife spaeter gezielt wieder.
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      frameRef.current = null;
+      return;
+    }
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     if (!width || !height) {
@@ -105,24 +145,11 @@ export function useMicrophoneSpectrum(
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, width, height);
     const config = settingsRef.current;
-    // Auch eine freigegebene Tonspur kann stumm sein. Ein günstiger Messwert
-    // alle 700 ms meldet den tatsächlichen Zustand, ohne React pro Frame
-    // zu aktualisieren oder Songdaten/Audio in irgendeiner Form zu speichern.
-    const now = performance.now();
-    if (now - lastSignalCheckRef.current >= 700) {
-      lastSignalCheckRef.current = now;
-      let next: AudioSignalState = "paused";
-      if (config.playing) {
-        const measurements = new Uint8Array(resources.analyser.frequencyBinCount);
-        resources.analyser.getByteFrequencyData(measurements);
-        next = hasMeasuredAudioSignal(measurements) ? "detected"
-          : now - startedAtRef.current < 2200 ? "waiting" : "silent";
-      }
-      setSignal((previous) => previous === next ? previous : next);
-    }
     if (config.playing && config.style !== "off") {
-      const buffer = new Uint8Array(resources.analyser.frequencyBinCount);
+      // Beide Buffer werden innerhalb der Audiofreigabe wiederverwendet.
+      const buffer = config.style === "wave" ? resources.waveformBytes : resources.frequencyBytes;
       const barCount = config.bars;
+      const frameTime = config.style === "particles" ? performance.now() : 0;
       const tint = /^#[0-9a-f]{6}$/i.test(config.color) ? config.color : "#1ed760";
       ctx.save();
       ctx.globalAlpha = Math.min(1, Math.max(0.1, config.opacity / 100));
@@ -159,7 +186,7 @@ export function useMicrophoneSpectrum(
             const cx = width / 2;
             const cy = height / 2;
             if (config.style === "particles") {
-              const orbit = (index / barCount) * Math.PI * 2 + performance.now() * 0.00012;
+              const orbit = (index / barCount) * Math.PI * 2 + frameTime * 0.00012;
               const distance = radius + intensity * Math.min(width, height) * 0.3;
               ctx.beginPath();
               ctx.arc(cx + Math.cos(orbit) * distance, cy + Math.sin(orbit) * distance, 1.2 + intensity * 7, 0, Math.PI * 2);
@@ -186,6 +213,7 @@ export function useMicrophoneSpectrum(
   const startCapture = ReactRuntime.useCallback(async (source: CaptureSource): Promise<void> => {
     if (resourcesRef.current || pendingRef.current) return;
     pendingRef.current = true;
+    setStarting(true);
     setError("");
     const token = ++generation.current;
     let stream: MediaStream | null = null;
@@ -225,31 +253,102 @@ export function useMicrophoneSpectrum(
       // nach dem Start einer neuen Session in den aktuellen Visualizer.
       const tracks = [track, ...stream.getVideoTracks()];
       for (const mediaTrack of tracks) mediaTrack.addEventListener("ended", onEnded);
-      resourcesRef.current = { stream, context, analyser, tracks, onEnded };
+      resourcesRef.current = {
+        stream, context, analyser, tracks, onEnded,
+        frequencyBytes: new Uint8Array(analyser.frequencyBinCount),
+        waveformBytes: new Uint8Array(analyser.fftSize),
+      };
       startedAtRef.current = performance.now();
-      lastSignalCheckRef.current = 0;
       setSignal("waiting");
       setActiveSource(source);
-      frameRef.current = requestAnimationFrame(draw);
+      // Signalerkennung auch ohne sichtbare Balken. Die Timer werden beim
+      // Stoppen und nach Spur-Ende gemeinsam aufgeräumt.
+      measureSignal();
+      signalTimerRef.current = window.setInterval(measureSignal, 700);
+      if (shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, (typeof document !== "undefined" && document.hidden)))
+        frameRef.current = requestAnimationFrame(draw);
     } catch (cause) {
+      // Wenn ein Fehler ERST nach dem Einhängen der Stream-Ressourcen
+      // auftritt, dürfen weder alte Listener noch ein halbaktiver Stream
+      // zurückbleiben. Andernfalls stoppt ein späterer Klick dieselbe Spur
+      // zweimal und verhindert anschließend neue Audiofreigaben.
+      if (resourcesRef.current?.stream === stream) {
+        const attached = resourcesRef.current;
+        resourcesRef.current = null;
+        for (const mediaTrack of attached.tracks)
+          mediaTrack.removeEventListener("ended", attached.onEnded);
+        if (signalTimerRef.current !== null) window.clearInterval(signalTimerRef.current);
+        signalTimerRef.current = null;
+        if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
       releaseCapturedStream(stream);
       if (context) void context.close().catch(() => {});
       if (generation.current === token) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(explainCaptureError(cause, source));
         setActiveSource(null);
       }
     } finally {
-      if (generation.current === token) pendingRef.current = false;
+      if (generation.current === token) {
+        pendingRef.current = false;
+        setStarting(false);
+      }
     }
-  }, [draw, stop]);
+  }, [draw, measureSignal, stop]);
+
+  // Eine eigene Abfrage statt 60 React-Renders/s: SceneBackdrop übernimmt die
+  // Übertragung maximal zwanzigmal pro Sekunde, solange eine echte Freigabe läuft.
+  const getSpectrum = ReactRuntime.useCallback((): number[] | null => {
+    const resource = resourcesRef.current;
+    if (!resource || !settingsRef.current.playing ||
+        resource.stream.getAudioTracks().every((track) => track.readyState !== "live")) return null;
+    resource.analyser.getByteFrequencyData(resource.frequencyBytes);
+    return spectrum64FromByteBins(resource.frequencyBytes);
+  }, []);
 
   const start = ReactRuntime.useCallback(() => startCapture("microphone"), [startCapture]);
   const startSystem = ReactRuntime.useCallback(() => startCapture("system"), [startCapture]);
 
+  // Eine Nebula-/HTML-Szene kann Audio benötigen, selbst wenn ZuKaTos eigene
+  // Balken ausgeblendet sind. „off“ betrifft deshalb ausschließlich das
+  // gezeichnete Overlay – eine ausdrücklich freigegebene Audioquelle bleibt
+  // bis zu „Audio stoppen“, Spur-Ende oder Unmount aktiv.
   ReactRuntime.useEffect(() => {
     if (resourcesRef.current) resourcesRef.current.analyser.smoothingTimeConstant = smoothing;
-    if (style === "off" && resourcesRef.current) stop();
-  }, [smoothing, style, stop]);
+    // Der Übergang off -> bars/ring/wave/particles benötigt einen neuen RAF.
+    // Ein bereits laufender RAF wird dabei nicht verdoppelt.
+    const canDraw = shouldDrawSpectrum(style, playing,
+      (typeof document !== "undefined" && document.hidden));
+    if (!canDraw && frameRef.current !== null) {
+      // Ein ausstehender Frame darf bei Pause/off nicht weiterlaufen.
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+      const canvas = canvasRef.current;
+      canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    if (resourcesRef.current && canDraw && frameRef.current === null)
+      frameRef.current = requestAnimationFrame(draw);
+    measureSignal();
+  }, [smoothing, style, playing, draw, measureSignal]);
+  // Chromium kann den Custom-App-Tab ausblenden. Bei Rueckkehr braucht der
+  // RAF einen Neustart – ohne neuen MediaStream oder verlorene Freigabe.
+  ReactRuntime.useEffect(() => {
+    const resumeVisible = (): void => {
+      if (document.hidden) {
+        // Chromium kann RAF bei Hintergrundwechsel einfrieren. Alte IDs
+        // ausdrücklich verwerfen, sonst blockieren sie den spaeteren Restart.
+        if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+        return;
+      }
+      if (resourcesRef.current &&
+          shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, false) &&
+          frameRef.current === null) frameRef.current = requestAnimationFrame(draw);
+    };
+    document.addEventListener("visibilitychange", resumeVisible);
+    return () => document.removeEventListener("visibilitychange", resumeVisible);
+  }, [draw]);
   ReactRuntime.useEffect(() => () => stop(), [stop]);
-  return { canvasRef, active: activeSource !== null, activeSource, signal, error, start, startSystem, stop };
+  return { canvasRef, active: activeSource !== null, activeSource, signal, error,
+    starting, start, startSystem, stop, getSpectrum };
 }

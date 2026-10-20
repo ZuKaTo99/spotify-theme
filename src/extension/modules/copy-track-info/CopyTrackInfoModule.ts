@@ -20,8 +20,12 @@ export const copyTrackInfoModule: ExtensionModule = {
   start(): void {
     contextItem = new Spicetify.ContextMenu.Item(
       "ZuKaTo: Titel-URI kopieren",
-      (uris) => { if (uris[0]) void copyText(uris[0]); },
-      (uris) => uris.some((uri) => /^spotify:(track|episode):/.test(uri)),
+      // Bei einer Auswahl mit unterschiedlichen URIs nur echte Titel/Episoden kopieren.
+      (uris) => {
+        const uri = uris.find((value) => /^spotify:(track|episode):[A-Za-z0-9]+$/.test(value));
+        if (uri) void copyText(uri);
+      },
+      (uris) => uris.some((uri) => /^spotify:(track|episode):[A-Za-z0-9]+$/.test(uri)),
     );
     contextItem.register();
     profileItem = new Spicetify.Menu.Item("ZuKaTo: aktuellen Titel kopieren", false, () => {

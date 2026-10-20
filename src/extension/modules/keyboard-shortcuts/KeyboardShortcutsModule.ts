@@ -50,17 +50,52 @@ const pressedCodes =
 function isEditableTarget(
   target: EventTarget | null,
 ): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
+  // Auch SVG-Unterelemente und verschachtelte Editor-Flächen berücksichtigen.
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest(
+    'input, textarea, select, [contenteditable]:not([contenteditable="false"]), ' +
+    '[role="textbox"], [role="searchbox"], [role="combobox"]',
+  )) || (target instanceof HTMLElement && target.isContentEditable);
+}
 
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    target.isContentEditable ||
-    Boolean(target.closest("[contenteditable]:not([contenteditable='false'])"))
-  );
+/**
+ * Shadow-DOM-Editoren können den DOM-Event-Target auf ihren Host retargeten.
+ * Der vollständige Event-Pfad schützt auch dort vor globalen Shortcuts.
+ */
+function isEditableEvent(event: KeyboardEvent): boolean {
+  const targets = typeof event.composedPath === "function"
+    ? event.composedPath()
+    : [event.target];
+  return targets.some(isEditableTarget);
+}
+
+/**
+ * Von Spotify oder einem Shortcut-Recorder bereits behandelte Tasten nicht
+ * erneut als Player-Aktionen ausführen. Verhindert Doppelaktionen.
+ */
+function isBlockedKeyEvent(event: KeyboardEvent): boolean {
+  return event.defaultPrevented || isEditableEvent(event) ||
+    event.isComposing || event.key === "Dead" || event.code === "Unidentified";
+}
+
+// Verpasste Keyup-Events dürfen Modifier nicht dauerhaft im Zustand halten.
+function reconcileModifierState(event: KeyboardEvent): void {
+  if (!event.altKey) {
+    pressedCodes.delete("AltLeft");
+    pressedCodes.delete("AltRight");
+  }
+  if (!event.ctrlKey) {
+    pressedCodes.delete("ControlLeft");
+    pressedCodes.delete("ControlRight");
+  }
+  if (!event.shiftKey) {
+    pressedCodes.delete("ShiftLeft");
+    pressedCodes.delete("ShiftRight");
+  }
+  if (!event.metaKey) {
+    pressedCodes.delete("MetaLeft");
+    pressedCodes.delete("MetaRight");
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -90,13 +125,14 @@ function handleKeyDown(
   event: KeyboardEvent,
 ): void {
   if (
-    isEditableTarget(event.target) ||
-    event.isComposing || event.key === "Dead"
+    isBlockedKeyEvent(event)
   ) {
     // Keine alten Modifier von vorherigen Fokuswechseln behalten.
     pressedCodes.clear();
     return;
   }
+
+  reconcileModifierState(event);
 
   pressedCodes.add(
     event.code,

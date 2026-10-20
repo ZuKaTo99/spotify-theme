@@ -52,6 +52,14 @@
   .zukato-empty { color: var(--spice-subtext, #a7a7a7); border: 1px dashed var(--zukato-border); padding: 25px; border-radius: 12px; }
   .zukato-toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
   .zukato-track-list { padding: 0; margin: 0; display: grid; gap: 8px; list-style: none; }
+  /* Listen-Suche und Seitennavigation ohne zusätzliche DOM-Elementmengen. */
+  .zukato-collection__filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .zukato-collection__filter label { margin: 0; }
+  .zukato-collection__filter input { flex: 1 1 220px; min-width: 0; }
+  .zukato-collection__filter small { color: var(--spice-subtext, #aaa); }
+  .zukato-collection__pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 12px; margin: 4px 0 0; }
+  .zukato-collection__pages span { font-size: 13px; color: var(--spice-subtext, #aaa); }
   .zukato-track { display: flex; justify-content: space-between; align-items: center; gap: 12px;
     padding: 12px 15px; background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 12px; }
   .zukato-track__info { min-width: 0; display: flex; flex: 1; flex-direction: column; overflow-wrap: anywhere; }
@@ -92,7 +100,35 @@
   .zukato-player-monitor__disc.is-playing { animation: zukato-spin 6s linear infinite; }
   .zukato-progress { width: 100%; height: 9px; border-radius: 100px; overflow: hidden; background: var(--zukato-border); }
   .zukato-progress > div { height: 100%; background: var(--zukato-accent); transition: width .4s; }
-  .zukato-player-monitor__buttons { display: flex; justify-content: center; gap: 12px; }
+  /* Einheitliche Spotify-Transporttasten: keine farbigen System-Emojis mehr.
+   * Farben und Schlagschatten harmonieren mit der Nebula-Wallpaper-Palette. */
+  .zukato-player-monitor__buttons {
+    display: flex; justify-content: center; align-items: center; gap: 12px;
+    padding: 5px 0 10px;
+  }
+  .zukato-player-monitor__control {
+    display: grid; place-items: center; width: 48px; height: 48px; padding: 0;
+    border-radius: 50%; border: 1px solid rgba(130, 183, 255, .24);
+    color: #dcecff; background: linear-gradient(145deg, #17243a, #0b1222);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 18px rgba(0,0,0,.20);
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  .zukato-player-monitor__control svg { display: block; width: 23px; height: 23px; }
+  .zukato-player-monitor__control:hover:not(:disabled) {
+    transform: translateY(-2px); border-color: #5bbaf9;
+    box-shadow: 0 0 20px rgba(44, 170, 255, .25);
+  }
+  .zukato-player-monitor__control:active:not(:disabled) { transform: scale(.95); }
+  .zukato-player-monitor__control--primary {
+    width: 58px; height: 58px; color: #06101c; border: 1px solid #8cd6ff;
+    background: linear-gradient(135deg, #80e2fa, #5491ff 75%, #a783f3);
+    box-shadow: 0 0 21px rgba(68, 152, 255, .28), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .zukato-player-monitor__control--primary svg { width: 27px; height: 27px; }
+  @media (prefers-reduced-motion: reduce) {
+    .zukato-player-monitor__control { transition: none; }
+    .zukato-player-monitor__control:hover:not(:disabled) { transform: none; }
+  }
   @keyframes zukato-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .zukato-player-monitor__disc.is-playing { animation: none; } }
   @media (max-width: 600px) { .zukato-track { align-items: start; flex-direction: column; }
@@ -655,6 +691,39 @@
   .zukato-viz__commandbar-info strong { font-size: 16px; overflow-wrap: anywhere; }
   .zukato-viz__commandbar-info small { font-size: 12px; color: var(--spice-subtext, #aaa); }
   .zukato-viz__commandbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* Permanente Audio-Diagnose direkt an der Bühne, nicht erst in den
+   * verschachtelten Einstellungen. Die Freigabe bleibt ausdrücklich opt-in. */
+  .zukato-viz__audio-status {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    gap: 14px; padding: 12px 14px; border-radius: 13px;
+    border: 1px solid rgba(109, 160, 222, .24);
+    background: linear-gradient(110deg, rgba(13, 24, 42, .97), rgba(25, 20, 42, .92));
+  }
+  .zukato-viz__audio-status-info { display: flex; align-items: center; gap: 11px; min-width: 250px; flex: 1; }
+  .zukato-viz__audio-status-info > div { display: grid; gap: 3px; min-width: 0; }
+  .zukato-viz__audio-status strong { font-size: 13px; line-height: 1.45; }
+  .zukato-viz__audio-status small { font-size: 11px; line-height: 1.55; color: #a6bad2; }
+  .zukato-viz__audio-led {
+    flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%;
+    background: #76869a; box-shadow: 0 0 0 4px rgba(118, 134, 154, .12);
+  }
+  .zukato-viz__audio-status--detected .zukato-viz__audio-led {
+    background: #3ee3b0; box-shadow: 0 0 0 4px rgba(62, 227, 176, .14);
+  }
+  .zukato-viz__audio-status--silent .zukato-viz__audio-led {
+    background: #efc66b; box-shadow: 0 0 0 4px rgba(239, 198, 107, .14);
+  }
+  .zukato-viz__audio-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .zukato-viz__audio-actions button { font-size: 12px; padding: 8px 12px; }
+  .zukato-viz__audio-actions .zukato-viz__audio-primary {
+    border-color: rgba(87, 198, 255, .6); color: #d9f5ff;
+    background: rgba(27, 101, 161, .33);
+  }
+  @media (max-width: 540px) {
+    .zukato-viz__audio-status-info { min-width: 0; }
+    .zukato-viz__audio-actions { width: 100%; }
+  }
+
   .zukato-viz__panel-tabs {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
     padding: 6px; margin: 20px 0 12px;

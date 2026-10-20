@@ -144,12 +144,28 @@ const onPlayPause = (): void => { observeSongSession("poll"); };
 /** Einmaliger globaler Listener, auch wenn die Visualizer-Seite geschlossen ist. */
 export function startSongSessionTracker(): void {
   if (active) return;
-  active = true;
-  Spicetify.Player.addEventListener("songchange", onSongChange);
-  Spicetify.Player.addEventListener("onplaypause", onPlayPause);
-  observeSongSession("poll");
-  // Sicherheitsnetz für verpasste Events (z.B. beim Wiederverbinden des Clients).
-  polling = window.setInterval(() => { observeSongSession("poll"); }, 1000);
+  let songListenerAdded = false;
+  let pauseListenerAdded = false;
+  try {
+    // Erst nach vollständiger Initialisierung als aktiv markieren. Andernfalls
+    // würde ein API-Fehler die Wiederholung blockieren und Listener zurücklassen.
+    Spicetify.Player.addEventListener("songchange", onSongChange);
+    songListenerAdded = true;
+    Spicetify.Player.addEventListener("onplaypause", onPlayPause);
+    pauseListenerAdded = true;
+    observeSongSession("poll");
+    // Sicherheitsnetz für verpasste Events (z.B. beim Wiederverbinden des Clients).
+    polling = window.setInterval(() => { observeSongSession("poll"); }, 1000);
+    active = true;
+  } catch (error) {
+    // Ein unvollständiger Start darf beim nächsten Bootstrap nicht duplizieren.
+    if (polling !== null) window.clearInterval(polling);
+    polling = null;
+    if (pauseListenerAdded) Spicetify.Player.removeEventListener("onplaypause", onPlayPause);
+    if (songListenerAdded) Spicetify.Player.removeEventListener("songchange", onSongChange);
+    active = false;
+    throw error;
+  }
 }
 
 /** Alle Registrierungen kontrolliert beim Beenden der Extension aufräumen. */

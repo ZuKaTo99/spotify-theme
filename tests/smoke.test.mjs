@@ -137,9 +137,12 @@ test("Kontextaktionen: Queue, Favoriten und Sleep-Timer sind nutzbar", async () 
   vm.runInContext(code, mock.context, { timeout: 3000 });
   const queueItem = mock.contexts.find((item) => item.name.includes("Warteschlange"));
   const bookmarkItem = mock.contexts.find((item) => item.name.includes("Lesezeichen"));
-  assert.ok(queueItem?.shouldAdd(["spotify:track:ABC123"]));
+  // Die Queue benötigt eine echte Spotify-ID mit 22 Zeichen; die kurzen
+  // Demo-IDs des übrigen Smoke-Tests sind keine gültigen Queue-Einträge.
+  const queueUri = `spotify:track:${"A".repeat(22)}`;
+  assert.ok(queueItem?.shouldAdd([queueUri]));
   assert.equal(queueItem?.shouldAdd(["https://example.org/evil"]), false);
-  queueItem.onClick(["spotify:track:ABC123"]);
+  queueItem.onClick([queueUri]);
   // Das Promise wird erst im nächsten Microtask abgeschlossen.
   await Promise.resolve();
   assert.equal(mock.queued.length, 1);

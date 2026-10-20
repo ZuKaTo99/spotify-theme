@@ -87,16 +87,25 @@ export async function loadScene(id: string): Promise<SceneAsset | null> {
 
 /** Große Projektdaten werden nur beim Abspielen, Export oder in der Vorschau geladen. */
 export async function loadSceneProject(id: string): Promise<PreparedProject | null> {
-  const scene = await loadScene(id);
-  if (!scene || scene.format !== "project-v2" || !scene.entry || !scene.paths) return null;
+  if (!VALID_ID.test(id)) return null;
   const db = await openScenes();
   try {
-    const files = await requestResult(db.transaction(ASSET_STORE, "readonly")
-      .objectStore(ASSET_STORE).index("byScene").getAll(id)) as StoredFile[];
+    // WICHTIG: Metadaten und Projektdateien aus DERSELBEN read-only-Transaktion
+    // lesen. Ein Projektordner kann parallel über "Projekt aktualisieren"
+    // ersetzt werden. Zwei getrennte Transaktionen könnten die ALTE Pfadliste
+    // mit den NEUEN Blobs kombinieren und eine scheinbar beschädigte Szene laden.
+    // IndexedDB gewährleistet für beide Stores in einer Transaktion dagegen
+    // einen konsistenten Snapshot. Keine externen await-/Netzwerkoperationen
+    // zwischen den Requests beginnen: die Transaktion muss aktiv bleiben.
+    const tx = db.transaction([STORE, ASSET_STORE], "readonly");
+    const scene = await requestResult(tx.objectStore(STORE).get(id)) as SceneAsset | undefined;
+    if (!scene || scene.kind !== "html" || scene.format !== "project-v2" ||
+        !(scene.blob instanceof Blob) || !scene.entry || !Array.isArray(scene.paths)) return null;
+    const files = await requestResult(tx.objectStore(ASSET_STORE).index("byScene").getAll(id)) as StoredFile[];
     const byPath = new Map(files.map((entry) => [entry.path, entry.blob]));
     const assets: ProjectAsset[] = scene.paths.map((path) => {
       const blob = byPath.get(path);
-      if (!blob) throw new Error(`Wallpaper-Projektdatei fehlt: ${path}`);
+      if (!(blob instanceof Blob)) throw new Error(`Wallpaper-Projektdatei fehlt: ${path}`);
       return { path, blob };
     });
     return { entry: scene.entry, files: assets, bytes: scene.bytes };
@@ -183,6 +192,73 @@ async function validateCapacity(projects: readonly NewScene[]): Promise<void> {
         projects.reduce((sum, project) => sum + project.record.bytes, 0) > MAX_SCENE_BYTES) {
     throw new Error("Szenenbibliothek voll (128 Szenen / 2 GiB). Bitte ungenutzte Wallpapers entfernen.");
   }
+}
+
+/**
+ * Einen bereits importierten HTML-Projektordner IN PLACE aktualisieren.
+ *
+ * Wichtig für Nebula-Engine-Korrekturen: Ein erneuter regulärer Import würde
+ * eine neue sceneId erzeugen, wodurch die alte Playlist und die zugehörigen
+ * gespeicherten Presets nicht mehr dieselbe Szene referenzieren. Hier bleibt
+ * die ID erhalten. Die neue Version ersetzt sämtliche alten Assets in EINER
+ * readwrite-Transaktion – bei Fehler bleibt die bisherige Version vorhanden.
+ *
+ * Nur EIN vollständiger Projektordner ist erlaubt, kein Sammelordner und
+ * niemals eine einzelne HTML-Datei. Die Wallpaper-Originaldateien auf der
+ * Festplatte werden nicht angerührt.
+ */
+export async function replaceSceneFolder(id: string, files: readonly File[]): Promise<SceneEntry> {
+  if (!VALID_ID.test(id)) throw new Error("Ungültige Wallpaper-Szenen-ID.");
+  const folders = groupWallpaperFolderFiles(files);
+  if (folders.length !== 1) throw new Error("Zum Aktualisieren bitte genau EINEN vollständigen Wallpaper-Projektordner auswählen.");
+  const prepared = await buildRecord(folders[0].files, folders[0].name.slice(0, 160), 0);
+  if (prepared.record.kind !== "html" || prepared.record.format !== "project-v2" || !prepared.project)
+    throw new Error("Nur vollständige HTML-Wallpaper-Projekte können so aktualisiert werden.");
+  const db = await openScenes();
+  let result: SceneEntry | null = null;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([STORE, ASSET_STORE], "readwrite");
+      const scenes = tx.objectStore(STORE);
+      const fileStore = tx.objectStore(ASSET_STORE);
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("Wallpaper-Aktualisierung wurde zurückgesetzt."));
+      tx.onerror = () => reject(tx.error ?? new Error("Wallpaper-Aktualisierung fehlgeschlagen."));
+      const existing = scenes.getAll();
+      existing.onsuccess = () => {
+        try {
+          const current = existing.result as SceneAsset[];
+          const old = current.find((item) => item.id === id);
+          if (!old || old.kind !== "html" || old.format !== "project-v2")
+            throw new Error("Bitte ein bereits importiertes vollständiges HTML-Projekt auswählen.");
+          const bytes = current.reduce((sum, scene) => sum + (Number.isFinite(scene.bytes) ? scene.bytes : 0), 0);
+          if (bytes - old.bytes + prepared.record.bytes > MAX_SCENE_BYTES)
+            throw new Error("Szenenbibliothek voll (2 GiB). Aktualisierung abgebrochen.");
+          const oldAssets = fileStore.index("byScene").getAll(id);
+          oldAssets.onsuccess = () => {
+            try {
+              // Auch ehemals vorhandene Assets mit anderem Pfad entfernen;
+              // IDB-Abbruch würde alle Löschungen und neue puts rückgängig machen.
+              for (const asset of oldAssets.result as StoredFile[]) fileStore.delete(asset.key);
+              const updated: SceneAsset = {
+                ...prepared.record, id: old.id, name: old.name, created: old.created,
+              };
+              scenes.put(updated);
+              for (const asset of prepared.project!.files) fileStore.put({
+                key: `${id}:${asset.path}`, sceneId: id, path: asset.path, blob: asset.blob,
+              } satisfies StoredFile);
+              const { blob: _blob, entry: _entry, paths: _paths, ...metadata } = updated;
+              result = metadata;
+            } catch (error) { try { tx.abort(); } catch { /* Transaktion bereits beendet. */ } reject(error); }
+          };
+          oldAssets.onerror = () => { try { tx.abort(); } catch { /* Transaktion bereits beendet. */ } };
+        } catch (error) { try { tx.abort(); } catch { /* Transaktion bereits beendet. */ } reject(error); }
+      };
+      existing.onerror = () => { try { tx.abort(); } catch { /* Transaktion bereits beendet. */ } };
+    });
+    if (!result) throw new Error("Wallpaper wurde nicht aktualisiert.");
+    return result;
+  } finally { db.close(); }
 }
 
 /** Nur noch für direkte Videodateien; HTML erfordert einen Ordnerimport. */

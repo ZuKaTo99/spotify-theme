@@ -5,38 +5,15 @@
 // =============================================================================
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
+import { loadPureSharedModule } from "./helpers/load-ts-module.mjs";
 import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
 import path from "node:path";
 
-const require = createRequire(import.meta.url);
-const ts = require("typescript");
 const root = path.resolve(import.meta.dirname, "..");
 
-/** Compile only a pure TS module: type-only imports disappear. */
-function loadSummary() {
-  const file = "src/shared/dashboard-summary.ts";
-  const output = ts.transpileModule(readFileSync(path.join(root, file), "utf8"), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-    fileName: file,
-  });
-  const exports = {};
-  runInNewContext(output.outputText, { exports, Map, Set });
-  return exports;
-}
-
-const { summarizeDashboard } = loadSummary();
-// Gleiches Transpile-Verfahren für die Cover-URL-Validierung.
-function loadArtwork() {
-  const file = "src/shared/artwork.ts";
-  const output = ts.transpileModule(readFileSync(path.join(root, file), "utf8"), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }, fileName: file,
-  });
-  const exports = {};
-  runInNewContext(output.outputText, { exports, URL });
-  return exports;
-}
+/** Echte Shared-Module ohne TypeScript-5-Compiler-API laden. */
+const { summarizeDashboard } = loadPureSharedModule(root, "src/shared/dashboard-summary.ts");
+const loadArtwork = () => loadPureSharedModule(root, "src/shared/artwork.ts");
 
 const a = (uri, artist) => ({ uri, title: uri, artist, album: "", playedAt: 123 });
 

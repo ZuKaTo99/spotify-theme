@@ -17,8 +17,10 @@ import {
   MAX_LRC_BYTES, saveLyrics, saveWallpaper,
 } from "./media-store";
 import { activeLyricIndex, parseLrc, type TimedLyricLine } from "./lyrics";
+import { loadLocalLyricsWithFallback } from "./lyrics-local-recovery";
 import { lookupAutomaticLyrics, LYRICS_PROVIDER_URL, type AutomaticLyrics } from "./automatic-lyrics";
 import { useMicrophoneSpectrum } from "./useMicrophoneSpectrum";
+import { PlayerControls } from "./PlayerControls";
 import { WallpaperBackdrop, type WallpaperInfo } from "./WallpaperBackdrop";
 import { WallpaperLibrary } from "./WallpaperLibrary";
 import { VisualizerPresets } from "./VisualizerPresets";
@@ -38,6 +40,7 @@ import { spotifyArtworkUrl } from "../../../shared/artwork";
 import { SceneManager } from "./SceneManager";
 import { loadSongSession, observeSongSession, SONG_SESSION_EVENT } from "../../../shared/song-session";
 import { readVisualizerPanel, rememberVisualizerPanel, sourceStatus, VISUALIZER_PANELS, type VisualizerPanel } from "../../../shared/visualizer-workspace";
+import { playerPollDelayMs, sameVisibleSongRun, shouldReadNativeLyrics } from "./visualizer-runtime";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -110,7 +113,15 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   // Eigene LRCs sind Overrides; automatische Texte werden nie in IndexedDB geschrieben.
   const [localLyricsLoaded, setLocalLyricsLoaded] = ReactRuntime.useState(false);
   const [plainLyrics, setPlainLyrics] = ReactRuntime.useState<string[]>([]);
-  const [nativeLyricsPreview, setNativeLyricsPreview] = ReactRuntime.useState<string[]>([]);
+  // Vorschau an die Song-ID UND Künstler binden. Der React-Effect wird erst
+  // nach einem Render ausgeführt; ohne Schlüssel wären beim schnellen
+  // Songwechsel kurz noch die Lyrics des vorigen Songs sichtbar.
+  const [nativePreviewState, setNativePreviewState] = ReactRuntime.useState<{
+    key: string; lines: string[];
+  }>({ key: "", lines: [] });
+  const nativePreviewKey = JSON.stringify([player.uri, player.title, player.artist]);
+  const nativeLyricsPreview = nativePreviewState.key === nativePreviewKey
+    ? nativePreviewState.lines : [];
   const [canvasAvailability, setCanvasAvailability] = ReactRuntime.useState<CanvasAvailability>("searching");
   const [canvasDiagnostic, setCanvasDiagnostic] = ReactRuntime.useState<CanvasDiagnostic>("no-sidebar");
   // Ein erneuter Check setzt den Adapter zurück, ohne den gesamten Visualizer
@@ -127,15 +138,26 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   // LRCLIB wegen Netzwerk-/CORS-Sperren nicht erreichbar ist. Diese wenigen
   // Zeilen sind ein UNsynchronisierter Anzeige-Fallback, niemals Full-Lyrics.
   ReactRuntime.useEffect(() => {
+    // Der Spotify-DOM-Adapter ist relativ teuer. Wenn bereits lokale oder
+    // automatisch geladene Lyrics existieren, braucht niemand den Fallback.
+    // Beim Zurueckkehren aus dem Hintergrund sofort erneut pruefen.
+    if (!config.lyricsEnabled || lyrics.length > 0 || plainLyrics.length > 0) return;
     const read = (): void => {
-      const next = readSpotifyLyricsPreview(document, player.title);
-      setNativeLyricsPreview((previous) => previous.join("\n") === next.join("\n") ? previous : next);
+      if (!shouldReadNativeLyrics(config.lyricsEnabled, lyrics.length > 0,
+          plainLyrics.length > 0, document.hidden)) return;
+      const next = readSpotifyLyricsPreview(document, player.title, player.artist);
+      setNativePreviewState((previous) => previous.key === nativePreviewKey &&
+        previous.lines.join("\n") === next.join("\n") ? previous : { key: nativePreviewKey, lines: next });
     };
-    setNativeLyricsPreview([]);
     read();
+    const onVisible = (): void => { if (!document.hidden) read(); };
+    document.addEventListener("visibilitychange", onVisible);
     const id = window.setInterval(read, 1500);
-    return () => window.clearInterval(id);
-  }, [player.uri, player.title]);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [player.uri, player.title, player.artist, config.lyricsEnabled, lyrics.length, plainLyrics.length]);
   // Erzwingt eine neue API-Anfrage nur beim gezielten Klick auf „Erneut suchen“.
   const retryUriRef = ReactRuntime.useRef("");
   const [message, setMessage] = ReactRuntime.useState("");
@@ -174,9 +196,16 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   // separat installierte Custom App übernimmt dieser Listener dieselbe
   // idempotente Beobachtung als Fallback (ohne doppelt zu zählen).
   ReactRuntime.useEffect(() => {
-    const refresh = (): void => setSession(observeSongSession("poll"));
-    const songChanged = (): void => setSession(observeSongSession("songchange"));
-    const onSaved = (): void => setSession(loadSongSession());
+    // Der Poller aktualisiert die persistente Song-Session auch bei einem
+    // separat installierten Workspace. Den kompletten React-Baum aber NUR bei
+    // wirklichem URI-/Durchlaufwechsel neu rendern, nicht jede Sekunde wegen
+    // eines neuen updatedAt-Werts im persistierten Session-Snapshot.
+    const accept = (next: ReturnType<typeof loadSongSession>): void => {
+      setSession((previous) => sameVisibleSongRun(previous, next) ? previous : next);
+    };
+    const refresh = (): void => accept(observeSongSession("poll"));
+    const songChanged = (): void => accept(observeSongSession("songchange"));
+    const onSaved = (): void => accept(loadSongSession());
     Spicetify.Player.addEventListener("songchange", songChanged);
     window.addEventListener(SONG_SESSION_EVENT, onSaved);
     const timer = window.setInterval(refresh, 1000);
@@ -199,21 +228,46 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
 
   // Der Player meldet sowohl Titel- als auch Pausenwechsel; Intervall nur für Progress/LRC.
   ReactRuntime.useEffect(() => {
+    let stopped = false;
+    let timer: number | null = null;
     const refresh = (): void => setPlayer((previous) => {
       const next = snapshot();
-      // Bei unverändertem Player keine React-Arbeit erzwingen.
+      // Bei unveraendertem Player keine React-Arbeit erzwingen.
       return previous.uri === next.uri && previous.title === next.title &&
         previous.artist === next.artist && previous.album === next.album && previous.playing === next.playing &&
         previous.progress === next.progress && previous.duration === next.duration
         ? previous : next;
     });
-    Spicetify.Player.addEventListener("songchange", refresh);
-    Spicetify.Player.addEventListener("onplaypause", refresh);
-    const timer = window.setInterval(refresh, 250);
+    // EIN selbstnachstellender Timeout statt eines festen 250-ms-Intervalls.
+    // So werden Hintergrund/Paused sparsamer, ohne sichtbare 4-Hz-Lyrics und
+    // Seek-Synchronisation waehrend der Wiedergabe einzuschraenken.
+    const schedule = (): void => {
+      if (stopped) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        refresh();
+        schedule();
+      }, playerPollDelayMs(Spicetify.Player.isPlaying(), document.hidden));
+    };
+    // Player-Events und Tab-Rueckkehr werden NICHT durch den langsameren
+    // Hintergrund-Timer verzögert. Bestehenden Timer immer zuerst entsorgen.
+    const refreshAndSchedule = (): void => {
+      if (stopped) return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      refresh();
+      schedule();
+    };
+    Spicetify.Player.addEventListener("songchange", refreshAndSchedule);
+    Spicetify.Player.addEventListener("onplaypause", refreshAndSchedule);
+    document.addEventListener("visibilitychange", refreshAndSchedule);
+    refreshAndSchedule();
     return () => {
-      window.clearInterval(timer);
-      Spicetify.Player.removeEventListener("songchange", refresh);
-      Spicetify.Player.removeEventListener("onplaypause", refresh);
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+      Spicetify.Player.removeEventListener("songchange", refreshAndSchedule);
+      Spicetify.Player.removeEventListener("onplaypause", refreshAndSchedule);
+      document.removeEventListener("visibilitychange", refreshAndSchedule);
     };
   }, []);
 
@@ -235,7 +289,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
     async function loadCurrentLyrics(): Promise<void> {
       if (!player.uri || !config.lyricsEnabled) return;
       try {
-        const own = await loadLyrics(player.uri);
+        const own = await loadLocalLyricsWithFallback(player.uri, loadLyrics, (cause) => {
+          console.warn("[ZuKaTo] Gespeicherte Lyrics nicht lesbar; automatische Suche bleibt aktiv.", cause);
+        });
         if (!alive) return;
         const localLines = own ? parseLrc(own) : [];
         if (localLines.length) {
@@ -470,22 +526,6 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           ? "Spotify Canvas aus der Seitenleiste (experimentell)" : t(`viz.status.${backgroundStatus}`)}</small>
       </div>
       <div className="zukato-viz__commandbar-actions">
-        {/* Audio ist absichtlich opt-in: Hier gibt es zwei echte Quellen.
-            Die Systemtonfreigabe ist nur in kompatiblen Clients verfügbar. */}
-        {spectrum.active ? <button type="button" aria-pressed onClick={spectrum.stop}>
-          Audio stoppen ({spectrum.activeSource === "system" ? "System/Tab" : "Mikrofon"})
-        </button> : <>
-          <button type="button" title="Bildschirm oder Tab MIT Audio freigeben; abhängig vom Spotify-Client"
-            onClick={() => {
-              if (config.spectrum === "off") changeConfig({ spectrum: "bars" });
-              void spectrum.startSystem();
-            }}>System-/Tab-Audio</button>
-          <button type="button" title="Audio aus deinem ausdrücklich freigegebenen Mikrofon analysieren"
-            onClick={() => {
-              if (config.spectrum === "off") changeConfig({ spectrum: "bars" });
-              void spectrum.start();
-            }}>Mikrofon</button>
-        </>}
         <button type="button" aria-pressed={sceneSettings.mode === "original"}
           title={t("viz.originalModeInfo")}
           onClick={() => {
@@ -513,7 +553,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         wallpaperFit={config.wallpaperFit} transitionMs={config.transitionMs}
         onInfo={setWallpaperInfo} onError={backdropError}
         onAutoplayBlocked={() => setMessage(t("viz.autoplayBlocked"))} />
-        : <SceneBackdrop choice={chosenScene} songRun={songRun} playing={player.playing} fit={config.wallpaperFit}
+        : <SceneBackdrop choice={chosenScene} songRun={songRun} playing={player.playing}
+          title={player.title} artist={player.artist} getSpectrum={spectrum.getSpectrum}
+          audioActive={spectrum.active} fit={config.wallpaperFit}
           speed={config.videoSpeed} progressMs={player.progress}
           durationMs={player.duration} onError={backdropError} />}
       <div className="zukato-viz__veil" aria-hidden="true" />
@@ -540,9 +582,39 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
       </div>
       <div className="zukato-viz__timeline" aria-hidden="true"><div style={{ width: `${progress}%` }} /></div>
     </div>
-    {/* Mikrofon-/WebAudio-Fehler direkt anzeigen, weil der Audioregler häufig
-        unter einem anderen Panel liegt und sonst 'kaputt' wirkt. */}
-    {!cinemaMode && spectrum.error && <p className="zukato-error" role="alert">Audioquelle: {spectrum.error}</p>}
+    {/* Audio ist ein eigenständiger, bewusst freizugebender Eingang. Die
+        Nebula-Engines erhalten ohne Tonspur KEIN gefälschtes Spotify-FFT.
+        Der Status steht deshalb direkt unter dem Bild statt versteckt in
+        einem Einstellungs-Tab. Audioquelle bleibt auch bei Overlay=off aktiv. */}
+    {!cinemaMode && <div className={`zukato-viz__audio-status zukato-viz__audio-status--${spectrum.signal}`}
+      role="status" aria-live="polite">
+      <div className="zukato-viz__audio-status-info">
+        <span className="zukato-viz__audio-led" aria-hidden="true" />
+        <div>
+          <strong>{spectrum.starting ? "Audiofreigabe wird geöffnet …"
+            : spectrum.error ? "Audioquelle konnte nicht gestartet werden"
+            : !spectrum.active ? "Visualizer wartet auf eine Audioquelle"
+            : spectrum.signal === "detected" ? "Audiosignal erkannt – Visualizer aktiv"
+            : spectrum.signal === "paused" ? "Audiovisualisierung pausiert mit Spotify"
+            : spectrum.signal === "silent" ? "Audiofreigabe aktiv, aber kein Ton erkannt"
+            : "Audioquelle verbunden – prüfe das Signal …"}</strong>
+          <small>{spectrum.error || (!spectrum.active
+            ? "Spotify gibt keine FFT-Daten direkt frei. Für musikgesteuerte Effekte Tonquelle auswählen."
+            : spectrum.signal === "silent" ? "Prüfe bei System-/Tab-Freigabe, ob Audio mit freigegeben wurde."
+            : `${spectrum.activeSource === "system" ? "System-/Tab-Audio" : "Mikrofon"} · ${config.spectrum === "off" ? "Spotify-Wallpaper empfängt Audio, eigene Balken sind aus" : "Audio wird auch an das Wallpaper übergeben"}`)}</small>
+        </div>
+      </div>
+      <div className="zukato-viz__audio-actions">
+        {spectrum.active ? <button type="button" onClick={spectrum.stop}>Audio stoppen</button> : <>
+          <button type="button" className="zukato-viz__audio-primary" disabled={spectrum.starting}
+            title="System- oder Tab-Audio nur mit ausdrücklicher Freigabe"
+            onClick={() => void spectrum.startSystem()}>System-/Tab-Audio</button>
+          <button type="button" disabled={spectrum.starting}
+            title="Mikrofon mit ausdrücklicher Freigabe verwenden"
+            onClick={() => void spectrum.start()}>Mikrofon</button>
+        </>}
+      </div>
+    </div>}
     {!cinemaMode && chosenScene.kind === "missing-original" &&
       <p className="zukato-viz__source-note" role="status">{canvasAvailability === "available"
         ? "Spotify Canvas erkannt – Wiedergabe erfolgt aus der bereits angezeigten Videoquelle."
@@ -589,11 +661,11 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         : wallpaperInfo.filename ? `${t("viz.background")}: ${wallpaperInfo.filename} (${wallpaperInfo.key.endsWith(":default") ? t("viz.default") : t("viz.forTrack")})` : t("viz.noWallpaper")}</span>
       <span>{Spicetify.Player.formatTime(player.progress)} / {Spicetify.Player.formatTime(player.duration)} · {player.playing ? t("visualizer.playing") : t("visualizer.paused")}</span>
     </div>}
-    {!cinemaMode && <div className="zukato-player-monitor__buttons">
-      <button type="button" onClick={() => Spicetify.Player.back()}>⏮</button>
-      <button type="button" onClick={() => Spicetify.Player.togglePlay()}>{player.playing ? t("visualizer.pause") : t("visualizer.play")}</button>
-      <button type="button" onClick={() => Spicetify.Player.next()}>⏭</button>
-    </div>}
+    {/* Ein SVG-Iconsatz statt unterschiedlich gerenderter Emoji-Tasten. */}
+    {!cinemaMode && <PlayerControls playing={player.playing} disabled={!player.uri}
+      onPrevious={() => Spicetify.Player.back()}
+      onToggle={() => Spicetify.Player.togglePlay()}
+      onNext={() => Spicetify.Player.next()} />}
     {message && <p role="status">{message}</p>}
     {error && <p className="zukato-error" role="alert">{error}</p>}
     {!cinemaMode && <>
@@ -675,15 +747,18 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         </label>
         <div className="zukato-toolbar">
           {spectrum.active ? <button type="button" onClick={spectrum.stop}>{t("viz.stopMic")}</button> : <>
-            <button type="button" disabled={config.spectrum === "off"} onClick={() => void spectrum.startSystem()}>System-/Tab-Audio freigeben</button>
-            <button type="button" disabled={config.spectrum === "off"} onClick={() => void spectrum.start()}>{t("viz.startMic")}</button>
+            <button type="button" disabled={spectrum.starting}
+              onClick={() => void spectrum.startSystem()}>System-/Tab-Audio freigeben</button>
+            <button type="button" disabled={spectrum.starting}
+              onClick={() => void spectrum.start()}>{t("viz.startMic")}</button>
           </>}
         </div>
-        <p className="zukato-viz__source-note" role="status">{config.spectrum === "off"
-          ? "Visualizer ist ausgeschaltet. Wähle zuerst Balken, Ring, Welle oder Partikel."
-          : spectrum.activeSource === "system" ? "Audioanalyse läuft über die freigegebene System-/Tab-Audiospur."
-            : spectrum.activeSource === "microphone" ? "Audioanalyse läuft über dein freigegebenes Mikrofon."
+        <p className="zukato-viz__source-note" role="status">{spectrum.activeSource === "system"
+          ? "Audioanalyse läuft über die freigegebene System-/Tab-Audiospur."
+          : spectrum.activeSource === "microphone"
+            ? "Audioanalyse läuft über dein freigegebenes Mikrofon."
             : "Noch keine Audioquelle aktiv. System-/Tab-Audio benötigt eine Freigabe MIT Ton und wird nicht von jedem Spotify-Client unterstützt. Alternativ Mikrofon freigeben."}
+          {config.spectrum === "off" && " · Eigene ZuKaTo-Balken aus; das HTML-Wallpaper kann weiterhin Audio verwenden."}
           {spectrum.active && <> <strong>· {spectrum.signal === "detected" ? t("viz.signalDetected")
             : spectrum.signal === "silent" ? t("viz.signalSilent")
             : spectrum.signal === "paused" ? t("viz.signalPaused") : t("viz.signalChecking")}</strong></>}</p>

@@ -6,25 +6,13 @@
 // =============================================================================
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
+import { loadPureSharedModule } from "./helpers/load-ts-module.mjs";
 import path from "node:path";
 
-const require = createRequire(import.meta.url);
-const ts = require("typescript");
 const root = path.resolve(import.meta.dirname, "..");
-function loadModule(file, globals = {}) {
-  const source = readFileSync(path.join(root, file), "utf8");
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-    fileName: file, reportDiagnostics: true,
-  });
-  assert.equal(compiled.diagnostics?.filter((d) => d.category === ts.DiagnosticCategory.Error).length ?? 0, 0);
-  const exports = {};
-  runInNewContext(compiled.outputText, { exports, URL, ...globals });
-  return exports;
-}
+// Kein `require("typescript").transpileModule`: TypeScript 7 hat diese
+// öffentliche CommonJS-API nicht mehr. Siehe gemeinsamen Test-Helfer.
+const loadModule = (file, globals = {}) => loadPureSharedModule(root, file, globals);
 const search = loadModule("src/shared/track-search.ts");
 
 test("Spotify-Links, intl-Pfade und URIs werden als Titel erkannt", () => {

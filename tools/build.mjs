@@ -5,7 +5,8 @@
 import { build } from "esbuild";
 import { bundleFallback } from "./bundle-fallback.mjs";
 import * as sass from "sass";
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { installArtifactsAtomically } from "./atomic-deployment.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +26,11 @@ const sourceDirectory = path.join(projectDirectory, "src");
 // -----------------------------------------------------------------------------
 // Zentraler Modulzustand bzw. Registry-Wert `outputDirectory`.
 // -----------------------------------------------------------------------------
-const outputDirectory = path.join(projectDirectory, "dist");
+// Der Build schreibt NIEMALS direkt in dist/. Bei Fehlern bleibt das letzte
+// funktionierende Bundle erhalten, bis sämtliche Teile erfolgreich sind.
+const releaseDirectory = path.join(projectDirectory, "dist");
+const buildTemporaryDirectory = await mkdtemp(path.join(projectDirectory, ".zukato-build-"));
+const outputDirectory = path.join(buildTemporaryDirectory, "dist");
 
 // -----------------------------------------------------------------------------
 // Zentraler Modulzustand bzw. Registry-Wert `paths`.
@@ -204,12 +209,7 @@ async function buildTheme() {
 // Orchestriert die Schritte dieses Skripts in der vorgesehenen Reihenfolge.
 // -----------------------------------------------------------------------------
 async function main() {
-  console.log("Bereinige dist-Verzeichnis …");
-
-  await rm(outputDirectory, {
-    recursive: true,
-    force: true,
-  });
+  console.log("Erzeuge getrenntes Build-Verzeichnis …");
 
   await mkdir(path.join(outputDirectory, "extension"), {
     recursive: true,
@@ -232,11 +232,18 @@ async function main() {
   console.log("Baue Theme …");
   await buildTheme();
 
+  // Erst jetzt austauschen: Ein SCSS-, TypeScript- oder Dateisystemfehler
+  // während des Builds darf das bisherige dist/ nicht beschädigen.
+  await installArtifactsAtomically([
+    { source: outputDirectory, target: releaseDirectory, recursive: true },
+  ]);
   console.log("Build erfolgreich abgeschlossen.");
 }
 
 main().catch((error) => {
-  console.error("Build fehlgeschlagen:");
+  console.error("Build fehlgeschlagen; bisheriges dist/ bleibt erhalten:");
   console.error(error);
   process.exitCode = 1;
+}).finally(async () => {
+  await rm(buildTemporaryDirectory, { recursive: true, force: true });
 });

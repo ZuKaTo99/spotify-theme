@@ -161,10 +161,16 @@ test("Persistenz: Wallpaper-Fallback, LRC-Speicherung und Löschen", async () =>
 async function inlineAudioHookCode() {
   const hook = await readFile(new URL("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts", import.meta.url), "utf8");
   const helper = await readFile(new URL("../src/custom-app/modules/visualizer/audio-capture.ts", import.meta.url), "utf8");
+  const performancePolicy = await readFile(new URL("../src/custom-app/modules/visualizer/audio-performance.ts", import.meta.url), "utf8");
   const code = stripTypeScriptTypes(hook, { mode: "strip" });
   const helperCode = stripTypeScriptTypes(helper, { mode: "strip" });
-  const replaced = code.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-capture["'];?/, helperCode);
-  assert.notEqual(replaced, code, "Audio-Capture muss für den Test eingebunden sein.");
+  // data:-URL-Module können relative Imports nicht auflösen. Die reinen
+  // Hilfsfunktionen werden darum wie audio-capture inline bereitgestellt.
+  const withPolicy = code.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-performance["'];?/,
+    stripTypeScriptTypes(performancePolicy, { mode: "strip" }));
+  assert.notEqual(withPolicy, code, "Audio-Performance muss für den Test eingebunden sein.");
+  const replaced = withPolicy.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-capture["'];?/, helperCode);
+  assert.notEqual(replaced, withPolicy, "Audio-Capture muss für den Test eingebunden sein.");
   return replaced;
 }
 
@@ -175,6 +181,7 @@ test("Audioanalyse: Opt-in und vollständige Freigabe der MediaStream-Ressourcen
     spotify: globalThis.Spicetify, context: globalThis.AudioContext,
     navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
     raf: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame,
+    win: globalThis.window,
   };
   let requested = 0; let stopped = 0; let closed = 0;
   const track = { readyState: "live", stop() { stopped += 1; }, addEventListener() {}, removeEventListener() {} };
@@ -191,13 +198,17 @@ test("Audioanalyse: Opt-in und vollständige Freigabe der MediaStream-Ressourcen
       mediaDevices: { async getUserMedia() { requested += 1; return { getTracks: () => [track], getAudioTracks: () => [track], getVideoTracks: () => [] }; } },
     } });
     globalThis.AudioContext = class {
-      createAnalyser() { return { fftSize: 0, smoothingTimeConstant: 0, frequencyBinCount: 1024 }; }
+      createAnalyser() { return { fftSize: 0, smoothingTimeConstant: 0,
+        frequencyBinCount: 1024, getByteFrequencyData(bytes) { bytes.fill(0); } }; }
       createMediaStreamSource() { return { connect() {} }; }
       async resume() {}
       async close() { closed += 1; }
     };
     globalThis.requestAnimationFrame = () => 123;
     globalThis.cancelAnimationFrame = () => {};
+    // Der Signal-Timer läuft inzwischen unabhängig vom versteckten Canvas.
+    // Der Browser stellt window.setInterval/clearInterval bereit.
+    globalThis.window = { setInterval: () => 5, clearInterval: () => {} };
     const { useMicrophoneSpectrum } = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`);
     const controls = useMicrophoneSpectrum("bars", 32, 2, 0.75, true);
     assert.equal(requested, 0, "Ohne Nutzeraktion darf kein Mikrofon angefragt werden.");
@@ -214,6 +225,7 @@ test("Audioanalyse: Opt-in und vollständige Freigabe der MediaStream-Ressourcen
     else delete globalThis.navigator;
     globalThis.requestAnimationFrame = previous.raf;
     globalThis.cancelAnimationFrame = previous.cancel;
+    if (previous.win === undefined) delete globalThis.window; else globalThis.window = previous.win;
   }
 });
 
@@ -511,7 +523,7 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
       useRef(value) { return { current: value }; }, useState(value) { return [value, () => {}]; },
       useEffect() {}, useCallback(callback) { return callback; },
     } };
-    globalThis.window = { devicePixelRatio: 1 };
+    globalThis.window = { devicePixelRatio: 1, setInterval: () => 6, clearInterval: () => {} };
     Object.defineProperty(globalThis, "navigator", { configurable: true, value: { mediaDevices: {
       async getUserMedia() { return { getTracks: () => [track], getAudioTracks: () => [track], getVideoTracks: () => [] }; },
     } } });
@@ -532,8 +544,11 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
     assert.equal(spectrumRead, 0, "Ohne Opt-in darf der Analyzer nichts lesen.");
     await controls.start();
     assert.equal(typeof frame, "function");
+    // Signaldiagnose liest seit v1.31 getrennt vom Zeichnen: Der RAF muss
+    // unabhängig davon exakt einen zusätzlichen Analyzer-Snapshot zeichnen.
+    const beforePaint = spectrumRead;
     frame();
-    assert.equal(spectrumRead, 1);
+    assert.equal(spectrumRead, beforePaint + 1);
     assert.equal(count, 20, "Ein visualisiertes Partikel pro Frequenzbereich");
     assert.equal(fillColor, "#12ab34");
     assert.equal(opacity, 0.45);
@@ -659,4 +674,98 @@ test("LRC-Editor: Zeitstempel sind re-importierbar und gegen NaN abgesichert", (
   assert.equal(lyrics.formatLrcTimestamp(NaN), "[00:00.00]");
   const stamped = `${lyrics.formatLrcTimestamp(12540)}Eigene Zeile`;
   assert.deepEqual(lyrics.parseLrc(stamped), [{ timeMs: 12540, text: "Eigene Zeile" }]);
+});
+
+// -----------------------------------------------------------------------------
+// Stabilisierung v1.31: Freigegebene Musik darf eine HTML-Nebula antreiben,
+// ohne gleichzeitig den ZuKaTo-Balkenlayer einzuschalten. Der Anzeigeeffekt
+// bestimmt niemals mehr, ob eine gültige Audiofreigabe bestehen bleibt.
+// -----------------------------------------------------------------------------
+test('Nebula: Audio bleibt ohne sichtbare ZuKaTo-Balken aktiv, ohne unsichtbaren RAF', async () => {
+  const code = await inlineAudioHookCode();
+  const before = {
+    spotify: globalThis.Spicetify, audio: globalThis.AudioContext, win: globalThis.window,
+    navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
+    raf: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame,
+  };
+  let rafCount = 0; let timerCount = 0; let timerStops = 0; let trackStops = 0;
+  const track = { readyState: 'live', stop() { trackStops++; }, addEventListener() {}, removeEventListener() {} };
+  try {
+    globalThis.Spicetify = { React: {
+      useRef(value) { return { current: value }; }, useState(value) { return [value, () => {}]; },
+      useEffect() {}, useCallback(callback) { return callback; },
+    } };
+    globalThis.window = { setInterval() { timerCount++; return 10; }, clearInterval() { timerStops++; } };
+    Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{
+      async getUserMedia() {return {getTracks:()=>[track],getAudioTracks:()=>[track],getVideoTracks:()=>[]};}
+    }}});
+    globalThis.AudioContext = class {
+      createAnalyser() {return {frequencyBinCount:256,smoothingTimeConstant:0,
+        getByteFrequencyData(bytes) {bytes.fill(128);} };}
+      createMediaStreamSource() {return {connect() {}};}
+      async resume() {}
+      async close() {}
+    };
+    globalThis.requestAnimationFrame = () => {rafCount++; return 7;};
+    globalThis.cancelAnimationFrame = () => {};
+    const {useMicrophoneSpectrum} = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`);
+    const control = useMicrophoneSpectrum('off',48,1,0.7,true);
+    await control.start();
+    assert.equal(rafCount,0,'keine teuren unsichtbaren Animationsframes');
+    assert.equal(timerCount,1,'die günstige Audiosignalmessung bleibt aktiv');
+    const sound = control.getSpectrum();
+    assert.equal(sound.length,64);
+    assert.ok(sound.every(value => value > .48 && value < .52));
+    control.stop();
+    assert.equal(trackStops,1);
+    assert.equal(timerStops,1);
+  } finally {
+    if(before.spotify===undefined) delete globalThis.Spicetify; else globalThis.Spicetify=before.spotify;
+    if(before.audio===undefined) delete globalThis.AudioContext; else globalThis.AudioContext=before.audio;
+    if(before.win===undefined) delete globalThis.window; else globalThis.window=before.win;
+    if(before.navigator) Object.defineProperty(globalThis,'navigator',before.navigator); else delete globalThis.navigator;
+    if(before.raf===undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame=before.raf;
+    if(before.cancel===undefined) delete globalThis.cancelAnimationFrame; else globalThis.cancelAnimationFrame=before.cancel;
+  }
+});
+
+test('Audiofehler NACH Streamstart gibt Tracks genau einmal frei und lässt keinen Listener hängen',async()=>{
+  const code=await inlineAudioHookCode();
+  const previous={spotify:globalThis.Spicetify,audio:globalThis.AudioContext,win:globalThis.window,
+    navigator:Object.getOwnPropertyDescriptor(globalThis,'navigator'),raf:globalThis.requestAnimationFrame,
+    cancel:globalThis.cancelAnimationFrame};
+  let stops=0,unsubscribed=0,closes=0;
+  const track={readyState:'live',stop(){stops++;},addEventListener(){},removeEventListener(){unsubscribed++;}};
+  try {
+    globalThis.Spicetify={React:{useRef(value){return{current:value};},useState(value){return[value,()=>{}];},
+      useEffect(){},useCallback(fn){return fn;}}};
+    globalThis.window={setInterval(){return 1;},clearInterval(){}};
+    Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{
+      async getUserMedia(){return{getTracks:()=>[track],getAudioTracks:()=>[track],getVideoTracks:()=>[]};}
+    }}});
+    globalThis.AudioContext=class{
+      createAnalyser(){return{frequencyBinCount:64,smoothingTimeConstant:0,
+        getByteFrequencyData(){throw new Error('Audio backend failed');}};}
+      createMediaStreamSource(){return{connect(){}};}
+      async resume(){}
+      async close(){closes++;}
+    };
+    globalThis.requestAnimationFrame=()=>5;
+    globalThis.cancelAnimationFrame=()=>{};
+    const{useMicrophoneSpectrum}=await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`);
+    const controls=useMicrophoneSpectrum('off',48,1,0.75,true);
+    await controls.start();
+    controls.stop();
+    await Promise.resolve();
+    assert.equal(stops,1);
+    assert.equal(unsubscribed,1);
+    assert.equal(closes,1);
+  } finally {
+    if(previous.spotify===undefined)delete globalThis.Spicetify;else globalThis.Spicetify=previous.spotify;
+    if(previous.audio===undefined)delete globalThis.AudioContext;else globalThis.AudioContext=previous.audio;
+    if(previous.win===undefined)delete globalThis.window;else globalThis.window=previous.win;
+    if(previous.navigator)Object.defineProperty(globalThis,'navigator',previous.navigator);else delete globalThis.navigator;
+    if(previous.raf===undefined)delete globalThis.requestAnimationFrame;else globalThis.requestAnimationFrame=previous.raf;
+    if(previous.cancel===undefined)delete globalThis.cancelAnimationFrame;else globalThis.cancelAnimationFrame=previous.cancel;
+  }
 });

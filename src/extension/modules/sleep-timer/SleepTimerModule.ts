@@ -1,35 +1,73 @@
 // =============================================================================
 // Datei: src/extension/modules/sleep-timer/SleepTimerModule.ts
-// Zweck: Schlaf-Timer mit 15/30/60 Minuten und Profilmenü-Steuerung.
+// Zweck: Persistenter Sleep-Timer mit ressourcenschonender Deadline-Prüfung.
+// Wo ändern? Menüs und Benachrichtigungen hier; Zeitregeln in sleep-timer-policy.ts.
 // =============================================================================
 import { runtimeText } from "../../../shared/runtime-i18n";
+import { normalizeSleepDeadline, sleepTimerNextDelayMs } from "./sleep-timer-policy";
 import type { ExtensionModule } from "../ExtensionModule";
 
 const STORAGE_KEY = "zukato-toolkit.sleep-until";
 let deadline = 0;
-let interval: number | null = null;
+let timeout: number | null = null;
 let menu: Spicetify.Menu.SubMenu | null = null;
 const items: Spicetify.Menu.Item[] = [];
+let lastMenuLabel = "";
 
-/** Timerzustand sichern; ein Browser-Neustart kann ihn wiederherstellen. */
+/** Aktualisiert das Menü nur dann, wenn sich die sichtbare Minutenzahl ändert. */
+function refreshMenu(): void {
+  const minutes = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 60_000)) : 0;
+  const label = minutes ? `Restzeit: ${minutes} min` : "Kein Timer aktiv";
+  if (label !== lastMenuLabel) {
+    items[4]?.setName(label);
+    lastMenuLabel = label;
+  }
+}
+
+/** Entfernt einen geplanten Tick auch beim Deaktivieren des Feature-Moduls. */
+function clearScheduledTick(): void {
+  if (timeout !== null) window.clearTimeout(timeout);
+  timeout = null;
+}
+
+/** Bei inaktivem Timer gibt es KEINEN Hintergrundtimer. */
+function scheduleNextTick(): void {
+  clearScheduledTick();
+  const delay = sleepTimerNextDelayMs(deadline, Date.now());
+  if (delay !== null) {
+    timeout = window.setTimeout(() => {
+      timeout = null;
+      tick();
+    }, delay);
+  }
+}
+
+/**
+ * Änderungen sofort im Arbeitsspeicher übernehmen. Ein Storage-Fehler darf
+ * einen bereits gesetzten Sleep-Timer nicht versehentlich deaktivieren.
+ */
 function persist(value: number): void {
   deadline = value;
-  Spicetify.Platform.LocalStorageAPI.setItem(STORAGE_KEY, deadline);
+  try {
+    Spicetify.Platform.LocalStorageAPI.setItem(STORAGE_KEY, value);
+  } catch (error) {
+    console.warn("[ZuKaTo] Sleep-Timer konnte nicht dauerhaft gespeichert werden.", error);
+  }
   refreshMenu();
+  scheduleNextTick();
 }
 
-/** Zeigt die gewählte Zeit in den Toggle-Einträgen an. */
-function refreshMenu(): void {
-  const remaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 60000)) : 0;
-  items[4]?.setName(remaining ? `Restzeit: ${remaining} min` : "Kein Timer aktiv");
-}
-
-/** Die Minute kann auch verpasst werden, z. B. nach Standby: Deadline prüfen. */
+/** Auch nach Standby/gedrosselten Timern die echte Deadline prüfen. */
 function tick(): void {
-  if (!deadline || Date.now() < deadline) return;
-  persist(0);
-  Spicetify.Player.pause();
-  Spicetify.showNotification(runtimeText("runtime.sleepPaused"));
+  if (deadline && Date.now() >= deadline) {
+    // Zuerst zurücksetzen: Fokusereignis + Timeout dürfen nicht zweimal pausieren.
+    persist(0);
+    Spicetify.Player.pause();
+    Spicetify.showNotification(runtimeText("runtime.sleepPaused"));
+    return;
+  }
+  refreshMenu();
+  scheduleNextTick();
 }
 
 function startTimer(minutes: number): void {
@@ -37,11 +75,23 @@ function startTimer(minutes: number): void {
   Spicetify.showNotification(runtimeText("runtime.sleepStarted", { minutes }));
 }
 
+/** Hintergrund-Drosselung durch Chromium beim Zurückkehren sofort ausgleichen. */
+function onVisibilityChange(): void {
+  if (!document.hidden) tick();
+}
+
 export const sleepTimerModule: ExtensionModule = {
   id: "sleep-timer",
   start(): void {
-    const saved: unknown = Spicetify.Platform.LocalStorageAPI.getItem(STORAGE_KEY);
-    deadline = typeof saved === "number" && Number.isFinite(saved) && saved > 0 ? saved : 0;
+    let saved: unknown;
+    try {
+      saved = Spicetify.Platform.LocalStorageAPI.getItem(STORAGE_KEY);
+    } catch (error) {
+      // Gesperrter Profil-Storage darf die Menüregistrierung nicht verhindern.
+      console.warn("[ZuKaTo] Sleep-Timer-Deadline konnte nicht gelesen werden.", error);
+    }
+    deadline = normalizeSleepDeadline(saved);
+    lastMenuLabel = "";
     items.push(
       new Spicetify.Menu.Item("15 Minuten", false, () => startTimer(15)),
       new Spicetify.Menu.Item("30 Minuten", false, () => startTimer(30)),
@@ -51,21 +101,26 @@ export const sleepTimerModule: ExtensionModule = {
         Spicetify.showNotification(runtimeText("runtime.sleepStopped"));
       }),
       new Spicetify.Menu.Item("Kein Timer aktiv", false, () => {
-        const minutes = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 60000)) : 0;
-        Spicetify.showNotification(minutes ? runtimeText("runtime.sleepRemaining", { minutes }) : runtimeText("runtime.sleepNone"));
+        const minutes = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 60_000)) : 0;
+        Spicetify.showNotification(minutes
+          ? runtimeText("runtime.sleepRemaining", { minutes })
+          : runtimeText("runtime.sleepNone"));
       }),
     );
     menu = new Spicetify.Menu.SubMenu("ZuKaTo Sleep-Timer", items);
     menu.register();
-    refreshMenu();
-    interval = window.setInterval(() => { tick(); refreshMenu(); }, 1000);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     tick();
   },
   stop(): void {
-    if (interval !== null) window.clearInterval(interval);
-    interval = null;
-    menu?.deregister(); menu = null;
+    clearScheduledTick();
+    window.removeEventListener("focus", tick);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    menu?.deregister();
+    menu = null;
     items.length = 0;
-    // Die Deadline bleibt absichtlich gespeichert für einen Neustart der Extension.
+    lastMenuLabel = "";
+    // Deadline bleibt absichtlich gespeichert für den nächsten Extension-Start.
   },
 };

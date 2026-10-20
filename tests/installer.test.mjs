@@ -27,7 +27,7 @@ const installerPath = path.join(projectDirectory, "tools", "install.mjs");
  * Spicetify-CLI. Das Ergebnis enthält auch die Reihenfolge aller Kommandos.
  * Keine echte Spotify-Datei oder Benutzerkonfiguration wird hier angefasst.
  */
-async function runScenario(scenario, { disableAutoBackup = false } = {}) {
+async function runScenario(scenario, { disableAutoBackup = false, existingFiles = false } = {}) {
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "zukato-installer-test-"));
   const binDirectory = path.join(tempDirectory, "bin");
   const appDataDirectory = path.join(tempDirectory, "appdata");
@@ -41,6 +41,10 @@ const fs = require("node:fs");
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.ZUKATO_TEST_CALLS, JSON.stringify(args) + "\n");
 const command = args.join(" ");
+if (command === "config custom_apps zukato-workspace" && process.env.ZUKATO_TEST_SCENARIO === "config-fails") {
+  console.error("Unable to write Spicetify config");
+  process.exit(1);
+}
 if (command === "apply" && process.env.ZUKATO_TEST_SCENARIO !== "normal") {
   if (process.env.ZUKATO_TEST_SCENARIO === "unexpected") {
     console.error("Spotify access denied: permission error");
@@ -70,6 +74,17 @@ console.log("Mock-Spicetify-OK:", command);
     "utf8",
   );
 
+  const extensionsDirectory = path.join(appDataDirectory, "spicetify", "Extensions");
+  const installedAppDirectory = path.join(appDataDirectory, "spicetify", "CustomApps", "zukato-workspace");
+  const installedExtension = path.join(extensionsDirectory, "zukato-extension.js");
+  const installedApp = path.join(installedAppDirectory, "index.js");
+  if (existingFiles) {
+    await mkdir(extensionsDirectory, { recursive: true });
+    await mkdir(installedAppDirectory, { recursive: true });
+    await writeFile(installedExtension, "OLD-EXTENSION", "utf8");
+    await writeFile(installedApp, "OLD-CUSTOM-APP", "utf8");
+  }
+
   const environment = {
     ...process.env,
     APPDATA: appDataDirectory,
@@ -94,9 +109,16 @@ console.log("Mock-Spicetify-OK:", command);
       .split("\n")
       .filter(Boolean)
       .map((line) => JSON.parse(line));
+    // Wichtig: Zustand VOR dem Löschen des Testordners zurückgeben.
+    const readOptional = async (file) => {
+      try { return await readFile(file, "utf8"); }
+      catch (error) { if (error.code === "ENOENT") return null; throw error; }
+    };
     return {
       result,
       calls,
+      installedExtension: await readOptional(installedExtension),
+      installedApp: await readOptional(installedApp),
       output: `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
     };
   } finally {
@@ -148,4 +170,38 @@ test("Installer: ZUKATO_DISABLE_AUTO_BACKUP verhindert die Reparatur", async () 
   assert.equal(result.status, 1, output);
   assert.equal(calls.length, 3);
   assert.match(output, /Automatik deaktiviert/i);
+});
+
+/** Ein abgelehnter Spicetify-Apply darf die bisher funktionierende Version nicht entfernen. */
+test("Installer: gescheiterter Apply stellt alte App und Extension wieder her", async () => {
+  const data = await runScenario("unexpected", { existingFiles: true });
+  assert.equal(data.result.status, 1, data.output);
+  assert.equal(data.installedExtension, "OLD-EXTENSION");
+  assert.equal(data.installedApp, "OLD-CUSTOM-APP");
+});
+
+/** Schon ein Fehler beim Aktivieren der zweiten Komponente muss rückgängig sein. */
+test("Installer: Konfigurationsfehler stellt beide alten Komponenten wieder her", async () => {
+  const data = await runScenario("config-fails", { existingFiles: true });
+  assert.equal(data.result.status, 1, data.output);
+  assert.equal(data.installedExtension, "OLD-EXTENSION");
+  assert.equal(data.installedApp, "OLD-CUSTOM-APP");
+  assert.equal(data.calls.length, 2, "Nach config-Fehler kein apply ausführen");
+});
+
+/** Auch beim Erstinstallieren dürfen keine halbfertigen Zieldateien bleiben. */
+test("Installer: fehlgeschlagene Neuinstallation hinterlässt keine beschädigten Dateien", async () => {
+  const data = await runScenario("unexpected");
+  assert.equal(data.result.status, 1, data.output);
+  assert.equal(data.installedExtension, null);
+  assert.equal(data.installedApp, null);
+});
+
+/** Erfolgreiches Update ersetzt tatsächlich den alten Code statt ihn zu behalten. */
+test("Installer: erfolgreiche Installation tauscht alte Komponenten aus", async () => {
+  const data = await runScenario("normal", { existingFiles: true });
+  assert.equal(data.result.status, 0, data.output);
+  assert.notEqual(data.installedExtension, "OLD-EXTENSION");
+  assert.notEqual(data.installedApp, "OLD-CUSTOM-APP");
+  assert.match(data.installedApp, /function render|ZuKaToCustomApp|Spicetify/);
 });

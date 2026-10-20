@@ -12,7 +12,8 @@
 //   Aktion und keine Änderungen an Git oder dem Quellcode des Projekts.
 // =============================================================================
 
-import { access, cp, mkdir, rm } from "node:fs/promises";
+import { access } from "node:fs/promises";
+import { installArtifactsAtomically } from "./atomic-deployment.mjs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -161,49 +162,32 @@ function applySpicetify() {
 }
 
 // -----------------------------------------------------------------------------
-// Extension installieren. Es wird nur die ZuKaTo-Datei ersetzt; fremde
-// Erweiterungen und Spicetify-Einstellungen bleiben erhalten.
-// -----------------------------------------------------------------------------
-async function installExtension() {
-  console.log("Installiere Extension …");
-  await mkdir(path.dirname(extension.target), { recursive: true });
-  await cp(extension.source, extension.target, { force: true });
-}
-
-// -----------------------------------------------------------------------------
-// Custom App installieren. Der alte ZuKaTo-App-Ordner wird ersetzt, NICHT der
-// vollständige CustomApps-Ordner anderer Spicetify-Erweiterungen.
-// -----------------------------------------------------------------------------
-async function installCustomApp() {
-  console.log("Installiere Custom App …");
-  await mkdir(path.dirname(customApp.target), { recursive: true });
-  await rm(customApp.target, { recursive: true, force: true });
-  await cp(customApp.source, customApp.target, { recursive: true, force: true });
-}
-
-// -----------------------------------------------------------------------------
-// Installationsablauf: Zuerst Dateien, dann Spicetify-Konfiguration, danach
-// Apply/Reparatur. Jeder Fehler bricht mit Exitcode 1 ab.
+// Sichere Installation: Die alte ZuKaTo-Version bleibt bis zum erfolgreichen
+// CLI-Apply erhalten. Bei Kopier-, Konfigurations- oder Apply-Fehlern wird sie
+// wiederhergestellt, nicht wie früher vorab gelöscht.
 // -----------------------------------------------------------------------------
 async function main() {
   await assertExists(extension.source, "Extension-Build");
   await assertExists(path.join(customApp.source, "index.js"), "Custom-App-Build");
   await assertExists(path.join(customApp.source, "manifest.json"), "Custom-App-Manifest");
 
-  await installExtension();
-  await installCustomApp();
-
-  console.log("Aktiviere Extension und Custom App …");
-  requireSuccessfulCommand(
-    executeSpicetify("config", "extensions", extension.name),
-    "Spicetify-Extension-Konfiguration",
-  );
-  requireSuccessfulCommand(
-    executeSpicetify("config", "custom_apps", customApp.name),
-    "Spicetify-Custom-App-Konfiguration",
-  );
-  applySpicetify();
-  console.log("ZuKaTo Extension und Custom App wurden installiert.");
+  console.log("Bereite abgesichertes Update der ZuKaTo-Dateien vor …");
+  await installArtifactsAtomically([
+    { source: extension.source, target: extension.target },
+    { source: customApp.source, target: customApp.target, recursive: true },
+  ], () => {
+    console.log("Aktiviere Extension und Custom App …");
+    requireSuccessfulCommand(
+      executeSpicetify("config", "extensions", extension.name),
+      "Spicetify-Extension-Konfiguration",
+    );
+    requireSuccessfulCommand(
+      executeSpicetify("config", "custom_apps", customApp.name),
+      "Spicetify-Custom-App-Konfiguration",
+    );
+    applySpicetify();
+  });
+  console.log("ZuKaTo Extension und Custom App erfolgreich aktualisiert.");
 }
 
 main().catch((error) => {

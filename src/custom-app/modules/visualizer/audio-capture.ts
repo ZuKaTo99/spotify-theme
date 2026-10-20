@@ -53,3 +53,49 @@ export function hasMeasuredAudioSignal(bins: Uint8Array): boolean {
   }
   return false;
 }
+
+
+/**
+ * 64 normierte Frequenzbänder für selbst programmierte HTML-Wallpapers.
+ * Die Daten stammen AUSSCHLIESSLICH aus einer freigegebenen Audioquelle,
+ * nicht aus dem Spotify-DRM-Stream. Nur Momentanwerte verlassen das Hook;
+ * sie werden weder aufgezeichnet noch lokal oder im Netzwerk gespeichert.
+ *
+ * Mit logarithmischer Bin-Verteilung bleiben besonders die tiefen/mittleren
+ * Frequenzen sichtbar. Bei Stille liefern wir 64 Nullen, niemals Demo-Peaks.
+ */
+export function spectrum64FromByteBins(bins: Uint8Array): number[] {
+  const result = new Array<number>(64).fill(0);
+  if (!bins.length) return result;
+  for (let i = 0; i < 64; i++) {
+    const from = Math.min(bins.length - 1, Math.floor((i / 64) ** 1.7 * bins.length * 0.82));
+    const to = Math.min(bins.length, Math.max(from + 1,
+      Math.floor(((i + 1) / 64) ** 1.7 * bins.length * 0.82)));
+    let sum = 0;
+    for (let j = from; j < to; j++) sum += bins[j];
+    result[i] = Math.min(1, Math.max(0, sum / ((to - from) * 255)));
+  }
+  return result;
+}
+
+/**
+ * Browser-/Electron-Meldungen sind häufig englisch und unspezifisch.
+ * Diese Abbildung erklärt nur BEKANNTE Berechtigungs- und Hardwarefehler;
+ * fachliche Fehler (z. B. eine Freigabe ohne Tonspur) bleiben unverändert.
+ * Wo ändern? Neue standardisierte DOMException.name-Werte hier ergänzen.
+ */
+export function explainCaptureError(cause: unknown, source: CaptureSource): string {
+  const name = cause instanceof Error ? cause.name : "";
+  const media = source === "system" ? "System-/Tab-Audio" : "Mikrofon";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError")
+    return `${media}: Berechtigung wurde abgelehnt. Öffne die Freigabe erneut und erlaube den Audiozugriff.`;
+  if (name === "NotFoundError" || name === "DevicesNotFoundError")
+    return `${media}: Es wurde keine verfügbare Audioquelle gefunden.`;
+  if (name === "NotReadableError" || name === "TrackStartError")
+    return `${media}: Die Audioquelle ist blockiert oder wird bereits von einer anderen Anwendung verwendet.`;
+  if (name === "AbortError")
+    return `${media}: Die Audiofreigabe wurde abgebrochen. Bitte erneut versuchen.`;
+  if (name === "TypeError" && source === "system")
+    return "Dieser Spotify-Client unterstützt die angeforderte System-/Tab-Audiofreigabe nicht. Bitte Mikrofon verwenden.";
+  return cause instanceof Error ? cause.message : String(cause);
+}

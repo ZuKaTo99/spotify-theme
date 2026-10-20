@@ -8,13 +8,15 @@ import { playTrack, type TrackInfo } from "../../shared/library";
 interface TrackListProps {
   tracks: readonly TrackInfo[];
   emptyText: string;
+  /** Lokalisierte, barrierefreie Beschriftung der Wiedergabeschaltfläche. */
+  playLabel?: string;
   action?: (track: TrackInfo) => void;
   actionLabel?: string;
   details?: (track: TrackInfo, index: number) => string;
 }
 
 /** Buttons statt unkontrollierter Spotify-Link-Navigation: barrierearm und testbar. */
-export function TrackList({ tracks, emptyText, action, actionLabel, details }: TrackListProps): ReactElement {
+export function TrackList({ tracks, emptyText, playLabel = "Abspielen", action, actionLabel, details }: TrackListProps): ReactElement {
   if (!tracks.length) return <p className="zukato-empty">{emptyText}</p>;
   return <ul className="zukato-track-list">
     {tracks.map((track, index) => <li key={`${track.uri}-${index}`} className="zukato-track">
@@ -24,7 +26,8 @@ export function TrackList({ tracks, emptyText, action, actionLabel, details }: T
         {details && <small>{details(track, index)}</small>}
       </div>
       <div className="zukato-track__actions">
-        <button type="button" onClick={() => { void playTrack(track.uri).catch(() => Spicetify.showNotification("Wiedergabe nicht möglich", true)); }}>▶</button>
+        <button type="button" aria-label={`${playLabel}: ${track.title} – ${track.artist}`}
+          title={`${playLabel}: ${track.title}`} onClick={() => { void playTrack(track.uri).catch(() => Spicetify.showNotification("Wiedergabe nicht möglich", true)); }}>▶</button>
         {action && <button type="button" onClick={() => action(track)}>{actionLabel ?? "Aktion"}</button>}
       </div>
     </li>)}

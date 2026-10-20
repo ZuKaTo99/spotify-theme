@@ -237,6 +237,27 @@ test("Szenenbibliothek: HTML/Video-Import, Löschen, Größenlimit und getrennte
     assert.equal(firstFiles.files.length, 2);
     assert.match(await firstFiles.files.find((entry) => entry.path === "index.html").blob.text(), /Hello/);
     assert.equal((await sceneStore.loadScene(video.id)).blob.size, 4);
+    // Nebula-Engine-Update: dieselbe ID und Playlist-Zuordnung behalten,
+    // alte Dateien vollständig ersetzen und nicht erneut importieren.
+    const replacement = [
+      fileAt("EigenesWallpaper/index.html", "<html><body>Nebula v1.2</body></html>"),
+      fileAt("EigenesWallpaper/js/engine.js", "window.nebulaVersion = 12;"),
+      fileAt("EigenesWallpaper/assets/neue-grafik.png", "png"),
+    ];
+    const newMetadata = await sceneStore.replaceSceneFolder(first.id, replacement);
+    assert.equal(newMetadata.id, first.id, "Wallpaper-ID bleibt beim Update unverändert");
+    assert.equal(newMetadata.name, first.name, "Der Bibliotheksname bleibt unverändert");
+    assert.equal((await sceneStore.listScenes()).length, 2, "Kein Duplikat nach dem Update");
+    assert.deepEqual((await sceneStore.loadSceneProject(first.id)).files.map((f) => f.path),
+      ["index.html", "js/engine.js", "assets/neue-grafik.png"]);
+    assert.equal([...filesContent.values()].filter((asset) => asset.sceneId === first.id).length, 3);
+    await assert.rejects(() => sceneStore.replaceSceneFolder(first.id, [
+      fileAt("Sammelordner/01/index.html", "<html></html>"),
+      fileAt("Sammelordner/02/index.html", "<html></html>"),
+    ]), /genau EINEN/);
+    assert.equal((await sceneStore.loadSceneProject(first.id)).files.length, 3,
+      "Ungültiger Ordner darf die vorhandenen Assets nicht löschen");
+
     // Ein echter Sammelordner erzeugt in EINER Speicherung zwei Einträge.
     const multi = await sceneStore.importSceneFolder([
       fileAt("Pack/01/index.html", '<html><body>Scene 1</body></html>'),

@@ -56,11 +56,19 @@ const cache = new Map<string, { until: number; result: AutomaticLyrics }>();
 let nextAllowedRequest = 0;
 let rateLimitedUntil = 0;
 
-/** Normalisierung ausschließlich zum Vergleich; der eigentliche Titel bleibt unverändert. */
+/**
+ * Titel zur Lyrics-Suche nur vorsichtig normalisieren.
+ *
+ * FRÜHER: Jede Klammer wurde entfernt. Damit wurde aus "Polka Bounce
+ * (Bailo Remix)" dasselbe wie "Polka Bounce", selbst wenn sich beide
+ * Fassungen in Text und Arrangement unterscheiden. Auch "Live" wurde
+ * pauschal gelöscht. Jetzt entfernen wir ausschließlich technische
+ * Remaster-/Mono-/Stereo-Vermerke, niemals Remix, Live oder Acoustic.
+ * Die Originaltitel werden dadurch NICHT verändert.
+ */
 function normalized(value: string): string {
   return value.toLocaleLowerCase("en").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
-    .replace(/\b(?:remaster(?:ed)?|mono|stereo|live|radio edit|explicit|version)\b/g, " ")
+    .replace(/[\[(]\s*(?:remaster(?:ed)?(?:\s+\d{4})?|\d{4}\s+remaster(?:ed)?|mono|stereo)\s*[\])]/g, " ")
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
@@ -72,8 +80,13 @@ export function matchesLyricsRecord(track: LyricsLookupTrack, record: LyricsReco
   if (!title || !candidateTitle || title !== candidateTitle) return false;
   const artists = track.artist.split(/,|\s+(?:feat\.?|ft\.?|&|and)\s+/i).map(normalized).filter(Boolean);
   const candidateArtist = normalized(record.artistName);
+  // Keine Teilworttreffer: "Ann" darf nicht "Joann" akzeptieren, "Ana"
+  // nicht "Banana". Bei Kollaborationen ist nur eine ganze Wortfolge erlaubt.
+  // Der Songtext eines anderen Künstlers darf nicht als Treffer erscheinen.
+  const sameOrWholeWords = (a: string, b: string): boolean =>
+    a === b || (` ${a} `).includes(` ${b} `) || (` ${b} `).includes(` ${a} `);
   if (!artists.length || !candidateArtist || !artists.some((artist) =>
-    artist === candidateArtist || artist.includes(candidateArtist) || candidateArtist.includes(artist))) return false;
+    sameOrWholeWords(artist, candidateArtist))) return false;
   const seconds = Math.round(track.durationMs / 1000);
   if (seconds > 0 && typeof record.duration === "number" && Number.isFinite(record.duration)) {
     // 6 s Toleranz erlaubt manche Editionen, verhindert aber falsche Live-Mixe.
@@ -88,7 +101,16 @@ export function parseLyricsRecord(record: LyricsRecord): AutomaticLyrics | null 
   if (typeof record.id !== "number" || !Number.isSafeInteger(record.id) || record.id < 0) return null;
   if (typeof record.syncedLyrics === "string") {
     const text = record.syncedLyrics.slice(0, MAX_LYRICS_CHARS);
-    if (/\[\d{1,3}:\d{2}[.:]\d{1,3}\]/.test(text)) return { kind: "synced", text, sourceId: record.id };
+    // Ein Zeitstempel allein reicht nicht: "[00:99.99]" oder reine
+    // Zeitmarken ohne Text würden später im LRC-Parser verschwinden.
+    // Falls der Anbieter auch plainLyrics liefert, diese stattdessen zeigen.
+    const stamp = /\[(\d{1,3}):(\d{2})[.:](\d{1,3})\]/g;
+    const usable = text.split(/\r?\n/).some((line) => {
+      const timestamps = [...line.matchAll(stamp)];
+      if (!timestamps.some((match) => Number(match[2]) < 60)) return false;
+      return line.replace(stamp, "").replace(/\[[a-z]{1,10}:[^\]]*\]/gi, "").trim().length > 0;
+    });
+    if (usable) return { kind: "synced", text, sourceId: record.id };
   }
   if (typeof record.plainLyrics === "string") {
     const lines = record.plainLyrics.slice(0, MAX_LYRICS_CHARS).split(/\r?\n/)

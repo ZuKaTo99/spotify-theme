@@ -77,8 +77,15 @@ export function inspectNativeCanvas(root: ParentNode, title: string, artist = ""
     });
     if (candidates.length) foundVideo = true;
     for (const video of candidates) {
-      const source = video.currentSrc || video.getAttribute("src") || video.querySelector("source")?.src || "";
-      if (validCanvasUrl(source)) return { kind: "ready", source: { src: source } };
+      // Die Desktop-Webview kann eine nicht lesbare currentSrc melden,
+      // während ein <source>-Tag eine gültige HTTPS-/Blob-Quelle enthält.
+      // Deshalb ALLE Kandidaten prüfen, statt beim ersten nichtleeren Wert
+      // abzubrechen. Niemals data:, file:, javascript: oder http: übernehmen.
+      const sources = [video.currentSrc, video.getAttribute?.("src"),
+        ...Array.from(video.querySelectorAll?.("source") ?? [], (element) => element.src)];
+      for (const source of sources) {
+        if (source && validCanvasUrl(source)) return { kind: "ready", source: { src: source } };
+      }
     }
   }
   if (!matchedTrack) return { kind: "different-track" };

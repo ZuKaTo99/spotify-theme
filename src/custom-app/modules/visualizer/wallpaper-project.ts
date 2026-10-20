@@ -241,6 +241,110 @@ export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" con
     var resources=Array.isArray(data.assets)?data.assets:[];
     var modules=Array.isArray(data.modules)?data.modules:[];
     var entry=String(data.entry||'index.html');
+    // Die iframe-Sandbox hat absichtlich KEINEN Zugriff auf den Spotify-Origin.
+    // window.localStorage kann hier sogar schon beim Lesen SecurityError werfen.
+    // Daher die kleinen Projekt-Einstellungen VOR dem Ausführen des Wallpapers
+    // als kompatible Storage-Fassade bereitstellen. Sie werden im Parent
+    // ausschließlich unter der tatsächlich gewählten Szenen-ID gespeichert.
+    var storageToken=typeof data.storageToken==='string'?data.storageToken:'';
+    function validPrefKey(key){return typeof key==='string'&&key.length>0&&key.length<=256;}
+    function validPrefValue(value){return typeof value==='string'&&value.length<=16384;}
+    function copyPrefs(source){
+      var next=Object.create(null);
+      if(!source||typeof source!=='object'||Array.isArray(source))return next;
+      var keys=Object.keys(source);
+      for(var k=0;k<keys.length&&k<128;k++){
+        var name=keys[k];
+        if(validPrefKey(name)&&validPrefValue(source[name]))next[name]=source[name];
+      }
+      return JSON.stringify(next).length<=49152?next:Object.create(null);
+    }
+    // Zwei getrennte virtuelle Storage-Bereiche. Wallpaper Engine/HTML-Webapps
+    // verwenden teils sessionStorage statt localStorage für ihre UI-Presets.
+    // Normales sessionStorage überlebt einen neuen sandbox-Origin beim
+    // Songwechsel nicht; der Parent hält hier beide Projekt-Bereiche vor.
+    var storageScopes={local:copyPrefs(data.storage),session:copyPrefs(data.sessionStorage)};
+    function publishStorage(scope,action,key,value){
+      if(!storageToken)return;
+      window.parent.postMessage({zukatoProjectStorage:true,
+        storageToken:storageToken,scope:scope,action:action,key:key,value:value},'*');
+    }
+    function createStorageFacade(scope){
+      function current(){return storageScopes[scope];}
+      function set(key,value){
+        key=String(key);value=String(value);
+        if(!validPrefKey(key)||!validPrefValue(value))
+          throw new DOMException('Wallpaper-Speicherlimit erreicht','QuotaExceededError');
+        var values=current();
+        if(Object.prototype.hasOwnProperty.call(values,key)&&values[key]===value)return;
+        var next=Object.assign(Object.create(null),values);
+        next[key]=value;
+        if(Object.keys(next).length>128||JSON.stringify(next).length>49152)
+          throw new DOMException('Wallpaper-Speicherlimit erreicht','QuotaExceededError');
+        storageScopes[scope]=next;
+        publishStorage(scope,'set',key,value);
+      }
+      var api={
+        getItem:function(key){key=String(key);return Object.prototype.hasOwnProperty.call(current(),key)?current()[key]:null;},
+        setItem:set,
+        removeItem:function(key){key=String(key);if(!Object.prototype.hasOwnProperty.call(current(),key))return;
+          delete current()[key];publishStorage(scope,'remove',key);},
+        clear:function(){if(!Object.keys(current()).length)return;
+          storageScopes[scope]=Object.create(null);publishStorage(scope,'clear');},
+        key:function(index){return Object.keys(current())[Number(index)]||null;}
+      };
+      Object.defineProperty(api,'length',{configurable:true,get:function(){return Object.keys(current()).length;}});
+      // Manche Web-Bibliotheken prüfen instanceof Storage, bevor sie ihre
+      // Einstellungen sichern. Methoden bleiben eigene, sichere Fassaden.
+      if(typeof Storage==='function'){
+        try{Object.setPrototypeOf(api,Storage.prototype);}catch(error){/* Optionaler Kompatibilitätsfall. */}
+      }
+      return new Proxy(api,{
+        get:function(target,name){return name in target?target[name]:typeof name==='string'?api.getItem(name):undefined;},
+        set:function(target,name,value){if(typeof name==='string')set(name,value);return true;},
+        deleteProperty:function(target,name){if(typeof name==='string')api.removeItem(name);return true;},
+        ownKeys:function(){return Object.keys(current());},
+        getOwnPropertyDescriptor:function(target,name){return Object.prototype.hasOwnProperty.call(current(),name)
+          ?{configurable:true,enumerable:true,writable:true,value:current()[name]}:Object.getOwnPropertyDescriptor(target,name);}
+      });
+    }
+    // Identität der Storage-Objekte stabil halten: verschiedene Libraries
+    // vergleichen window.localStorage mit früheren Referenzen.
+    var createLocal=createStorageFacade('local');
+    var createSession=createStorageFacade('session');
+    try{
+      // NIEMALS die echten Spotify-Speicherobjekte durchreichen.
+      Object.defineProperty(window,'localStorage',{configurable:true,get:function(){return createLocal;}});
+      Object.defineProperty(window,'sessionStorage',{configurable:true,get:function(){return createSession;}});
+    }catch(error){report('PROJECT_STORAGE_UNAVAILABLE');}
+    function synchronizeProjectStorage(update){
+      if(update.source!==window.parent||!update.data||update.data.zukatoProjectStorageSync!==true||
+        update.data.storageToken!==storageToken)return;
+      // Ein Update enthält BEIDE Kanäle. Alte Nachrichten ohne session-Feld
+      // überschreiben keinen bereits gespeicherten sessionStorage-Stand.
+      ['local','session'].forEach(function(scope){
+        if(scope==='session'&&!Object.prototype.hasOwnProperty.call(update.data,'sessionStorage'))return;
+        var previous=storageScopes[scope];
+        var next=copyPrefs(scope==='local'?update.data.storage:update.data.sessionStorage);
+        storageScopes[scope]=next;
+        try{
+          var touched=Object.create(null);
+          Object.keys(previous).concat(Object.keys(next)).forEach(function(key){
+            if(touched[key])return;
+            touched[key]=true;
+            var oldValue=Object.prototype.hasOwnProperty.call(previous,key)?previous[key]:null;
+            var newValue=Object.prototype.hasOwnProperty.call(next,key)?next[key]:null;
+            if(oldValue!==newValue&&typeof StorageEvent==='function')
+              // Chromium akzeptiert fuer storageArea nur ein natuerliches
+              // Storage-Objekt. Unsere sichere Fassade kann diese interne
+              // Browser-Marke nicht besitzen. null ist laut Web-API zulaessig.
+              window.dispatchEvent(new StorageEvent('storage',{key:key,oldValue:oldValue,newValue:newValue,
+                storageArea:null}));
+          });
+        }catch(error){/* Speicher bleibt auch ohne StorageEvent synchron. */}
+      });
+    }
+    window.addEventListener('message',synchronizeProjectStorage);
     var paths=Object.create(null);
     var knownUrls=Object.create(null);
     var markerUrls=Object.create(null);
@@ -378,14 +482,40 @@ export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" con
       // Bei unbekannten Dateien wird KEINE Netzadresse zurueckgegeben.
       window.zukatoWallpaperAssetUrl=assetUrl;
       // Error capture funktioniert auch fuer Bildfehler ohne Promise.
-      window.addEventListener('error',function(e){
+      function reportResourceError(e){
         if(e.target!==window){report('PROJECT_RESOURCE_ERROR');}
         else report('PROJECT_SCRIPT_ERROR');
-      },true);
-      window.addEventListener('unhandledrejection',function(){report('PROJECT_SCRIPT_ERROR');});
+      }
+      function reportUnhandledRejection(){report('PROJECT_SCRIPT_ERROR');}
+      window.addEventListener('error',reportResourceError,true);
+      window.addEventListener('unhandledrejection',reportUnhandledRejection);
       document.open();
       document.write(documentHtml);
       document.close();
+      // KRITISCHER LIFECYCLE-FIX v1.36:
+      // document.open() entfernt in Chromium die zuvor registrierten Window-
+      // Listener, auch wenn die Storage-Fassade auf window erhalten bleibt.
+      // Deshalb funktionierte der erste Preset-Wert, spaetere StorageSync-
+      // Nachrichten wurden jedoch ignoriert. Nach document.close() die
+      // bestehenden (named) Listener entfernen und genau EINMAL neu anbinden.
+      // Ohne diese Reparatur konnte nach Song-/Szenenwechsel ein alter
+      // gespeicherter Effekt wieder erscheinen.
+      window.removeEventListener('message',synchronizeProjectStorage);
+      window.addEventListener('message',synchronizeProjectStorage);
+      window.removeEventListener('error',reportResourceError,true);
+      window.addEventListener('error',reportResourceError,true);
+      window.removeEventListener('unhandledrejection',reportUnhandledRejection);
+      window.addEventListener('unhandledrejection',reportUnhandledRejection);
+      // Der Spotify-Parent kann die erste Player-Nachricht bereits geschickt
+      // haben, bevor die eingebettete App ihre Listener registriert hat.
+      // Erst NACH dem DOM-Aufbau bestätigen wir den fertigen Player-Empfang.
+      // Ein Token verhindert, dass eine alte Sandbox die neue Szene bestätigt.
+      function notifyMounted(){
+        window.parent.postMessage({zukatoProjectMounted:true,storageToken:storageToken},'*');
+      }
+      if(document.readyState==='loading')
+        window.addEventListener('DOMContentLoaded',notifyMounted,{once:true});
+      else notifyMounted();
       window.addEventListener('pagehide',function(){
         activeUrls.forEach(function(url){URL.revokeObjectURL(url);});
         activeUrls=[];

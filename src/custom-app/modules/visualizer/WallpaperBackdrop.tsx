@@ -7,6 +7,7 @@
 import type { CSSProperties, ReactElement } from "react";
 import { DEFAULT_WALLPAPER_KEY, FULL_VIDEO_CLIP, loadWallpaper, type VideoClip } from "./media-store";
 import { shouldSyncVideo, syncedVideoTime } from "./video-sync";
+import { syncCanvasVideoPlayback } from "./canvas-playback";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -107,14 +108,20 @@ export function WallpaperBackdrop(props: BackdropProps): ReactElement {
     urlsRef.current.clear();
   }, []);
 
-  // Play/Pause und Video-Tempo auf beide Layer anwenden, damit auch ein
-  // ausblendendes Video nicht plötzlich stehenbleibt. Videos bleiben stumm.
-  ReactRuntime.useEffect(() => {
-    playbackRoot.current?.querySelectorAll("video").forEach((video) => {
-      video.playbackRate = props.videoSpeed;
-      if (!props.playing) video.pause();
-      else if (video.paused) void video.play().catch(() => callbacks.current.onAutoplayBlocked());
+  // Die Spotify-Pause hat Vorrang; eine Wiedergabe erst ab HAVE_CURRENT_DATA
+  // starten. Früher wurde play() beim Rendern des <video> zu früh aufgerufen
+  // und anschließend NICHT wiederholt, wenn der Decoder später bereit war.
+  // Das kann sowohl das aktive als auch das ausblendende Video betreffen.
+  function synchronizeLayerVideo(video: HTMLVideoElement): void {
+    video.playbackRate = callbacks.current.videoSpeed;
+    syncCanvasVideoPlayback(video, callbacks.current.playing, () => {
+      // Play-Promises aus längst entfernten Layers ignorieren.
+      if (video.isConnected && video.paused && callbacks.current.playing)
+        callbacks.current.onAutoplayBlocked();
     });
+  }
+  ReactRuntime.useEffect(() => {
+    playbackRoot.current?.querySelectorAll("video").forEach(synchronizeLayerVideo);
   }, [layers.active?.id, layers.outgoing?.id, layers.revealed, props.playing, props.videoSpeed]);
 
   // Ein Seek im Spotify-Player bewegt nur das aktuelle Szenenvideo; ein
@@ -218,6 +225,7 @@ export function WallpaperBackdrop(props: BackdropProps): ReactElement {
         src={layer.url} style={style} data-layer-id={layer.id} muted
         loop={layer.clip.start === 0 && layer.clip.end === null} playsInline preload="auto" aria-hidden="true"
         onLoadedMetadata={(event) => initializeClip(layer, event.currentTarget)}
+        onCanPlay={(event) => synchronizeLayerVideo(event.currentTarget)}
         onLoadedData={(event) => {
           // Erst nach dem Seek auf den gewählten Anfang einblenden.
           if (!event.currentTarget.seeking && event.currentTarget.currentTime >= boundedStart(layer, event.currentTarget) - 0.05) ready(layer);

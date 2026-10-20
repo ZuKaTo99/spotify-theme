@@ -7,6 +7,7 @@
 import type { ReactElement } from "react";
 import type { Translator } from "../../shared/i18n";
 import { addFavorite, currentTrack, type TrackInfo } from "../../shared/library";
+import { createSingleFlight } from "../../shared/single-flight";
 import { TrackSearch } from "./TrackSearch";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
@@ -21,7 +22,19 @@ export function QuickTrackPanel({ t, onClose }: Props): ReactElement {
   const container = ReactRuntime.useRef<HTMLDivElement>(null);
   const [feedback, setFeedback] = ReactRuntime.useState("");
   const [working, setWorking] = ReactRuntime.useState(false);
+  // Schnelle Klicks sind vor der React-Aktualisierung noch möglich. Die
+  // Single-Flight-Sperre blockiert doppelte Queue-Anfragen direkt im Handler.
+  const actionGate = ReactRuntime.useRef(createSingleFlight());
   const [nowPlaying, setNowPlaying] = ReactRuntime.useState<TrackInfo | null>(currentTrack);
+
+  // Die Schnellsuche kann länger offen bleiben. Ohne Listener würde „Aktueller
+  // Song“ trotz Songwechsel weiterhin die zuvor gespielte URI hinzufügen.
+  ReactRuntime.useEffect(() => {
+    const syncCurrentTrack = (): void => setNowPlaying(currentTrack());
+    Spicetify.Player.addEventListener("songchange", syncCurrentTrack);
+    syncCurrentTrack(); // Wechsel zwischen Mount und Registrierung abfangen.
+    return () => Spicetify.Player.removeEventListener("songchange", syncCurrentTrack);
+  }, []);
 
   // Autofokus sowie ESC und Fokus-Einfassung verhindern, dass sich eine
   // Tastatureingabe versehentlich im Spotify-Hauptfenster fortsetzt.
@@ -42,15 +55,17 @@ export function QuickTrackPanel({ t, onClose }: Props): ReactElement {
   }, [onClose]);
 
   async function act(track: TrackInfo, action: "favorite" | "queue"): Promise<void> {
-    setWorking(true);
-    try {
-      if (action === "favorite") {
-        setFeedback(addFavorite(track) ? t("quick.saved") : t("quick.alreadySaved"));
-      } else { await queueTrack(track); setFeedback(t("quick.queued")); }
-    } catch (error) {
-      console.error("[ZuKaTo] Schnellaktion fehlgeschlagen", error);
-      setFeedback(t("quick.failed"));
-    } finally { setWorking(false); }
+    await actionGate.current.run(async () => {
+      setWorking(true);
+      try {
+        if (action === "favorite") {
+          setFeedback(addFavorite(track) ? t("quick.saved") : t("quick.alreadySaved"));
+        } else { await queueTrack(track); setFeedback(t("quick.queued")); }
+      } catch (error) {
+        console.error("[ZuKaTo] Schnellaktion fehlgeschlagen", error);
+        setFeedback(t("quick.failed"));
+      } finally { setWorking(false); }
+    });
   }
 
   return <div className="zukato-quick__scrim" onMouseDown={(event) => {
@@ -62,7 +77,7 @@ export function QuickTrackPanel({ t, onClose }: Props): ReactElement {
           <p>{t("quick.help")}</p></div>
         <button type="button" aria-label={t("quick.close")} onClick={onClose}>✕</button>
       </div>
-      <TrackSearch t={t} actionLabel={t("quick.save")} onChoose={(track) => act(track, "favorite")}
+      <TrackSearch t={t} actionLabel={t("quick.save")} disabled={working} onChoose={(track) => act(track, "favorite")}
         actions={[{ label: t("quick.save"), onChoose: (track) => act(track, "favorite") },
           { label: t("quick.queue"), onChoose: (track) => act(track, "queue") }]} />
       {nowPlaying && <div className="zukato-quick__current">
