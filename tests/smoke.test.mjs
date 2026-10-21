@@ -146,9 +146,10 @@ test("Kontextaktionen: Queue, Favoriten und Sleep-Timer sind nutzbar", async () 
   // Das Promise wird erst im nächsten Microtask abgeschlossen.
   await Promise.resolve();
   assert.equal(mock.queued.length, 1);
-  bookmarkItem.onClick(["spotify:track:ABC123"]);
+  // Auch bei Favoriten dieselbe echte 22-stellige ID-Validierung verwenden.
+  bookmarkItem.onClick([queueUri]);
   assert.equal(mock.storage.get("zukato-toolkit.library.v1").favorites.length, 1);
-  bookmarkItem.onClick(["spotify:track:ABC123"]);
+  bookmarkItem.onClick([queueUri]);
   assert.equal(mock.storage.get("zukato-toolkit.library.v1").favorites.length, 0);
   const sleep = mock.menus.find((item) => item.name === "ZuKaTo Sleep-Timer");
   assert.ok(sleep);

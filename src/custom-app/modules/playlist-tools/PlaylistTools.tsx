@@ -11,6 +11,7 @@ import { QueueBatchError, enqueueQueueBatches } from "../../../shared/queue-batc
 import { parseSpotifyTrackInput } from "../../../shared/track-search";
 import { useToolkitData } from "../../hooks/useToolkitData";
 import { TrackSearch } from "../../components/TrackSearch";
+import { PlaylistDestination } from "../../components/PlaylistDestination";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -75,6 +76,9 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
         {t("playlist.allFavorites", { count: favorites.length })}
       </button>
     </div>
+    <h3>{t("playlistTransfer.heading")}</h3>
+    <p>{t("playlistTransfer.description")}</p>
+    <PlaylistDestination t={t} uris={favorites.map((track) => track.uri)} disabled={working} />
     <TrackSearch t={t} actionLabel={t("search.queue")} disabled={working}
       onChoose={async (track) => { await queue([track.uri]); }} />
     <label htmlFor="zukato-queue-uri">{t("playlist.label")}</label>

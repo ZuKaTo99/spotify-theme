@@ -1,12 +1,84 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Stand: **v1.49.0**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Stand: **v1.60.0**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
+
+## v1.60.0 – Ausgewählte Songs in Spotify-Playlists übertragen
+
+- **Neue Playlist-Funktion:** Markierte Favoriten oder Hörverlaufs-Titel lassen sich
+  direkt in eine **bestehende** Spotify-Playlist übertragen. Unter „Playlist-Werkzeuge“
+  können alternativ alle lokalen Favoriten ausgewählt werden.
+- **Ziel angeben:** `spotify:playlist:<22 Zeichen>` oder offizieller
+  `https://open.spotify.com/playlist/...`-Link. Keine Fremdserver-Links.
+- **Vor dem Speichern:** Bestätigungsdialog, klare Meldungen bei ungültigen Links,
+  Doppelklick-Sperre und verständlicher Bericht über Teilfehler.
+- **Große Sammlungen:** Spotify erhält maximal 100 Titel pro API-Anfrage in
+  Originalreihenfolge. Doppelte/ungültige URIs werden übersprungen. Nach einem
+  API-Fehler gibt es bewusst keine automatische Wiederholung (Duplikatrisiko).
+- **Berechtigungen:** Der angemeldete Spotify-Client muss das Hinzufügen zu dieser
+  Playlist erlauben. Fehlen Playlist-Schreibrechte, wird eine Fehlermeldung
+  angezeigt. Der direkte Spotify-Client-Praxistest steht noch aus.
+- **Unverändert:** Nebula Engines, Visualizer, Presets, lokale Bibliothek.
+
+## v1.59.0 – Favoriten und Hörverlauf gemeinsam bearbeiten
+
+- **Sichtbare neue Funktionen:** Titel einzeln per Checkbox markieren, die aktuelle Seite
+  oder alle Suchtreffer wählen und die Auswahl über mehrere Seiten behalten.
+- **Favoriten:** Markierte Titel nach Bestätigung gesammelt entfernen oder in der
+  ursprünglichen Reihenfolge zur Spotify-Warteschlange hinzufügen.
+- **Hörverlauf:** Mehrere Titel auf einmal als Favoriten speichern oder einreihen;
+  mehrfach gehörte Titel werden bei diesen Aktionen nur einmal verarbeitet.
+- **Sicherheit:** Höchstens ein geprüfter Bibliotheks-Schreibvorgang pro Sammelaktion.
+  Bestehende Favoriten werden bei Erreichen der Grenze von 250 nicht verdrängt.
+  Die Spotify-Queue nutzt weiterhin 25er-Blöcke ohne riskante automatische Retries.
+- **Bedienung:** Tastaturbedienbare Checkboxen, lokale Übersetzungen, Statusmeldungen,
+  Teilerfolg bei API-Fehlern und Schutz gegen Doppelklicks.
+- **Unverändert:** Visualizer, Wallpaper Engines, Presets und alle gespeicherten Daten.
+
+## v1.58.0 – Zuverlässiger Sleep-Timer auch bei Player-Ausfällen
+
+- **Deadline bleibt erhalten:** Falls Spotify beim Ablauf die Pause-Aktion synchron ablehnt oder ein Promise zurückweist, wird der Timer nicht mehr vorzeitig gelöscht.
+- **Kontrollierter Wiederholungsversuch:** Nach einem Player-Fehler erfolgt der nächste Pause-Versuch frühestens nach fünf Sekunden. Fokus-/Sichtbarkeitsereignisse dürfen diese Wartezeit nicht umgehen.
+- **Schutz bei Timerwechseln:** Ein verspätetes Ergebnis eines alten Pause-Aufrufs kann keinen inzwischen neu gestarteten oder abgebrochenen Timer löschen. Stop entfernt alle geplanten Retries. Ein vorübergehender Storage-Lesefehler beim Modul-Neustart löscht eine noch im Arbeitsspeicher bekannte Deadline nicht.
+- **Regressionstests:** Synchroner Player-Fehler, asynchrone Ablehnung, parallele Timeränderung und Modul-Shutdown werden in der echten Modul-Runtime nachgestellt. Visualizer und Wallpaper bleiben unverändert.
+
+## v1.57.0 – Robuste Kontextaktionen und Lautstärke-Steuerung
+
+- **Einheitliche Spotify-IDs:** Die Lesezeichen- und Kopier-Menüs akzeptieren nur gültige 22-stellige Titel-/Episoden-IDs. Offizielle `open.spotify.com`-Links werden in dieselbe URI umgewandelt. Alben und Playlists werden nicht versehentlich übernommen.
+- **Zwischenablage:** Wenn die moderne Browser-Clipboard-API nicht verfügbar ist, wird ein kontrollierter DOM-Fallback versucht. Er entfernt sein temporäres Eingabefeld, stellt den Fokus wieder her und meldet Erfolg erst nach tatsächlich bestätigtem Kopiervorgang.
+- **Lautstärke per Mausrad:** Keine ungültigen Werte (`NaN`) mehr; Browser-Zoom, Fremdscrollen und schon behandelte Events bleiben unangetastet. Ausfälle der Spotify-Player-API werden abgefangen.
+- **Regressionstests:** Die echten Kontextmenü- und Wheel-Callbacks werden mit simulierten Spotify- und Browser-APIs ausgeführt. Visualizer und Wallpaper-Dateien wurden nicht verändert.
+
+## v1.56.0 – Sichere Workspace- und Kontextaktionen
+
+- Die Aktion „Merken“ im Hörverlauf ist idempotent: Ein bereits gespeicherter Favorit wird nicht mehr versehentlich entfernt.
+- Dashboard, Favoriten, Hörverlauf und Spotify-Kontextmenü zeigen Storage-Fehler an, ohne einen Erfolg vorzutäuschen. Ein fehlgeschlagenes Löschen setzt auch die Seitennavigation nicht zurück.
+- Aktionen in Titellisten fangen synchrone und asynchrone Ausnahmen ab. Fehlermeldungen sind lokalisiert.
+- Extension-Meldungen funktionieren auch, wenn Spotifys Einstellungs-Storage nicht erreichbar ist.
+- Bestehende Daten, Visualizer und Nebula Engines bleiben unverändert.
+
+## v1.55.0 – Schutz lokaler Sammlungen bei Storage-Ausfällen
+
+- Mutationen an Favoriten, Hörverlauf und Song-Notizen brechen bei einem fehlgeschlagenen Lesezugriff ab, statt die Daten durch eine leere Sammlung zu ersetzen.
+- Backup-Export und Rollback-Vorbereitung verwenden einen strikten Speicherzugriff; fehlgeschlagene Exporte werden angezeigt.
+- Favoriten-Aktionen lesen ihre Daten nur noch einmal pro Änderung und behandeln Speicherfehler sichtbar.
+
+## v1.54.0 – Konfliktfreie Änderungen der Moduleinstellungen
+
+- **Schnelle Moduländerungen:** Beim Aktivieren, Deaktivieren, Umbenennen oder Sortieren eines Moduls
+  wird vor dem Speichern der aktuell persistierte Stand eingelesen. Zwei Aktionen
+  vor dem nächsten React-Render überschreiben sich dadurch nicht mehr.
+- **Tastenkürzel:** Aufnahme, Entfernen und Wiederherstellen prüfen die zuletzt
+  gespeicherten Belegungen – nicht nur den Stand beim Öffnen der Einstellungsseite.
+  Dadurch bleiben parallele Änderungen erhalten und neue Konflikte werden erkannt.
+- **Regressionen:** Drei Laufzeitprüfungen führen echte TSX-Eventhandler aus,
+  darunter zwei Änderungen ohne dazwischenliegenden Render-Zyklus.
+- **Unverändert:** Wallpaper, Visualizer, Presets, Nebula Engines und vorhandene Daten.
 
 ## Große Titelsammlungen (v1.49.0)
 
@@ -271,7 +343,7 @@ Nebula-Engine-Projekte aus v1.36 bleiben unverändert.
 
 Entpacke das vollständige Spotify-ZIP in deinen Workspace; die vorhandene
 Installation und deine gespeicherten Wallpaper-Szenen nicht löschen.
-Auch für v1.49.0 müssen die beiden Nebula-Wallpaper-Quellprojekte **nicht** neu
+Auch für v1.50.0 müssen die beiden Nebula-Wallpaper-Quellprojekte **nicht** neu
 importiert werden. Die zuvor funktionierenden Szenen bleiben bestehen.
 
 ```bash
@@ -577,3 +649,65 @@ Spotify-Desktop-Abnahme muss auf dem Zielrechner erfolgen.
 - Entwürfe bleiben bei fehlschlagenden `sessionStorage`-Schreibzugriffen im Arbeitsspeicher erhalten und werden nicht von älteren Speicherständen überschrieben.
 - Neue Entwürfe erkennen geänderte Notiztexte auch bei unverändertem Update-Zeitstempel.
 - Mehrfache Notizen und Favoriten-URIs aus älteren Backups werden beim Lesen zusammengeführt; bei Notizen gewinnt der neuere Zeitstempel.
+
+
+## v1.50.0 – Sicherer Backup-Import
+
+- JSON-Backups werden **vor jeder Änderung** auf vollständige Einstellungs- und
+  Bibliotheksblöcke geprüft. Beschädigte Sammlungen, Presets und Song-Szenen
+  werden nicht stillschweigend durch leere Listen ersetzt.
+- Die Sicherheitsabfrage zeigt die Anzahl von Verlaufseinträgen, Favoriten,
+  Notizen, Presets und Song-Szenen und weist auf fehlende Mediendateien hin.
+- Schnelle doppelte Importversuche werden verhindert. Größere legitime Backups
+  sind bis 10 MB zulässig; bereits vorhandene Sicherungen bleiben kompatibel.
+- **Vor dem Import zuerst den bisherigen Stand exportieren.** JSON-Sicherungen
+  enthalten weiterhin keine HTML-Wallpapers, Videos oder LRC-Mediendateien.
+- Testlauf: `npm run check && npm test`. Die Tests ersetzen keine Spotify-
+  Desktop-Prüfung.
+
+
+## v1.51.0 – Backup-Schutz gegen stilles Abschneiden
+
+- Bei einer Wiederherstellung mit mehr Daten als zulässig (500 Hörverlaufseinträge,
+  250 Favoriten, 250 Notizen, acht Presets, 100 Song-Szenen oder zu großen
+  Wallpaper-Playlists) wird der Import **vor dem ersten Schreibzugriff abgelehnt**.
+  Eine unbemerkt gekürzte Sicherung ist damit nicht mehr möglich.
+- Überlange Spotify-URIs, Metadaten und Notiztexte sowie doppelte Preset-IDs
+  und Song-Szenen werden vor dem Restore erkannt.
+- Die Importabfrage zeigt **bisherige → neue** Datenmengen. Fehlen ältere
+  optionale Blöcke, wird ausdrücklich **„bleibt erhalten“** angezeigt.
+- Ein altes Backup ohne Farbpalette verändert die bisherige Palette nicht.
+- Der Visualizer, Audiofreigaben und die Nebula-Engines wurden nicht geändert.
+- Prüfung: `npm run check` und `npm test`; zusätzlich Browser-/Praxistests
+  durchführen, bevor ältere Sicherungen in produktiven Profilen importiert werden.
+
+## v1.52.0 – Bedienung der Einstellungen und Schnellsuche
+
+- Die Einstellungen merken sich innerhalb der laufenden Spotify-Sitzung den
+  zuletzt besuchten Unterbereich. Beim Zurückkehren aus einem anderen Modul
+  landet man nicht mehr zwangsweise in der Übersicht.
+- Die sechs Einstellungsbereiche sind zusätzlich mit Pfeiltasten (auch horizontal),
+  Pos1/Home und Ende/End navigierbar. Der Tastaturfokus wandert zur gewählten
+  Schaltfläche; diese Bedienung funktioniert auch ohne Maus.
+- `Strg+Umschalt+F` öffnet die Schnellsuche nur, wenn keine Texteingabe, ein
+  fremder Dialog, ein wiederholter Tastenanschlag oder eine bereits verarbeitete
+  Tastaturaktion dazwischenfunkt. Escape schließt die Schnellsuche weiterhin.
+- Acht Regressionstests prüfen Zustandsspeicherung, gesperrten Storage,
+  Navigation, Modifikatoren und die Einbindung in die Oberfläche.
+
+## v1.53.0 – Modulsortierung und Tastenkürzel-Aufnahme
+
+- Eine Sortierposition in den Moduleinstellungen wird erst beim Verlassen
+  des Feldes gespeichert. Leere Zwischenwerte lösen keinen ungewollten Reset
+  mehr aus. Erlaubt sind nur ganze Zahlen von 0 bis 10000.
+- `Enter` bestätigt den neuen Wert, `Escape` verwirft die Eingabe.
+  Ungültige Werte lassen die vorherige gespeicherte Position unverändert.
+- Wenn eine neue Tastenkombination bereits belegt ist, bleibt die Aufnahme offen.
+  Es kann sofort eine andere Kombination eingegeben werden, ohne erneut auf
+  „Bearbeiten“ klicken zu müssen.
+- Die Aufnahme besitzt außerdem einen sichtbaren „Aufnahme abbrechen“-Button;
+  `Escape` bleibt als Abbruchweg erhalten. Beim Abbruch wird nichts überschrieben.
+- Zehn neue Regressionstests prüfen Grenzwerte, ungültige Eingaben und die
+  tatsächlichen Shortcut-Eventhandler für Konflikt, erneuten Versuch und Abbruch.
+- Visualizer, Wallpaper und gespeicherte Presets bleiben unverändert.
+  Das Release-ZIP enthält keine zusätzlichen TXT-Dateien.

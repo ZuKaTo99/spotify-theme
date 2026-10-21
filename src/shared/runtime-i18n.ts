@@ -7,6 +7,13 @@ import { loadSettings } from "./settings";
 
 /** Settings live lesen, damit ein Sprachwechsel keinen Extension-Neustart erfordert. */
 export function runtimeText(key: TranslationKey, parameters?: TranslationParameters): string {
-  const translator = createTranslator(resolveLocale(loadSettings().locale));
-  return translator(key, parameters);
+  // Eine Fehlermeldung wird gerade bei defektem Spotify-Storage gebraucht.
+  // Die Übersetzung darf deshalb nicht selbst am Storage-Lesezugriff scheitern.
+  let locale: "auto" | "de" | "en" = "auto";
+  try {
+    locale = loadSettings().locale;
+  } catch (error) {
+    console.warn("[ZuKaTo] Sprache konnte nicht gelesen werden; Browser-Sprache wird verwendet.", error);
+  }
+  return createTranslator(resolveLocale(locale))(key, parameters);
 }

@@ -141,8 +141,14 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
           <button type="button" onClick={onOpenQuick}>{t("quick.open")}</button>
           <button type="button" disabled={!track} aria-pressed={isFavorite} onClick={() => {
             if (track) {
-              toggleFavorite(track);
-              setMessage(isFavorite ? t("dashboard.removedFavorite") : t("dashboard.savedFavorite"));
+              try {
+                const nowFavorite = toggleFavorite(track);
+                // Der Status wird erst nach erfolgreichem Schreiben angezeigt.
+                setMessage(nowFavorite ? t("dashboard.savedFavorite") : t("dashboard.removedFavorite"));
+              } catch (error) {
+                console.error("[ZuKaTo] Dashboard-Favorit konnte nicht gespeichert werden", error);
+                setMessage(t("library.actionFailed"));
+              }
             }
           }}>{isFavorite ? t("dashboard.removeFavorite") : t("dashboard.saveFavorite")}</button>
         </div>

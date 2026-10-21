@@ -34,6 +34,7 @@ import {
 } from "./components/ModulePage";
 import { QuickTrackPanel } from "./components/QuickTrackPanel";
 import { readWorkspaceFeature, rememberWorkspaceFeature, resolveWorkspaceFeature } from "../shared/workspace-navigation";
+import { shouldToggleQuickTrackPanel } from "../shared/workspace-shortcuts";
 
 import {
   useSettings,
@@ -82,9 +83,10 @@ export function App(): ReactElement {
   // Optionaler Shortcut: Ctrl+Shift+F; Standard-Spotify-Suche nicht überschreiben.
   ReactRuntime.useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.ctrlKey && event.shiftKey && !event.altKey && event.code === "KeyF") {
-        event.preventDefault(); setQuickOpen((open) => !open);
-      }
+      // Keine Eingabefelder, Fremddialoge oder wiederholten Tastendrücke stören.
+      if (!shouldToggleQuickTrackPanel(event)) return;
+      event.preventDefault();
+      setQuickOpen((open) => !open);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

@@ -60,6 +60,24 @@
   .zukato-collection__pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
     gap: 12px; margin: 4px 0 0; }
   .zukato-collection__pages span { font-size: 13px; color: var(--spice-subtext, #aaa); }
+  /* Mehrfachbearbeitung: kein überlagerndes Menü, auch per Tastatur bedienbar. */
+  .zukato-bulk { display: grid; gap: 10px; padding: 14px;
+    background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 12px; }
+  .zukato-bulk__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+  .zukato-bulk__controls strong { margin-right: auto; }
+  .zukato-bulk__feedback { margin: 0; font-size: 13px; color: var(--spice-subtext, #bbb); }
+  .zukato-bulk__destructive { border-color: #b34b5d; }
+  /* Ziel-Playlist bleibt im normalen Dokumentfluss und nutzt vorhandene Theme-Tokens. */
+  .zukato-playlist-destination { display: grid; gap: 8px; min-width: 0; margin: 8px 0;
+    padding: 13px; border: 1px solid var(--zukato-border); border-radius: 10px; }
+  .zukato-playlist-destination label { margin: 0; }
+  .zukato-playlist-destination__row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+  .zukato-playlist-destination__row input { flex: 1 1 260px; min-width: 0; }
+  .zukato-playlist-destination small { color: var(--spice-subtext, #a7a7a7); }
+  .zukato-playlist-destination .zukato-error { color: #fb7185; }
+  .zukato-playlist-destination p { margin: 0; }
+  .zukato-track__select { display: flex; align-items: center; margin: 0; padding: 8px; cursor: pointer; }
+  .zukato-track__select input { accent-color: var(--zukato-accent); width: 17px; height: 17px; cursor: pointer; }
   .zukato-track { display: flex; justify-content: space-between; align-items: center; gap: 12px;
     padding: 12px 15px; background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 12px; }
   .zukato-track__info { min-width: 0; display: flex; flex: 1; flex-direction: column; overflow-wrap: anywhere; }

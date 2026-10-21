@@ -20,6 +20,19 @@ function searchable(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim();
 }
 
+/** Gibt die gesamte Trefferliste zurück (nicht nur die aktuelle Seite).
+ * Wird für explizite Mehrfachauswahl über alle Ergebnisse benötigt. */
+export function filterCollection<T extends TrackInfo>(
+  entries: readonly T[], search: string, extraSearchText?: (entry: T) => string,
+): T[] {
+  const terms = searchable(search).split(/\s+/).filter(Boolean);
+  if (!terms.length) return entries.slice();
+  return entries.filter((entry) => {
+    const content = searchable(`${entry.title} ${entry.artist} ${entry.album} ${extraSearchText?.(entry) ?? ""}`);
+    return terms.every((term) => content.includes(term));
+  });
+}
+
 /**
  * Erst filtern, dann Seiten einteilen. Der ursprüngliche Speicher bleibt
  * unverändert und alle gefundenen Titel bleiben über Seiten erreichbar.
@@ -31,11 +44,7 @@ export function collectionPage<T extends TrackInfo>(
   /** Zusätzlicher lokaler Suchtext, z. B. der Inhalt gespeicherter Notizen. */
   extraSearchText?: (entry: T) => string,
 ): CollectionPage<T> {
-  const terms = searchable(search).split(/\s+/).filter(Boolean);
-  const filtered = terms.length ? entries.filter((track) => {
-    const haystack = searchable(`${track.title} ${track.artist} ${track.album} ${extraSearchText?.(track) ?? ""}`);
-    return terms.every((term) => haystack.includes(term));
-  }) : entries;
+  const filtered = filterCollection(entries, search, extraSearchText);
   // Ungültige/übergroße Seitenwerte dürfen niemals die Listen zerstören.
   const size = Number.isSafeInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : COLLECTION_PAGE_SIZE;
   const total = filtered.length;

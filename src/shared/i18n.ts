@@ -90,6 +90,9 @@ const germanTranslations = {
   "shortcuts.pressKeys":
     "Drücke jetzt die gewünschte Tastenkombination.",
 
+  "shortcuts.cancel":
+    "Aufnahme abbrechen",
+
   "shortcuts.reset":
     "Zurücksetzen",
 
@@ -178,6 +181,7 @@ const germanTranslations = {
   'history.confirm': 'Lokalen Hörverlauf wirklich löschen?',
   'history.empty': 'Noch keine Titel aufgezeichnet. Aktiviere die Erweiterung Player-Statistiken.',
   'history.remember': '☆ Merken',
+  'library.actionFailed': 'Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.',
   'stats.intro': 'Statistik über lokal aufgezeichnete Titelwechsel, nicht über den vollständigen Spotify-Verlauf.',
   'stats.changes': 'Titelwechsel',
   'stats.unique': 'Verschiedene Titel',
@@ -192,6 +196,35 @@ const germanTranslations = {
   'favorites.empty': 'Noch keine Favoriten gespeichert.',
 
   // Lokale Suche und barrierefreie Seitenbedienung großer Sammlungen.
+  // Mehrfachbearbeitung über Suchergebnisse und Seiten hinweg.
+  // Spotify-Playlist-Export: ausdrücklich bestätigt, keine stillen Mutationen.
+  'playlistTransfer.heading': "In Spotify-Playlist übertragen",
+  'playlistTransfer.description': "Alle lokalen Favoriten in eine bestehende Spotify-Playlist übernehmen.",
+  'playlistTransfer.destination': "Spotify-Playlist-Link oder URI",
+  'playlistTransfer.hint': "Nur Playlists, die du bearbeiten darfst. Keine automatische Änderung ohne Bestätigung.",
+  'playlistTransfer.add': "{count} ausgewählte Titel hinzufügen",
+  'playlistTransfer.confirm': "{count} Titel wirklich zur Spotify-Playlist hinzufügen?",
+  'playlistTransfer.invalid': "Bitte einen gültigen Spotify-Playlist-Link eingeben.",
+  'playlistTransfer.working': "Übertrage …",
+  'playlistTransfer.success': "{count} Titel zur Playlist hinzugefügt.",
+  'playlistTransfer.skipped': "{count} ungültige oder doppelte Titel übersprungen.",
+  'playlistTransfer.partial': "{count} von {total} Titeln bestätigt. Übertragung gestoppt; nicht blind erneut senden.",
+  'playlistTransfer.failed': "Übertragung fehlgeschlagen. Playlist-Berechtigung und Spotify-Verbindung prüfen; ein unbestätigter Request kann angekommen sein.",
+  'bulk.selectPage': 'Seite auswählen',
+  'bulk.selectResults': 'Alle Treffer auswählen',
+  'bulk.clearSelection': 'Auswahl aufheben',
+  'bulk.selectTrack': 'Titel auswählen',
+  'bulk.selected': '{count} Titel ausgewählt',
+  'bulk.queue': 'Auswahl einreihen',
+  'bulk.save': 'Als Favoriten merken',
+  'bulk.remove': 'Auswahl entfernen',
+  'bulk.confirmRemove': '{count} ausgewählte Favoriten wirklich entfernen?',
+  'bulk.removed': '{count} Favoriten entfernt.',
+  'bulk.saved': '{count} Favoriten hinzugefügt, {skipped} übersprungen.',
+  'bulk.queued': '{count} Titel eingereiht.',
+  'bulk.skipped': '{count} ungültige Titel übersprungen.',
+  'bulk.failed': 'Sammelaktion fehlgeschlagen. Daten wurden nicht als Erfolg gemeldet.',
+  'bulk.partial': '{count} von {total} Titeln eingereiht. Weitere Titel wurden nach einem API-Fehler nicht gesendet.',
   'collection.filter': 'Liste durchsuchen',
   'collection.placeholder': 'Titel, Künstler oder Album',
   'collection.results': '{count} Treffer',
@@ -213,7 +246,7 @@ const germanTranslations = {
   'notes.savedCount': 'Gespeicherte Notizen ({count})',
   'notes.edit': 'Bearbeiten',
   'notes.searchPlaceholder': 'Titel, Künstler, Album oder Notiztext',
-  'playlist.intro': 'Sicherer Warteschlangen-Helfer. Bestehende Spotify-Playlists werden nicht verändert.',
+  'playlist.intro': 'Warteschlange und Übertragung in bestehende Spotify-Playlists. Änderungen an Playlists nur nach deiner Bestätigung.',
   'playlist.current': 'Aktuellen Titel einreihen',
   'playlist.allFavorites': 'Alle {count} Favoriten einreihen',
   'playlist.label': 'Spotify-URI eines Titels / einer Episode',
@@ -722,6 +755,9 @@ const englishTranslations:
   "shortcuts.pressKeys":
     "Press the desired key combination now.",
 
+  "shortcuts.cancel":
+    "Cancel recording",
+
   "shortcuts.reset":
     "Reset",
 
@@ -810,6 +846,7 @@ const englishTranslations:
   'history.confirm': 'Permanently delete the local listening history?',
   'history.empty': 'No tracks recorded yet. Enable the Player Statistics extension.',
   'history.remember': '☆ Save',
+  'library.actionFailed': 'Could not save changes. Please try again.',
   'stats.intro': 'Statistics from locally recorded track changes, not your full Spotify history.',
   'stats.changes': 'Track changes',
   'stats.unique': 'Unique tracks',
@@ -824,6 +861,35 @@ const englishTranslations:
   'favorites.empty': 'No favorites saved yet.',
 
   // Local search and accessible pagination for large collections.
+  // Bulk management across pages and filtered results.
+  // Spotify-Playlist-Export: ausdrücklich bestätigt, keine stillen Mutationen.
+  'playlistTransfer.heading': "Add to Spotify playlist",
+  'playlistTransfer.description': "Transfer all local favorites to an existing Spotify playlist.",
+  'playlistTransfer.destination': "Spotify playlist link or URI",
+  'playlistTransfer.hint': "Only playlists you can edit. Nothing is changed without confirmation.",
+  'playlistTransfer.add': "Add {count} selected tracks",
+  'playlistTransfer.confirm': "Add {count} tracks to the Spotify playlist?",
+  'playlistTransfer.invalid': "Enter a valid Spotify playlist link.",
+  'playlistTransfer.working': "Transferring…",
+  'playlistTransfer.success': "Added {count} tracks to the playlist.",
+  'playlistTransfer.skipped': "Skipped {count} invalid or duplicate tracks.",
+  'playlistTransfer.partial': "Confirmed {count} of {total} tracks. Transfer stopped; do not blindly retry.",
+  'playlistTransfer.failed': "Transfer failed. Check playlist permissions and Spotify connection; an unconfirmed request may have succeeded.",
+  'bulk.selectPage': 'Select page',
+  'bulk.selectResults': 'Select all results',
+  'bulk.clearSelection': 'Clear selection',
+  'bulk.selectTrack': 'Select track',
+  'bulk.selected': '{count} tracks selected',
+  'bulk.queue': 'Queue selected',
+  'bulk.save': 'Save as favorites',
+  'bulk.remove': 'Remove selected',
+  'bulk.confirmRemove': 'Remove {count} selected favorites?',
+  'bulk.removed': '{count} favorites removed.',
+  'bulk.saved': '{count} favorites added, {skipped} skipped.',
+  'bulk.queued': '{count} tracks queued.',
+  'bulk.skipped': '{count} invalid entries skipped.',
+  'bulk.failed': 'Bulk action failed. No success was reported.',
+  'bulk.partial': '{count} of {total} tracks queued. Remaining tracks were not sent after an API error.',
   'collection.filter': 'Filter tracks',
   'collection.placeholder': 'Track, artist or album',
   'collection.results': '{count} results',
@@ -845,7 +911,7 @@ const englishTranslations:
   'notes.savedCount': 'Saved notes ({count})',
   'notes.edit': 'Edit',
   'notes.searchPlaceholder': 'Track, artist, album or note text',
-  'playlist.intro': 'Queue tools. Existing Spotify playlists will not be modified.',
+  'playlist.intro': 'Queue tools and transfer into existing Spotify playlists. Playlists are only changed after confirmation.',
   'playlist.current': 'Queue current track',
   'playlist.allFavorites': 'Queue all {count} favorites',
   'playlist.label': 'Spotify URI for a track / episode',

@@ -202,11 +202,11 @@ function contextFixture(source, name) {
 test('Kontextmenü: gemischte URI-Auswahl merkt nur gültige Tracks/Episoden', async () => {
   const code = await read('../src/extension/modules/context-actions/ContextActionsModule.ts');
   const x = contextFixture(code, 'contextActionsModule');
-  const uris = ['spotify:playlist:BAD123', 'spotify:track:VALID123'];
+  const uris = ['spotify:playlist:BAD123', `spotify:track:${'A'.repeat(22)}`];
   assert.equal(x.contextMenu.predicate(uris), true);
   x.contextMenu.callback(uris);
   assert.equal(x.favorites.length, 1);
-  assert.equal(x.favorites[0].uri, 'spotify:track:VALID123');
+  assert.equal(x.favorites[0].uri, `spotify:track:${'A'.repeat(22)}`);
   assert.equal(x.contextMenu.predicate(['spotify:track:INVALID!']), false);
   x.contextMenu.callback(['spotify:track:INVALID!']);
   assert.equal(x.favorites.length, 1);
@@ -217,10 +217,10 @@ test('Kontextmenü: gemischte URI-Auswahl merkt nur gültige Tracks/Episoden', a
 test('Kopieren: gemischte Kontextauswahl kopiert nicht die fremde Playlist-URI', async () => {
   const code = await read('../src/extension/modules/copy-track-info/CopyTrackInfoModule.ts');
   const x = contextFixture(code, 'copyTrackInfoModule');
-  assert.equal(x.contextMenu.predicate(['spotify:album:ABC', 'spotify:episode:EP123']), true);
-  x.contextMenu.callback(['spotify:album:ABC', 'spotify:episode:EP123']);
+  assert.equal(x.contextMenu.predicate(['spotify:album:ABC', `spotify:episode:${'E'.repeat(22)}`]), true);
+  x.contextMenu.callback(['spotify:album:ABC', `spotify:episode:${'E'.repeat(22)}`]);
   await Promise.resolve();
-  assert.deepEqual(x.clipboard, ['spotify:episode:EP123']);
+  assert.deepEqual(x.clipboard, [`spotify:episode:${'E'.repeat(22)}`]);
   x.runtime.stop();
 });
 

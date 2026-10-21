@@ -2,7 +2,9 @@
 // Datei: src/custom-app/modules/settings/FeatureManager.tsx
 // Zweck: Verwaltet Aktivierung, Anzeigenamen und Sortierung aller registrierten Features.
 // =============================================================================
-import type { ChangeEvent, ReactElement } from "react";
+import type { ChangeEvent, KeyboardEvent, ReactElement } from "react";
+import { parseFeatureOrderDraft } from "../../../shared/feature-order";
+import { loadSettings } from "../../../shared/settings";
 
 // Verwendet die Spotify-eigene React-Laufzeit für kontrollierte Entwurfsfelder.
 const ReactRuntime = Spicetify.React as typeof import("react");
@@ -62,6 +64,9 @@ export function FeatureManager(
 ): ReactElement {
   // Werte werden beim Tippen nicht sofort normalisiert, damit Leerzeichen erhalten bleiben.
   const [titleDrafts, setTitleDrafts] = ReactRuntime.useState<Partial<Record<FeatureId, string>>>({});
+  // Sortierwerte bleiben beim Tippen lokal: ein leeres Zwischenfeld ist KEIN
+  // Befehl, den bisherigen Wert durch den Standardwert zu ersetzen.
+  const [orderDrafts, setOrderDrafts] = ReactRuntime.useState<Partial<Record<FeatureId, string>>>({});
 
   const groups: readonly FeatureGroup[] = [
     {
@@ -85,15 +90,17 @@ export function FeatureManager(
       FeaturePreferences[FeatureId]
     >,
   ): void {
-    const currentPreference =
-      props.features[featureId];
+    // props.features ist ein Snapshot des letzten React-Renders. Zwei schnelle
+    // Änderungen an verschiedenen Modulen können vor dem nächsten Render
+    // passieren. Immer den aktuell persistierten Stand einlesen, damit die
+    // zweite Änderung die erste nicht durch einen alten Snapshot überschreibt.
+    const currentFeatures = loadSettings().features;
 
     props.onChange({
       features: {
-        ...props.features,
-
+        ...currentFeatures,
         [featureId]: {
-          ...currentPreference,
+          ...currentFeatures[featureId],
           ...changes,
         },
       },
@@ -148,17 +155,34 @@ export function FeatureManager(
       setTitleDrafts((previous) => ({ ...previous, [definition.id]: event.target.value }));
     }
 
-    // Speichert die numerische Sortierposition eines Features.
-    function handleOrderChange(
-      event: ChangeEvent<HTMLInputElement>,
-    ): void {
-      updateFeature(
-        definition.id,
-        {
-          order:
-            event.target.valueAsNumber,
-        },
-      );
+    // Eingabe NICHT sofort persistieren: beim Leeren liefert valueAsNumber
+    // NaN und die Normalisierung würde die Position ungewollt zurücksetzen.
+    function handleOrderChange(event: ChangeEvent<HTMLInputElement>): void {
+      setOrderDrafts((previous) => ({ ...previous, [definition.id]: event.target.value }));
+    }
+
+    // Erst beim Verlassen des Feldes eine gültige Position übernehmen.
+    // Ungültige Zwischenwerte werden verworfen, der gespeicherte Wert bleibt.
+    function handleOrderBlur(event: import("react").FocusEvent<HTMLInputElement>): void {
+      const order = parseFeatureOrderDraft(event.currentTarget.value);
+      if (order !== null && order !== preference.order) {
+        updateFeature(definition.id, { order });
+      }
+      setOrderDrafts((previous) => {
+        const next = { ...previous };
+        delete next[definition.id];
+        return next;
+      });
+    }
+
+    // Enter bestätigt, Escape verwirft den Entwurf ohne Storage-Schreibzugriff.
+    function handleOrderKey(event: KeyboardEvent<HTMLInputElement>): void {
+      if (event.key === "Enter") event.currentTarget.blur();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.currentTarget.value = String(preference.order);
+        event.currentTarget.blur();
+      }
     }
 
     return (
@@ -202,8 +226,10 @@ export function FeatureManager(
           </div>
           <div className="zukato-feature__field">
             <label htmlFor={orderId}>{props.t("modules.order")}</label>
-            <input id={orderId} type="number" min={0} max={10000} step={10}
-              value={preference.order} onChange={handleOrderChange} />
+            <input id={orderId} type="number" min={0} max={10000} step={1}
+              value={orderDrafts[definition.id] ?? String(preference.order)}
+              onChange={handleOrderChange} onBlur={handleOrderBlur}
+              onKeyDown={handleOrderKey} />
           </div>
         </details>
       </article>

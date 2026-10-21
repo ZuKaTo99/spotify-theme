@@ -58,7 +58,7 @@ function createSleepFixture(initial = null, options = {}) {
       Menu: { Item, SubMenu },
       Platform: { LocalStorageAPI: { getItem: (key) => { if (options.failRead) throw new Error("Profil gesperrt"); return storage.get(key); },
         setItem: (key, value) => { if (options.failWrite) throw new Error("Profil gesperrt"); storage.set(key, value); } } },
-      Player: { pause: () => { pauses++; } },
+      Player: { pause: () => { pauses++; return options.pause?.(pauses); } },
       showNotification: (text) => notifications.push(text),
     },
     window: {
@@ -225,5 +225,108 @@ test("Hörverlauf: fehlerhafter Speichervorgang wird beim nächsten Event wieder
   x.failWrites = false;
   x.emit("onplaypause");
   assert.equal(x.writes, 1);
+  x.module.stop();
+});
+
+// -----------------------------------------------------------------------------
+// v1.58: Regressionstests für fehlgeschlagene/asynchrone Pause-Aktionen.
+// Ein abgelaufener Timer darf erst nach bestätigtem Pause-Erfolg verschwinden.
+// -----------------------------------------------------------------------------
+test("Sleep-Timer: synchrone Player-Fehler behalten Deadline und versuchen erneut", () => {
+  const x = createSleepFixture(null, {
+    pause: (attempt) => { if (attempt === 1) throw new Error("Player gerade offline"); },
+  });
+  x.module.start();
+  x.menu.items[0].callback();
+  const expectedDeadline = x.storage.get("zukato-toolkit.sleep-until");
+  x.advance(15 * 60_000);
+  assert.equal(x.pauses, 1);
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), expectedDeadline);
+  assert.deepEqual([...x.scheduled.values()].map((item) => item.delay), [5000]);
+  x.focus();
+  assert.equal(x.pauses, 1, "Fokus darf den Backoff nicht umgehen");
+  x.advance(5000);
+  assert.equal(x.pauses, 2);
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), 0);
+  assert.equal(x.scheduled.size, 0);
+  assert.equal(x.notifications.filter((text) => text === "runtime.sleepPaused").length, 1);
+  x.module.stop();
+});
+
+test("Sleep-Timer: Promise-Rejection wird kontrolliert wiederholt", async () => {
+  let rejectPause;
+  const x = createSleepFixture(null, {
+    pause: (attempt) => attempt === 1
+      ? new Promise((_, reject) => { rejectPause = reject; }) : undefined,
+  });
+  x.module.start();
+  x.menu.items[0].callback();
+  x.advance(15 * 60_000);
+  x.focus();
+  assert.equal(x.pauses, 1, "Während einer offenen Pause nur ein Aufruf");
+  rejectPause(new Error("Spotify kurz nicht erreichbar"));
+  // Promise aus dem isolierten VM-Kontext erst bis zum nächsten Task auswerten.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(x.scheduled.size, 1);
+  x.advance(5000);
+  assert.equal(x.pauses, 2);
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), 0);
+  x.module.stop();
+});
+
+test("Sleep-Timer: verspätete Pause-Antwort löscht keinen neu gesetzten Timer", async () => {
+  let resolvePause;
+  const x = createSleepFixture(null, {
+    pause: (attempt) => attempt === 1
+      ? new Promise((resolve) => { resolvePause = resolve; }) : undefined,
+  });
+  x.module.start();
+  x.menu.items[0].callback();
+  x.advance(15 * 60_000);
+  x.menu.items[1].callback(); // Während der offenen Pause neuen 30-Minuten-Timer setzen.
+  const laterDeadline = x.storage.get("zukato-toolkit.sleep-until");
+  resolvePause();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), laterDeadline);
+  assert.equal(x.notifications.filter((text) => text === "runtime.sleepPaused").length, 0);
+  x.advance(30 * 60_000);
+  assert.equal(x.pauses, 2);
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), 0);
+  x.module.stop();
+});
+
+test("Sleep-Timer: Stop räumt Retry auf und ignoriert verspätete Promise-Antwort", async () => {
+  let rejectPause;
+  const x = createSleepFixture(null, {
+    pause: () => new Promise((_, reject) => { rejectPause = reject; }),
+  });
+  x.module.start();
+  x.menu.items[0].callback();
+  x.advance(15 * 60_000);
+  const saved = x.storage.get("zukato-toolkit.sleep-until");
+  x.module.stop();
+  rejectPause(new Error("Client beendet"));
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(x.scheduled.size, 0);
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), saved);
+  assert.equal(x.notifications.filter((text) => text === "runtime.sleepPaused").length, 0);
+});
+
+
+test("Sleep-Timer: Storage-Lesefehler nach Modul-Neustart erhält RAM-Deadline", () => {
+  const options = { failRead: false };
+  const x = createSleepFixture(null, options);
+  x.module.start();
+  x.menu.items[0].callback();
+  const saved = x.storage.get("zukato-toolkit.sleep-until");
+  x.module.stop();
+  options.failRead = true;
+  x.module.start();
+  assert.equal(x.storage.get("zukato-toolkit.sleep-until"), saved);
+  assert.equal(x.scheduled.size, 1, "Vorhandener Timer bleibt trotz Lesefehler aktiv");
+  x.advance(15 * 60_000);
+  assert.equal(x.pauses, 1);
   x.module.stop();
 });

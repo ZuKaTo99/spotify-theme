@@ -16,10 +16,11 @@ import { DataBackup } from "./DataBackup";
 import { WallpaperSettings } from "./WallpaperSettings";
 import { getEnabledFeaturesBySurface } from "../../../shared/features";
 import { useToolkitData } from "../../hooks/useToolkitData";
+import { nextSettingsSection, readSettingsSection, rememberSettingsSection, SETTINGS_SECTIONS, type SettingsSection } from "../../../shared/settings-navigation";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
-type SettingsView = "overview" | "general" | "wallpapers" | "modules" | "shortcuts" | "data";
+type SettingsView = SettingsSection;
 interface SettingsModuleProps {
   settings: AppSettings;
   t: Translator;
@@ -28,7 +29,24 @@ interface SettingsModuleProps {
 
 /** Nur der aktive Bereich ist im DOM – reduziert Ablenkung und unnötige Arbeit. */
 export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): ReactElement {
-  const [view, setView] = ReactRuntime.useState<SettingsView>("overview");
+  // Beim Wechsel zu anderen Workspace-Modulen den zuletzt besuchten Tab merken.
+  const [view, setView] = ReactRuntime.useState<SettingsView>(readSettingsSection);
+  function selectView(next: SettingsView): void {
+    rememberSettingsSection(next);
+    setView(next);
+  }
+
+  // Die vertikale Navigationsleiste ist auch vollständig per Tastatur nutzbar.
+  function onTabKey(event: import("react").KeyboardEvent<HTMLButtonElement>, id: SettingsView): void {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    const next = nextSettingsSection(id, event.key);
+    if (!next) return;
+    event.preventDefault();
+    selectView(next);
+    const index = SETTINGS_SECTIONS.indexOf(next);
+    const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button[data-settings-section]");
+    buttons?.[index]?.focus();
+  }
   const library = useToolkitData();
   const tabs: Array<{ id: SettingsView; title: string; description: string }> = [
     { id: "overview", title: t("settings.tabOverview"), description: t("settings.tabOverviewHelp") },
@@ -52,7 +70,10 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
       <nav className="zukato-preferences__tabs" aria-label={t("settings.heading")}>
         {tabs.map((item) => <button key={item.id} type="button"
           aria-current={view === item.id ? "page" : undefined}
-          className={view === item.id ? "is-current" : ""} onClick={() => setView(item.id)}>
+          className={view === item.id ? "is-current" : ""}
+          data-settings-section={item.id}
+          onKeyDown={(event) => onTabKey(event, item.id)}
+          onClick={() => selectView(item.id)}>
           {item.title}
         </button>)}
       </nav>
@@ -65,7 +86,7 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
           <WallpaperSettings t={t} simpleOnly />
           <div className="zukato-preferences__overview-grid">
             {tabs.filter((item) => item.id !== "overview").map((item) => <button type="button" key={item.id}
-              onClick={() => setView(item.id)}>
+              onClick={() => selectView(item.id)}>
               <strong>{item.title} <span aria-hidden="true">→</span></strong>
               <small>{item.description}</small>
             </button>)}
@@ -85,7 +106,7 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
         {view === "modules" && <FeatureManager features={settings.features} t={t} onChange={onChange} />}
         {view === "shortcuts" && <KeyboardShortcutsSettings
           keyboardShortcuts={settings.keyboardShortcuts} t={t} onChange={onChange}
-          onBack={() => setView("general")} />}
+          onBack={() => selectView("general")} />}
         {view === "data" && <DataBackup t={t} />}
       </div>
     </div>

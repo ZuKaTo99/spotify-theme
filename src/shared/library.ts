@@ -125,12 +125,34 @@ export function normalizeLibrary(value: unknown): ToolkitLibrary {
   };
 }
 
-/** Storage kann in Spotify-Versionen sowohl Objekte als auch Strings liefern. */
+/**
+ * Liest die Bibliothek ohne stillen Fallback. Für Schreibvorgänge und Backups
+ * darf ein temporärer API-Fehler niemals als "noch keine Daten" gelten:
+ * andernfalls würden Favoriten, Verlauf und Notizen überschrieben.
+ *
+ * Bei einer wirklich unbenutzten Installation liefert die API null/undefined
+ * (manche Spicetify-Versionen auch einen leeren String). Das ist sicher leer.
+ */
+export function loadLibraryStrict(): ToolkitLibrary {
+  const stored: unknown = Spicetify.Platform.LocalStorageAPI.getItem(LIBRARY_KEY);
+  if (stored === null || stored === undefined || stored === "") return emptyLibrary();
+  const parsed: unknown = typeof stored === "string" ? JSON.parse(stored) : stored;
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) ||
+      !Array.isArray((parsed as Record<string, unknown>).history) ||
+      !Array.isArray((parsed as Record<string, unknown>).favorites) ||
+      !Array.isArray((parsed as Record<string, unknown>).notes)) {
+    // Ein vorhandenes Objekt mit fehlenden oder falschen Listen ist KEINE
+    // leere Neuinstallation. Normalisieren und anschließendes Schreiben würde
+    // möglicherweise gespeicherte Sammlungen unwiederbringlich entfernen.
+    throw new Error("Bibliotheksdaten sind beschädigt und dürfen nicht überschrieben werden.");
+  }
+  return normalizeLibrary(parsed);
+}
+
+/** Die reine Anzeige bleibt bei kurzzeitig gestörtem Storage benutzbar. */
 export function loadLibrary(): ToolkitLibrary {
-  try {
-    const stored: unknown = Spicetify.Platform.LocalStorageAPI.getItem(LIBRARY_KEY);
-    return normalizeLibrary(typeof stored === "string" ? JSON.parse(stored) : stored);
-  } catch (error) {
+  try { return loadLibraryStrict(); }
+  catch (error) {
     console.warn("[ZuKaTo] Hörverlauf/Favoriten konnten nicht gelesen werden.", error);
     return emptyLibrary();
   }
@@ -146,7 +168,11 @@ export function saveLibrary(value: ToolkitLibrary): ToolkitLibrary {
 
 /** Änderungsfunktion verhindert versehentliches Überschreiben anderer Bereiche. */
 export function changeLibrary(edit: (previous: ToolkitLibrary) => ToolkitLibrary): ToolkitLibrary {
-  return saveLibrary(edit(loadLibrary()));
+  const previous = loadLibraryStrict();
+  const next = edit(previous);
+  // Idempotente Aktionen (z. B. bereits gemerkten Favoriten hinzufügen)
+  // dürfen keine überflüssigen Schreibzugriffe oder Change-Events auslösen.
+  return next === previous ? previous : saveLibrary(next);
 }
 
 /** Wird bei jedem neuen Titel einmal aufgerufen; derselbe URI darf später erneut vorkommen. */
@@ -161,26 +187,71 @@ export function recordTrack(info: TrackInfo, playedAt = Date.now()): void {
 /** Favoriten sind lokale ZuKaTo-Lesezeichen, nicht Spotifys Herz/Liked Songs. */
 export function toggleFavorite(info: TrackInfo): boolean {
   if (!track(info)) return false;
-  const exists = loadLibrary().favorites.some((entry) => entry.uri === info.uri);
-  changeLibrary((db) => ({
-    ...db,
-    favorites: exists
-      ? db.favorites.filter((entry) => entry.uri !== info.uri)
-      : [info, ...db.favorites].slice(0, MAX_FAVORITES),
-  }));
-  return !exists;
+  let added = false;
+  // Die Entscheidung und das Schreiben nutzen denselben geprüften Datenstand.
+  changeLibrary((db) => {
+    const exists = db.favorites.some((entry) => entry.uri === info.uri);
+    added = !exists;
+    return {
+      ...db,
+      favorites: exists
+        ? db.favorites.filter((entry) => entry.uri !== info.uri)
+        : [info, ...db.favorites].slice(0, MAX_FAVORITES),
+    };
+  });
+  return added;
 }
 
-/** Idempotentes Hinzufügen: zwei Klicks entfernen einen Favoriten nicht versehentlich. */
+/** Idempotentes Hinzufügen ohne getrennten, möglicherweise veralteten Lesezugriff. */
 export function addFavorite(info: TrackInfo): boolean {
   if (!track(info)) return false;
-  if (loadLibrary().favorites.some((entry) => entry.uri === info.uri)) return false;
-  changeLibrary((db) => ({
-    ...db,
-    favorites: db.favorites.some((entry) => entry.uri === info.uri)
-      ? db.favorites : [info, ...db.favorites].slice(0, MAX_FAVORITES),
-  }));
-  return true;
+  let added = false;
+  changeLibrary((db) => {
+    if (db.favorites.some((entry) => entry.uri === info.uri)) return db;
+    added = true;
+    return { ...db, favorites: [info, ...db.favorites].slice(0, MAX_FAVORITES) };
+  });
+  return added;
+}
+
+/** Entfernt ausschließlich ausdrücklich ausgewählte Favoriten in EINEM Schreibzugriff.
+ * Ein Storage-Fehler wirft weiter und darf niemals als erfolgreiche Löschung gelten. */
+export function removeFavoritesBatch(uris: readonly string[]): number {
+  const wanted = new Set(uris);
+  if (!wanted.size) return 0;
+  let removed = 0;
+  changeLibrary((db) => {
+    const remaining = db.favorites.filter((item) => !wanted.has(item.uri));
+    removed = db.favorites.length - remaining.length;
+    return removed ? { ...db, favorites: remaining } : db;
+  });
+  return removed;
+}
+
+export interface FavoritesBatchResult { added: number; skipped: number }
+
+/** Gemerkte Verlaufstitel in EINEM Schreibvorgang hinzufügen.
+ * Bestehende Favoriten werden nicht verdrängt, auch wenn 250 erreicht sind.
+ * Doppelte oder unzulässige Einträge werden übersprungen. */
+export function addFavoritesBatch(items: readonly TrackInfo[]): FavoritesBatchResult {
+  const result = { added: 0, skipped: 0 };
+  if (!items.length) return result;
+  changeLibrary((db) => {
+    const favorites = [...db.favorites];
+    const known = new Set(favorites.map((entry) => entry.uri));
+    for (const candidate of items) {
+      const normalized = track(candidate);
+      if (!normalized || known.has(normalized.uri) || favorites.length >= MAX_FAVORITES) {
+        result.skipped++;
+        continue;
+      }
+      known.add(normalized.uri);
+      favorites.push(normalized);
+      result.added++;
+    }
+    return result.added ? { ...db, favorites } : db;
+  });
+  return result;
 }
 
 /** Notizen werden pro Titel gespeichert, Leertext entfernt die vorhandene Notiz. */

@@ -25,6 +25,7 @@ import type {
   Translator,
 } from "../../../shared/i18n";
 
+import { loadSettings } from "../../../shared/settings";
 import type {
   KeyboardShortcutPreferences,
 } from "../../../shared/settings";
@@ -285,11 +286,15 @@ export function KeyboardShortcutsSettings({
         // ---------------------------------------------------------------------
         // Prüfen, ob eine andere Aktion dieselbe Kombination verwendet.
         // ---------------------------------------------------------------------
+        // Nicht den möglicherweise veralteten React-Prop verwenden: Beim
+        // schnellen Zurücksetzen/Aufnehmen zweier Shortcuts muss die
+        // Konflikterkennung die zuletzt gespeicherten Belegungen sehen.
+        const currentBindings = loadSettings().keyboardShortcuts;
         const conflictingActionId =
           findKeyboardShortcutConflict(
             actionId,
             codes,
-            keyboardShortcuts,
+            currentBindings,
           );
 
         // ---------------------------------------------------------------------
@@ -313,7 +318,7 @@ export function KeyboardShortcutsSettings({
         // ---------------------------------------------------------------------
         onChange({
           keyboardShortcuts: {
-            ...keyboardShortcuts,
+            ...currentBindings,
 
             [actionId]: {
               codes: [
@@ -333,7 +338,6 @@ export function KeyboardShortcutsSettings({
         return true;
       },
       [
-        keyboardShortcuts,
         onChange,
       ],
     );
@@ -433,18 +437,20 @@ export function KeyboardShortcutsSettings({
         //
         // applyBinding übernimmt auch die Konfliktprüfung.
         // ---------------------------------------------------------------------
-        applyBinding(
+        const saved = applyBinding(
           actionId,
           codes,
         );
 
-        // Temporären Aufnahmespeicher leeren.
+        // Immer die gerade gedrückten Tasten vergessen, damit ein zweiter
+        // Versuch nicht versehentlich Codes des Konflikts übernimmt.
         recordedCodesRef.current.clear();
 
-        // Aufnahme beenden.
-        setEditingActionId(
-          null,
-        );
+        // Bei Konflikten ist NICHTS gespeichert worden. Die Aufnahme bleibt
+        // offen, damit ohne erneuten Klick eine andere Kombination möglich ist.
+        if (saved) {
+          setEditingActionId(null);
+        }
       }
 
       // -----------------------------------------------------------------------
@@ -494,6 +500,16 @@ export function KeyboardShortcutsSettings({
     setEditingActionId(
       actionId,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bricht eine laufende Aufnahme ab; die bisherige Belegung bleibt bestehen.
+  // Auch mit der Maus / Screenreader erreichbar (nicht nur via Escape).
+  // ---------------------------------------------------------------------------
+  function handleCancel(): void {
+    recordedCodesRef.current.clear();
+    setConflict(null);
+    setEditingActionId(null);
   }
 
   // ---------------------------------------------------------------------------
@@ -654,11 +670,12 @@ export function KeyboardShortcutsSettings({
                   Während der Aufnahme werden die normalen Buttons ausgeblendet.
                   ----------------------------------------------------------- */}
               {isEditing ? (
-                <p>
-                  {t(
-                    "shortcuts.pressKeys",
-                  )}
-                </p>
+                <div>
+                  <p>{t("shortcuts.pressKeys")}</p>
+                  <button type="button" onClick={handleCancel}>
+                    {t("shortcuts.cancel")}
+                  </button>
+                </div>
               ) : (
                 <>
                   {/* ----------------------------------------------------------

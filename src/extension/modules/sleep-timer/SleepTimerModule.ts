@@ -8,16 +8,23 @@ import { normalizeSleepDeadline, sleepTimerNextDelayMs } from "./sleep-timer-pol
 import type { ExtensionModule } from "../ExtensionModule";
 
 const STORAGE_KEY = "zukato-toolkit.sleep-until";
+// Spotify kann beim Ablauf vorübergehend keine Pause-Aktion ausführen.
+// Statt den Auftrag zu verlieren, probieren wir nach einer kurzen Pause erneut.
+const PAUSE_RETRY_DELAY_MS = 5_000;
 let deadline = 0;
 let timeout: number | null = null;
 let menu: Spicetify.Menu.SubMenu | null = null;
 const items: Spicetify.Menu.Item[] = [];
 let lastMenuLabel = "";
+let pausePending = false;
+let retryNotBefore = 0;
+// Jede manuelle Timer-Änderung macht eine noch ausstehende Pause-Antwort ungültig.
+let timerRevision = 0;
 
 /** Aktualisiert das Menü nur dann, wenn sich die sichtbare Minutenzahl ändert. */
 function refreshMenu(): void {
   const minutes = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 60_000)) : 0;
-  const label = minutes ? `Restzeit: ${minutes} min` : "Kein Timer aktiv";
+  const label = deadline ? `Restzeit: ${minutes} min` : "Kein Timer aktiv";
   if (label !== lastMenuLabel) {
     items[4]?.setName(label);
     lastMenuLabel = label;
@@ -47,6 +54,9 @@ function scheduleNextTick(): void {
  * einen bereits gesetzten Sleep-Timer nicht versehentlich deaktivieren.
  */
 function persist(value: number): void {
+  timerRevision += 1;
+  pausePending = false;
+  retryNotBefore = 0;
   deadline = value;
   try {
     Spicetify.Platform.LocalStorageAPI.setItem(STORAGE_KEY, value);
@@ -57,13 +67,60 @@ function persist(value: number): void {
   scheduleNextTick();
 }
 
+/**
+ * Beim Ablauf MUSS Spotifys Pause-Aktion tatsächlich erfolgreich sein.
+ * Ein synchroner Fehler oder ein abgewiesenes Promise darf die Deadline nicht
+ * löschen. Eine Revision schützt neue/abgebrochene Timer vor alten Antworten.
+ */
+function pauseAtDeadline(): void {
+  if (pausePending || !deadline) return;
+  pausePending = true;
+  clearScheduledTick();
+  const expectedRevision = timerRevision;
+  const expectedDeadline = deadline;
+
+  const stillCurrent = (): boolean =>
+    timerRevision === expectedRevision && deadline === expectedDeadline;
+
+  const onSuccess = (): void => {
+    if (!stillCurrent()) return;
+    persist(0);
+    Spicetify.showNotification(runtimeText("runtime.sleepPaused"));
+  };
+  const onFailure = (error: unknown): void => {
+    if (!stillCurrent()) return;
+    pausePending = false;
+    console.warn("[ZuKaTo] Sleep-Timer konnte Spotify nicht pausieren; neuer Versuch folgt.", error);
+    retryNotBefore = Date.now() + PAUSE_RETRY_DELAY_MS;
+    // Keine 1-ms-Fehlerschleife, auch wenn die Deadline längst überschritten ist.
+    clearScheduledTick();
+    timeout = window.setTimeout(() => {
+      timeout = null;
+      tick();
+    }, PAUSE_RETRY_DELAY_MS);
+  };
+
+  try {
+    // Die Spicetify-Typen deklarieren pause() als void; manche Clients geben
+    // tatsächlich ein Promise zurück. Beide Fälle müssen behandelt werden.
+    const result: unknown = Spicetify.Player.pause();
+    if (result !== null && typeof result === "object" &&
+      typeof (result as PromiseLike<unknown>).then === "function") {
+      void Promise.resolve(result).then(onSuccess, onFailure);
+    } else {
+      onSuccess();
+    }
+  } catch (error) {
+    onFailure(error);
+  }
+}
+
 /** Auch nach Standby/gedrosselten Timern die echte Deadline prüfen. */
 function tick(): void {
   if (deadline && Date.now() >= deadline) {
-    // Zuerst zurücksetzen: Fokusereignis + Timeout dürfen nicht zweimal pausieren.
-    persist(0);
-    Spicetify.Player.pause();
-    Spicetify.showNotification(runtimeText("runtime.sleepPaused"));
+    // Ein Fokusereignis während des Backoffs darf die Sperre nicht umgehen.
+    if (pausePending || Date.now() < retryNotBefore) return;
+    pauseAtDeadline();
     return;
   }
   refreshMenu();
@@ -83,14 +140,22 @@ function onVisibilityChange(): void {
 export const sleepTimerModule: ExtensionModule = {
   id: "sleep-timer",
   start(): void {
+    // Asynchrone Antworten eines vorherigen Modul-Laufs ignorieren.
+    timerRevision += 1;
+    pausePending = false;
+    retryNotBefore = 0;
+    clearScheduledTick();
     let saved: unknown;
+    let readFailed = false;
     try {
       saved = Spicetify.Platform.LocalStorageAPI.getItem(STORAGE_KEY);
     } catch (error) {
-      // Gesperrter Profil-Storage darf die Menüregistrierung nicht verhindern.
+      readFailed = true;
+      // Beim Reaktivieren den im RAM noch vorhandenen Timer behalten,
+      // statt einen temporären Lesefehler als "kein Timer" auszulegen.
       console.warn("[ZuKaTo] Sleep-Timer-Deadline konnte nicht gelesen werden.", error);
     }
-    deadline = normalizeSleepDeadline(saved);
+    if (!readFailed) deadline = normalizeSleepDeadline(saved);
     lastMenuLabel = "";
     items.push(
       new Spicetify.Menu.Item("15 Minuten", false, () => startTimer(15)),
@@ -114,6 +179,9 @@ export const sleepTimerModule: ExtensionModule = {
     tick();
   },
   stop(): void {
+    timerRevision += 1;
+    pausePending = false;
+    retryNotBefore = 0;
     clearScheduledTick();
     window.removeEventListener("focus", tick);
     document.removeEventListener("visibilitychange", onVisibilityChange);
