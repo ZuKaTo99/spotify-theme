@@ -37,6 +37,23 @@
   button:disabled { cursor: not-allowed; opacity: .45; }
   label { display: block; margin-bottom: 6px; font-weight: 600; }
 
+  /* v1.73: Wiederentdecken benutzt die vorhandene Track-Liste und Bulk-Aktionen.
+     Das Filterraster bricht auf Spotify-Fensterbreite um und scrollt nie seitlich. */
+  .zukato-discovery { display: grid; gap: 13px; padding: clamp(12px, 2vw, 20px);
+    border: 1px solid var(--zukato-border); border-radius: 14px;
+    background: var(--zukato-panel); min-width: 0; }
+  .zukato-discovery__header { display: flex; gap: 12px; align-items: flex-start;
+    justify-content: space-between; flex-wrap: wrap; }
+  .zukato-discovery__header p { color: var(--spice-subtext, #bbb); max-width: 660px; margin: 0; }
+  .zukato-discovery__header strong { color: var(--zukato-accent); }
+  .zukato-discovery__filters { display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); min-width: 0; }
+  .zukato-discovery__filters label { display: grid; gap: 5px; min-width: 0; margin: 0; }
+  .zukato-discovery__filters select, .zukato-discovery__filters input[type="search"] { width: 100%; min-width: 0; }
+  .zukato-discovery__filters .zukato-discovery__checkbox { display: flex; align-items: center; gap: 8px; }
+  .zukato-discovery__hint { font-size: 12px; color: var(--spice-subtext, #bbb); margin: 0; }
+  .zukato-discovery__dashboard-link { margin-top: 13px; max-width: 100%; }
+
   /* Kopfzeile und horizontal umlaufende Modulleiste. */
   &__header { margin-bottom: 24px; max-width: 900px; }
   &__label { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--zukato-accent); }
@@ -57,6 +74,22 @@
   .zukato-collection__filter label { margin: 0; }
   .zukato-collection__filter input { flex: 1 1 220px; min-width: 0; }
   .zukato-collection__filter small { color: var(--spice-subtext, #aaa); }
+  /* v1.69: Gemeinsame Werkzeuge für lokale Bibliotheken. Auf schmalen
+     Fenstern bleibt jedes Feld innerhalb der eigenen Modulspalte. */
+  .zukato-collection__controls { display: grid; gap: 10px; padding: 13px;
+    border: 1px solid var(--zukato-border); border-radius: 13px;
+    background: var(--zukato-panel); min-width: 0; }
+  .zukato-collection__view-options { display: flex; align-items: center;
+    flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
+  .zukato-collection__view-options label { margin: 0; }
+  .zukato-collection__view-options select { min-width: 0; flex: 1 1 180px; }
+  .zukato-track-list--compact { gap: 4px; }
+  .zukato-track-list--compact .zukato-track { padding: 7px 10px; border-radius: 8px; gap: 7px; }
+  .zukato-track-list--compact .zukato-track__info span { font-size: 12px; }
+  .zukato-track-list--compact .zukato-track__info small { font-size: 11px; }
+  .zukato-track-list--compact .zukato-track__actions button { padding: 5px 9px; }
+  .zukato-settings__length { display: block; margin-top: 5px;
+    color: var(--spice-subtext, #aaa); font-size: 12px; }
   .zukato-collection__pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
     gap: 12px; margin: 4px 0 0; }
   .zukato-collection__pages span { font-size: 13px; color: var(--spice-subtext, #aaa); }
@@ -76,6 +109,109 @@
   .zukato-playlist-destination small { color: var(--spice-subtext, #a7a7a7); }
   .zukato-playlist-destination .zukato-error { color: #fb7185; }
   .zukato-playlist-destination p { margin: 0; }
+
+  /* v1.67: Playlist-Werkzeuge als lesbare, responsiv umbrochene Registerkarten.
+     Versteckte Panels bleiben in React gemountet, dürfen aber keinen Platz belegen. */
+  .zukato-playlist-workspace { min-width: 0; }
+  .zukato-playlist-workspace__tabs {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+    padding: 7px; border: 1px solid var(--zukato-border); border-radius: 14px;
+    background: var(--zukato-panel);
+  }
+  .zukato-playlist-workspace__tabs > button {
+    min-width: 0; padding: 12px 8px; display: flex; justify-content: center;
+    align-items: center; gap: 8px; font-weight: 650; text-align: center;
+    background: transparent; border-color: transparent;
+  }
+  .zukato-playlist-workspace__tabs > button[aria-selected="true"] {
+    background: var(--zukato-accent); color: var(--zukato-on-accent);
+    border-color: transparent; box-shadow: 0 2px 12px rgba(0,0,0,.15);
+  }
+  .zukato-playlist-workspace__tabs small {
+    padding: 1px 7px; border-radius: 999px; background: rgba(128,128,128,.18);
+    font-size: 11px; font-variant-numeric: tabular-nums;
+  }
+  .zukato-playlist-workspace__panel {
+    display: grid; gap: 13px; min-width: 0; margin-top: 4px;
+    padding: clamp(13px,2vw,22px); border-radius: 14px;
+    border: 1px solid var(--zukato-border);
+  }
+  .zukato-playlist-workspace__panel[hidden] { display: none !important; }
+  .zukato-playlist-workspace__panel > h3 { margin: 0; }
+  .zukato-playlist-workspace__panel .zukato-playlist-manager {
+    margin: 0; background: transparent; border: 0; padding: 0;
+  }
+  .zukato-playlist-workspace__panel .zukato-playlist-destination { margin: 0; }
+  @media (max-width: 750px) {
+    .zukato-playlist-workspace__tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 420px) {
+    .zukato-playlist-workspace__tabs > button { font-size: 12px; padding: 10px 6px; }
+    .zukato-playlist-workspace__panel { padding: 12px; }
+  }
+
+  /* v1.63: Playlist-Browser bleibt responsiv und nutzt die vorhandenen Farbtokens. */
+  .zukato-playlist-browser { display: grid; gap: 8px; min-width: 0; padding: 11px;
+    border: 1px solid var(--zukato-border); border-radius: 9px;
+    background: var(--zukato-panel); }
+  .zukato-playlist-browser select, .zukato-playlist-browser input { width: 100%; min-width: 0; }
+  .zukato-playlist-browser .zukato-error { color: #fb7185; }
+
+  /* v1.65: Neue Playlist – kompakte Felder, auch auf Mobilbreite nutzbar. */
+  .zukato-playlist-create { display: grid; gap: 8px; }
+  .zukato-playlist-create__fields { display: grid; gap: 8px; padding: 12px;
+    border-radius: 9px; border: 1px solid var(--zukato-border); min-width: 0; }
+  .zukato-playlist-create__fields input,
+  .zukato-playlist-create__fields textarea,
+  .zukato-playlist-create__fields select { width: 100%; min-width: 0; }
+  .zukato-playlist-create__fields textarea { min-height: 70px; resize: vertical; }
+
+  /* v1.64: Playlist-Manager – lesbare 30er-Liste mit klaren Löschwarnungen. */
+  .zukato-playlist-manager { display: grid; gap: 10px; padding: 16px;
+    margin: 20px 0; border: 1px solid var(--zukato-border); border-radius: 13px;
+    background: var(--zukato-panel); min-width: 0; }
+  .zukato-playlist-manager h3, .zukato-playlist-manager h4,
+  .zukato-playlist-manager p { margin: 0; }
+  .zukato-playlist-manager .zukato-error { color: #fb7185; }
+  .zukato-playlist-manager .zukato-toolbar { align-items: center; }
+  .zukato-playlist-manager .zukato-toolbar input { flex: 1 1 230px; min-width: 0; }
+  .zukato-playlist-manager__picker { display: grid; gap: 7px; }
+  .zukato-playlist-manager__picker select,
+  .zukato-playlist-manager__picker input { width: 100%; }
+  .zukato-playlist-manager__items { padding: 0; margin: 0; list-style: none;
+    display: grid; gap: 6px; }
+  .zukato-playlist-manager__items li { padding: 9px; border: 1px solid var(--zukato-border);
+    border-radius: 9px; overflow-wrap: anywhere; }
+  .zukato-playlist-manager__items label { display: flex; gap: 10px;
+    align-items: center; margin: 0; cursor: pointer; }
+  .zukato-playlist-manager__items label > span { display: flex; flex-direction: column; min-width: 0; }
+  .zukato-playlist-manager__items small { opacity: .75; overflow-wrap: anywhere; }
+  .zukato-playlist-manager__items input { accent-color: var(--zukato-accent); }
+  /* v1.65: Positionswechsel bedienbar auch bei schmalen Layouts. */
+  .zukato-playlist-manager__items li { display: flex; align-items: center;
+    justify-content: space-between; gap: 9px; flex-wrap: wrap; }
+  .zukato-playlist-manager__items li > label { flex: 1 1 220px; }
+  .zukato-playlist-manager__move { display: grid; gap: 8px; padding: 12px;
+    background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 9px; }
+  .zukato-playlist-manager__move input[type="number"] { max-width: 180px; }
+
+
+  /* v1.62: Import-Arbeitsliste – maximal 30 Zeilen, auch schmal bedienbar. */
+  .zukato-import-workbench { display: grid; gap: 10px; padding: 14px;
+    background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 12px; }
+  .zukato-import-workbench h4, .zukato-import-workbench p { margin: 0; }
+  .zukato-import-workbench small { color: var(--spice-subtext, #aaa); }
+  .zukato-import-workbench__items { display: grid; gap: 6px; margin: 0; padding: 0 0 0 27px; }
+  .zukato-import-workbench__items > li { padding: 8px; border: 1px solid var(--zukato-border);
+    border-radius: 9px; overflow-wrap: anywhere; }
+  .zukato-import-workbench__items > li::marker { color: var(--spice-subtext, #aaa); }
+  .zukato-import-workbench__check { display: inline-flex; gap: 10px; align-items: center;
+    margin: 0; max-width: 100%; cursor: pointer; }
+  .zukato-import-workbench__check input { flex: 0 0 auto; accent-color: var(--zukato-accent); }
+  .zukato-import-workbench__check code { font-size: 12px; overflow-wrap: anywhere; }
+  .zukato-import-workbench__move { display: inline-flex; gap: 5px; margin-left: 12px; }
+  .zukato-import-workbench__move button { min-width: 32px; min-height: 32px; padding: 4px 8px; }
+
   .zukato-track__select { display: flex; align-items: center; margin: 0; padding: 8px; cursor: pointer; }
   .zukato-track__select input { accent-color: var(--zukato-accent); width: 17px; height: 17px; cursor: pointer; }
   .zukato-track { display: flex; justify-content: space-between; align-items: center; gap: 12px;
@@ -779,4 +915,239 @@
     .zukato-viz__commandbar-actions { width: 100%; }
     .zukato-viz--cinema .zukato-viz__stage { min-height: 340px; }
   }
+}
+
+// v1.66: Externe Spotify-Seitennavigation und Metadatenformular.
+.zukato-playlist-manager__jump, .zukato-playlist-manager__details,
+.zukato-playlist-manager__details-form { display: grid; gap: 8px; }
+.zukato-playlist-manager__jump, .zukato-playlist-manager__details {
+  padding: 12px; border: 1px solid var(--zukato-border); border-radius: 9px;
+}
+.zukato-playlist-manager__jump input[type="number"] { max-width: 165px; }
+.zukato-playlist-manager__details-form input,
+.zukato-playlist-manager__details-form textarea { width: 100%; min-width: 0; }
+.zukato-playlist-manager__details-form textarea { min-height: 85px; resize: vertical; }
+
+/* =============================================================================
+ * v1.68 – Modulsuche, Pin-Schnellzugriff und responsive Workspace-Navigation.
+ * Ausschließlich unter .zukato-app; keine Spotify-weiten CSS-Eingriffe.
+ * Container Queries berücksichtigen die tatsächliche Workspace-Breite, auch
+ * wenn die Spotify-Seitenleiste in einem breiten Desktop-Fenster geöffnet ist.
+ * ============================================================================= */
+.zukato-app {
+  .spotify-toolkit-navigation {
+    display: block;
+    container-type: inline-size;
+    padding: 11px;
+  }
+  .spotify-toolkit-navigation__toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 9px;
+    padding: 0 0 10px;
+  }
+  .spotify-toolkit-navigation__heading {
+    flex: 1 1 175px; min-width: 0;
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .spotify-toolkit-navigation__heading > strong { font-size: 13px; font-weight: 750; }
+  .spotify-toolkit-navigation__heading > small {
+    color: var(--zukato-muted); font-size: 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .spotify-toolkit-navigation__search { flex: 1 1 210px; min-width: 0; }
+  .spotify-toolkit-navigation__search input {
+    width: 100%; min-width: 0; min-height: 38px; font-size: 13px;
+    border: 1px solid var(--zukato-hairline); border-radius: 10px;
+    background: var(--zukato-surface-raised); color: var(--spice-text,#fff);
+    padding: 7px 11px;
+  }
+  .spotify-toolkit-navigation__toggle {
+    flex: 0 0 auto; min-height: 38px; border-radius: 10px;
+    padding: 7px 11px; background: var(--zukato-surface-raised);
+    border: 1px solid var(--zukato-hairline); font-size: 12px;
+  }
+  .spotify-toolkit-navigation__pinned {
+    display: flex; align-items: center; gap: 10px;
+    border-top: 1px solid var(--zukato-hairline); padding: 9px 0;
+  }
+  .spotify-toolkit-navigation__pinned-list {
+    display: flex; gap: 5px; flex-wrap: wrap; min-width: 0;
+  }
+  .spotify-toolkit-navigation__groups {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;
+    border-top: 1px solid var(--zukato-hairline); padding-top: 10px;
+  }
+  .spotify-toolkit-navigation__group { min-width: 0; }
+  .spotify-toolkit-navigation__entry {
+    display: inline-flex; min-width: 0; align-items: center;
+    border-radius: 10px; background: var(--zukato-surface-raised);
+    border: 1px solid transparent;
+  }
+  .spotify-toolkit-navigation__entry:focus-within { border-color: var(--zukato-accent); }
+  .spotify-toolkit-navigation__entry .spotify-toolkit-navigation__item {
+    border: 0; background: transparent; min-height: 36px;
+    padding: 7px 8px 7px 11px; max-width: 240px;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .spotify-toolkit-navigation__entry .spotify-toolkit-navigation__item--active,
+  .spotify-toolkit-navigation__pinned-list .spotify-toolkit-navigation__item--active {
+    background: color-mix(in srgb, var(--zukato-accent) 19%, transparent);
+    color: var(--spice-text,#fff);
+  }
+  .spotify-toolkit-navigation__pin {
+    border: 0; background: transparent; color: var(--zukato-accent);
+    font-size: 19px; min-width: 32px; min-height: 36px; padding: 3px 7px;
+    border-radius: 8px; line-height: 1;
+  }
+  .spotify-toolkit-navigation__pin:disabled { opacity: .3; cursor: not-allowed; }
+  .spotify-toolkit-navigation :is(button,input):focus-visible {
+    outline: 2px solid var(--zukato-accent); outline-offset: 2px;
+  }
+  .spotify-toolkit-navigation__empty, .spotify-toolkit-navigation__pin-hint {
+    width: 100%; font-size: 12px; color: var(--zukato-muted); margin: 3px 0;
+  }
+}
+
+@container (max-width: 680px) {
+  .zukato-app .spotify-toolkit-navigation__toolbar { align-items: stretch; }
+  .zukato-app .spotify-toolkit-navigation__heading { flex-basis: 100%; }
+  .zukato-app .spotify-toolkit-navigation__search { flex: 1 1 155px; }
+  .zukato-app .spotify-toolkit-navigation__groups { display: block; }
+  .zukato-app .spotify-toolkit-navigation__group { width: 100%; margin-bottom: 9px; }
+  .zukato-app .spotify-toolkit-navigation__buttons,
+  .zukato-app .spotify-toolkit-navigation__pinned-list {
+    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain;
+    scrollbar-width: thin; padding: 2px 0 5px;
+  }
+  .zukato-app .spotify-toolkit-navigation__entry { flex: 0 0 auto; }
+  .zukato-app .spotify-toolkit-navigation__pinned { display: block; }
+  .zukato-app .spotify-toolkit-navigation__pinned-list { margin-top: 4px; }
+}
+
+// =============================================================================
+// v1.70: Gemeinsame 7-Tage-Aktivitätskurve und Zeitraumauswahl.
+// Benutzt vorhandene Farb-Tokens, bleibt bei schmalen Spotify-Fenstern lesbar.
+// =============================================================================
+.zukato-app {
+  .zukato-dashboard__activity, .zukato-statistics__activity {
+    min-width: 0; padding: clamp(13px,2vw,20px); border-radius: 16px;
+    border: 1px solid var(--zukato-hairline, var(--zukato-border));
+    background: var(--zukato-surface, var(--zukato-panel));
+  }
+  .zukato-dashboard__activity .zukato-dashboard__section-header { align-items: start; }
+  .zukato-dashboard__activity .zukato-dashboard__section-header p,
+  .zukato-statistics__activity > p { margin: 5px 0 0; font-size: 12px; color: var(--zukato-muted); }
+  .zukato-dashboard__activity button { color: var(--zukato-accent); border: 0;
+    background: transparent; padding: 7px 3px; white-space: nowrap; }
+  .zukato-statistics { min-width: 0; gap: 16px; }
+  .zukato-statistics__periods { display: flex; flex-wrap: wrap; gap: 8px; }
+  .zukato-statistics__periods button { font-size: 13px; padding: 10px 13px;
+    border: 1px solid var(--zukato-hairline, var(--zukato-border)); border-radius: 10px;
+    color: var(--spice-text); background: var(--zukato-surface-raised, var(--zukato-panel)); }
+  .zukato-statistics__periods button.is-active {
+    background: var(--zukato-accent); color: var(--zukato-on-accent, #10151b); font-weight: 750; }
+  .zukato-statistics__periods button:focus-visible,
+  .zukato-dashboard__activity button:focus-visible { outline: 2px solid var(--zukato-accent); outline-offset: 2px; }
+  .zukato-statistics__activity h3 { margin: 0 0 14px; font-size: 17px; }
+  .zukato-activity { display: grid; grid-template-columns: repeat(7, minmax(0,1fr));
+    min-width: 0; gap: clamp(4px,1vw,13px); align-items: stretch; }
+  .zukato-activity__day { min-width: 0; height: 115px; display: grid;
+    grid-template-rows: 20px minmax(0,1fr) auto; justify-items: center; gap: 5px; }
+  .zukato-activity__day strong { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .zukato-activity__day small { width: 100%; text-align: center; font-size: 10px;
+    overflow-wrap: anywhere; color: var(--zukato-muted); }
+  .zukato-activity__track { width: min(100%, 40px); height: 100%; position: relative;
+    overflow: hidden; border-radius: 7px; background: var(--zukato-surface-raised, var(--zukato-panel)); }
+  .zukato-activity__track > div { width: 100%; position: absolute; bottom: 0;
+    border-radius: 7px 7px 3px 3px; background: var(--zukato-accent); }
+  .zukato-statistics__rankings { align-items: start; }
+  .zukato-statistics__rankings > section { min-width: 0; padding: 16px;
+    border-radius: 14px; border: 1px solid var(--zukato-hairline, var(--zukato-border)); }
+  .zukato-statistics__rankings h3 { margin: 0 0 10px; }
+  .zukato-statistics__rankings ol { margin: 0; padding-left: 23px; }
+  .zukato-statistics__rankings li { position: relative; margin: 0 0 13px;
+    display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 10px; }
+  .zukato-statistics__rankings li > span { min-width: 0; overflow-wrap: anywhere; }
+  .zukato-statistics__rankings li strong { font-variant-numeric: tabular-nums; }
+  .zukato-statistics__rankings li small { color: var(--zukato-muted); }
+  .zukato-statistics__ranking-bar { grid-column: 1/-1; height: 4px;
+    background: var(--zukato-surface-raised, var(--zukato-panel)); border-radius: 9px;
+    margin-top: 5px; overflow: hidden; }
+  .zukato-statistics__ranking-bar > div { height: 100%; border-radius: inherit; background: var(--zukato-accent); }
+  @container (max-width: 420px) {
+    .zukato-activity { gap: 3px; }
+    .zukato-activity__day small { font-size: 9px; }
+    .zukato-statistics__periods button { padding: 9px; }
+  }
+}
+
+// =============================================================================
+// v1.71: Anpassbares Dashboard. Der Editor bleibt innerhalb seiner Karte,
+// auch wenn Spotify in einem schmalen Fenster oder mit Sidebar geöffnet ist.
+// =============================================================================
+.zukato-app {
+  .zukato-dashboard__shortcut-header, .zukato-dashboard__stats-heading {
+    display: flex; flex-wrap: wrap; justify-content: space-between;
+    align-items: center; gap: 10px; min-width: 0;
+  }
+  .zukato-dashboard__shortcut-header { margin-bottom: 12px; }
+  .zukato-dashboard__shortcut-header h3 { margin-bottom: 5px; }
+  .zukato-dashboard__shortcut-header p { margin: 0; color: var(--zukato-muted); font-size: 12px; }
+  .zukato-dashboard__shortcut-header > button,
+  .zukato-dashboard__editor button {
+    color: var(--spice-text); background: var(--zukato-surface-raised);
+    border: 1px solid var(--zukato-hairline); border-radius: 9px;
+    padding: 8px 11px; font-size: 12px;
+  }
+  .zukato-dashboard__editor { display: grid; gap: 9px; margin-top: 14px;
+    padding: 14px; background: var(--zukato-surface-raised);
+    border: 1px solid var(--zukato-hairline); border-radius: 12px; min-width: 0; }
+  .zukato-dashboard__editor h4 { font-size: 13px; margin: 4px 0; }
+  .zukato-dashboard__editor-list { display: grid; gap: 6px; }
+  .zukato-dashboard__editor-row { display: flex; align-items: center;
+    justify-content: space-between; gap: 8px; min-width: 0; }
+  .zukato-dashboard__editor-row > span { font-size: 12px;
+    overflow-wrap: anywhere; min-width: 0; }
+  .zukato-dashboard__editor-row > div { display: flex; flex: none; gap: 4px; }
+  .zukato-dashboard__editor-row button { min-width: 31px; min-height: 31px; padding: 3px 7px; }
+  .zukato-dashboard__editor button:disabled { opacity: .4; cursor: not-allowed; }
+  .zukato-dashboard__add-shortcuts { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+  .zukato-dashboard__section-toggles { display: grid; gap: 7px; }
+  .zukato-dashboard__section-toggles label { display: flex; align-items: center;
+    gap: 9px; font-size: 12px; cursor: pointer; }
+  .zukato-dashboard__section-toggles input { accent-color: var(--zukato-accent); }
+  .zukato-dashboard__reset { justify-self: start; }
+  .zukato-dashboard__stats-heading h3 { font-size: 17px; margin: 0; }
+  .zukato-dashboard__stats-heading .zukato-statistics__periods button { padding: 7px 10px; }
+  .zukato-dashboard__bottom > :only-child { grid-column: 1 / -1; }
+  .zukato-dashboard__shortcut-header button:focus-visible,
+  .zukato-dashboard__editor button:focus-visible,
+  .zukato-dashboard__section-toggles input:focus-visible {
+    outline: 2px solid var(--zukato-accent); outline-offset: 2px;
+  }
+  @container (max-width: 520px) {
+    .zukato-dashboard__editor { padding: 10px; }
+    .zukato-dashboard__shortcut-header { align-items: start; }
+    .zukato-dashboard__stats-heading { align-items: start; }
+    .zukato-dashboard__stats-heading .zukato-statistics__periods { width: 100%; }
+  }
+}
+
+// v1.72: Responsive, sortierbare Karten. Alle Farben kommen aus bestehenden Tokens.
+.zukato-app {
+  .zukato-dashboard__cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; min-width: 0; }
+  .zukato-dashboard__card { min-width: 0; }
+  .zukato-dashboard__metrics, .zukato-dashboard__activity { grid-column: 1 / -1; }
+  .zukato-dashboard__metrics .zukato-dashboard__stats-heading { margin-bottom: 12px; }
+  .zukato-dashboard__recent, .zukato-dashboard__insights, .zukato-dashboard__notes {
+    min-width: 0; padding: clamp(14px,2vw,22px); border: 1px solid var(--zukato-hairline);
+    border-radius: var(--zukato-radius); background: var(--zukato-surface); }
+  .zukato-dashboard__notes h3 { font-size: 17px; margin: 0; }
+  .zukato-dashboard__note-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .zukato-dashboard__note-list li { min-width: 0; display: grid; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid var(--zukato-hairline); }
+  .zukato-dashboard__note-list li:last-child { border-bottom: 0; }
+  .zukato-dashboard__note-list strong, .zukato-dashboard__note-list span, .zukato-dashboard__note-list p { overflow-wrap: anywhere; }
+  .zukato-dashboard__note-list span { font-size: 12px; color: var(--zukato-muted); }
+  .zukato-dashboard__note-list p { font-size: 12px; margin: 3px 0 0; color: var(--zukato-muted); }
+  @container (max-width: 720px) { .zukato-dashboard__cards { grid-template-columns: minmax(0,1fr); }
+    .zukato-dashboard__cards > * { grid-column: 1 / -1; } }
 }

@@ -11,6 +11,8 @@ import { currentTrack, setSongNote, type TrackInfo } from "../../../shared/libra
 import { readSongNoteDraft, rememberSongNoteDraft, clearSongNoteDraft } from "../../../shared/song-note-drafts";
 import { useToolkitData } from "../../hooks/useToolkitData";
 import { TrackSearch } from "../../components/TrackSearch";
+import { CollectionControls } from "../../components/CollectionControls";
+import { orderCollection, readCollectionDisplay, rememberCollectionDisplay } from "../../../shared/collection-display";
 import { collectionPage } from "../../../shared/collection-view";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
@@ -79,9 +81,15 @@ export function SongNotes({ t }: { t: Translator }): ReactElement {
   const data = useToolkitData();
   const [active, setActive] = ReactRuntime.useState(currentTrack);
   const [filter, setFilter] = ReactRuntime.useState("");
+  const [display, setDisplay] = ReactRuntime.useState(() => readCollectionDisplay("notes"));
+  function changeDisplay(next: typeof display): void {
+    setDisplay(next);
+    rememberCollectionDisplay("notes", next);
+  }
   const [requestedPage, setRequestedPage] = ReactRuntime.useState(0);
   // Auch den NotizTEXT durchsuchbar machen, ohne gespeicherte Daten zu ändern.
-  const view = collectionPage(data.notes, filter, requestedPage, undefined, (note) => note.text);
+  const orderedNotes = orderCollection(data.notes, display.sort);
+  const view = collectionPage(orderedNotes, filter, requestedPage, undefined, (note) => note.text);
   ReactRuntime.useEffect(() => {
     if (requestedPage !== view.page) setRequestedPage(view.page);
   }, [requestedPage, view.page]);
@@ -113,16 +121,12 @@ export function SongNotes({ t }: { t: Translator }): ReactElement {
       savedText={storedNote?.text ?? ""} savedVersion={storedNote?.updatedAt ?? 0} />
       : <p className="zukato-empty">{t("notes.empty")}</p>}
     <h3>{t("notes.savedCount", { count: data.notes.length })}</h3>
-    {data.notes.length > 0 && <div className="zukato-collection__filter">
-      <label htmlFor="zukato-notes-filter">{t("collection.filter")}</label>
-      <input id="zukato-notes-filter" type="search" maxLength={150} value={filter}
-        placeholder={t("notes.searchPlaceholder")}
-        onChange={(event) => { setFilter(event.currentTarget.value); setRequestedPage(0); }} />
-      <small aria-live="polite">{t("collection.results", { count: view.total })}</small>
-    </div>}
+    {data.notes.length > 0 && <CollectionControls t={t} kind="notes" filter={filter}
+      results={view.total} display={display} onDisplay={changeDisplay}
+      onSearch={(value) => { setFilter(value); setRequestedPage(0); }} />}
     {data.notes.length > 0 && view.total === 0 &&
       <p className="zukato-empty">{t("collection.noResults")}</p>}
-    <ul className="zukato-track-list">{view.items.map((note) => <li className="zukato-track" key={note.uri}>
+    <ul className={`zukato-track-list${display.compact ? " zukato-track-list--compact" : ""}`}>{view.items.map((note) => <li className="zukato-track" key={note.uri}>
       <div className="zukato-track__info"><strong>{note.title}</strong><span>{note.artist}</span><small>{note.text.slice(0, 120)}</small></div>
       <button type="button" onClick={() => {
         manualSelection.current = true;

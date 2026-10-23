@@ -111,9 +111,10 @@ test("Notizen lassen sich über Metadaten und Text durchsuchen und paginieren", 
 
 test("Notiz-UI verwendet Suchfeld, Seitenlogik und selbstständigen Editor", () => {
   const ui = readFileSync(path.join(root, "src/custom-app/modules/song-notes/SongNotes.tsx"), "utf8");
-  assert.match(ui, /collectionPage\(data\.notes, filter, requestedPage/);
+  assert.match(ui, /collectionPage\(orderedNotes, filter, requestedPage/);
   assert.match(ui, /view\.items\.map/);
   assert.match(ui, /setRequestedPage\(0\)/);
   assert.match(ui, /<NoteEditor key=\{selected\.uri\}/);
-  assert.match(ui, /notes\.searchPlaceholder/);
+  const controls = readFileSync(path.join(root, "src/custom-app/components/CollectionControls.tsx"), "utf8");
+  assert.match(controls, /notes\.searchPlaceholder/);
 });

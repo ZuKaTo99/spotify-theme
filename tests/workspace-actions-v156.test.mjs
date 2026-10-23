@@ -53,6 +53,12 @@ test("Hörverlauf: Merken fügt hinzu, statt vorhandene Favoriten umzuschalten",
     "collection-view": { collectionPage: entries => ({ items: entries, page: 0, pages: 1, total: entries.length }), filterCollection: entries => entries },
     "bulk-selection": { toggleTrackSelection: (current) => current },
     "BulkTrackActions": { BulkTrackActions: () => null },
+    "CollectionControls": { CollectionControls: () => null },
+    "collection-display": {
+      orderCollection: tracks => tracks,
+      readCollectionDisplay: () => ({ sort: "original", compact: false }),
+      rememberCollectionDisplay() {},
+    },
     "TrackList": { TrackList: () => null },
     "useToolkitData": { useToolkitData: () => ({ history: [song] }) },
   });
@@ -70,6 +76,12 @@ test("Hörverlauf: Löschfehler meldet Fehler statt die Navigation zu verändern
     "collection-view": { collectionPage: entries => ({ items: entries, page: 0, pages: 1, total: entries.length }), filterCollection: entries => entries },
     "bulk-selection": { toggleTrackSelection: (current) => current },
     "BulkTrackActions": { BulkTrackActions: () => null },
+    "CollectionControls": { CollectionControls: () => null },
+    "collection-display": {
+      orderCollection: tracks => tracks,
+      readCollectionDisplay: () => ({ sort: "original", compact: false }),
+      rememberCollectionDisplay() {},
+    },
     "TrackList": { TrackList: () => null },
     "useToolkitData": { useToolkitData: () => ({ history: [song] }) },
   });
@@ -86,6 +98,12 @@ test("Favoriten-Suchaktion: Schreibfehler meldet nur den Fehler", () => {
     "collection-view": { collectionPage: entries => ({ items: entries, page: 0, pages: 1, total: entries.length }), filterCollection: entries => entries },
     "bulk-selection": { toggleTrackSelection: (current) => current },
     "BulkTrackActions": { BulkTrackActions: () => null },
+    "CollectionControls": { CollectionControls: () => null },
+    "collection-display": {
+      orderCollection: tracks => tracks,
+      readCollectionDisplay: () => ({ sort: "original", compact: false }),
+      rememberCollectionDisplay() {},
+    },
     "TrackList": { TrackList: () => null },
     "TrackSearch": { TrackSearch: () => null },
     "useToolkitData": { useToolkitData: () => ({ favorites: [] }) },

@@ -7,6 +7,8 @@ import { playTrack, type TrackInfo } from "../../shared/library";
 
 interface TrackListProps {
   tracks: readonly TrackInfo[];
+  /** Gemeinsamer kompakter Lesemodus ohne Veränderung der Elemente. */
+  compact?: boolean;
   emptyText: string;
   /** Lokalisierte, barrierefreie Beschriftung der Wiedergabeschaltfläche. */
   playLabel?: string;
@@ -22,7 +24,7 @@ interface TrackListProps {
 }
 
 /** Buttons statt unkontrollierter Spotify-Link-Navigation: barrierearm und testbar. */
-export function TrackList({ tracks, emptyText, playLabel = "Abspielen", action, actionLabel, actionErrorLabel, details, selectedUris, onSelectionChange, selectLabel = "Auswählen" }: TrackListProps): ReactElement {
+export function TrackList({ tracks, compact = false, emptyText, playLabel = "Abspielen", action, actionLabel, actionErrorLabel, details, selectedUris, onSelectionChange, selectLabel = "Auswählen" }: TrackListProps): ReactElement {
   // Direkt im Eventhandler aufrufen, damit eine Nutzeraktion synchron bleibt.
   // Speicherfehler dürfen weder React-Callbacks abbrechen noch als Erfolg gelten.
   function runAction(track: TrackInfo): void {
@@ -41,7 +43,7 @@ export function TrackList({ tracks, emptyText, playLabel = "Abspielen", action, 
     } catch (error) { failed(error); }
   }
   if (!tracks.length) return <p className="zukato-empty">{emptyText}</p>;
-  return <ul className="zukato-track-list">
+  return <ul className={`zukato-track-list${compact ? " zukato-track-list--compact" : ""}`}>
     {tracks.map((track, index) => <li key={`${track.uri}-${index}`} className="zukato-track">
       {onSelectionChange && <label className="zukato-track__select" title={`${selectLabel}: ${track.title}`}>
         <input type="checkbox" aria-label={`${selectLabel}: ${track.title} – ${track.artist}`}

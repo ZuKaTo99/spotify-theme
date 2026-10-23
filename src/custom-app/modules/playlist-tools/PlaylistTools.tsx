@@ -1,6 +1,6 @@
 // =============================================================================
 // Datei: src/custom-app/modules/playlist-tools/PlaylistTools.tsx
-// Zweck: Spotify-Warteschlange befüllen, ohne bestehende Playlists zu verändern.
+// Zweck: Warteschlange befüllen und Playlist-Inhalte nach Bestätigung verwalten.
 // Wo ändern? UI hier, URI-Parsing in shared/track-search.ts, Versandgrößen und
 // Teilfehler-Behandlung in shared/queue-batches.ts.
 // =============================================================================
@@ -12,6 +12,11 @@ import { parseSpotifyTrackInput } from "../../../shared/track-search";
 import { useToolkitData } from "../../hooks/useToolkitData";
 import { TrackSearch } from "../../components/TrackSearch";
 import { PlaylistDestination } from "../../components/PlaylistDestination";
+import { BulkLinkImporter } from "../../components/BulkLinkImporter";
+import { PlaylistManager } from "../../components/PlaylistManager";
+import { PLAYLIST_WORKSPACE_TABS, PLAYLIST_WORKSPACE_TAB_STORAGE_KEY,
+  normalizePlaylistWorkspaceTab, nextPlaylistWorkspaceTab, type PlaylistWorkspaceTab,
+} from "../../../shared/playlist-workspace-tabs";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -24,6 +29,33 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
   const [uri, setUri] = ReactRuntime.useState("");
   const [working, setWorking] = ReactRuntime.useState(false);
   const queueBusy = ReactRuntime.useRef(false);
+
+  // Den zuletzt geöffneten Bereich nur für diese Sitzung merken. Ein gesperrter
+  // Browser-Speicher darf den Workspace nicht blockieren.
+  const [activeTab, setActiveTab] = ReactRuntime.useState<PlaylistWorkspaceTab>(() => {
+    try { return normalizePlaylistWorkspaceTab(window.sessionStorage.getItem(PLAYLIST_WORKSPACE_TAB_STORAGE_KEY)); }
+    catch { return "queue"; }
+  });
+
+  function selectTab(tab: PlaylistWorkspaceTab): void {
+    setActiveTab(tab);
+    try { window.sessionStorage.setItem(PLAYLIST_WORKSPACE_TAB_STORAGE_KEY, tab); }
+    catch { /* Sitzungsspeicher ist optional; der aktive Tab bleibt im RAM. */ }
+  }
+
+  function handleTabKey(event: import("react").KeyboardEvent<HTMLDivElement>): void {
+    // Nur Events behandeln, die direkt von einer Tab-Schaltfläche kommen.
+    // So bleiben Suchfelder und die eingebetteten Werkzeuge uneingeschränkt bedienbar.
+    const target = event.target as HTMLElement;
+    const id = target.getAttribute?.("data-playlist-tab");
+    if (!id) return;
+    const next = nextPlaylistWorkspaceTab(normalizePlaylistWorkspaceTab(id), event.key);
+    if (!next) return;
+    event.preventDefault();
+    selectTab(next);
+    // Den Tastaturfokus auf die gewählte Schaltfläche mitnehmen (ARIA tabs).
+    event.currentTarget.querySelector<HTMLButtonElement>(`[data-playlist-tab="${next}"]`)?.focus();
+  }
 
   async function queue(uris: string[]): Promise<void> {
     if (queueBusy.current) return;
@@ -63,30 +95,66 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
     }
   }
 
-  return <section className="zukato-panel">
+  return <section className="zukato-panel zukato-playlist-workspace">
     <p>{t("playlist.intro")}</p>
-    <div className="zukato-toolbar">
-      <button type="button" disabled={working} onClick={() => {
-        const track = currentTrack();
-        if (track) void queue([track.uri]);
-        else Spicetify.showNotification(t("playlist.noCurrent"), true);
-      }}>{t("playlist.current")}</button>
-      <button type="button" disabled={working || favorites.length === 0}
-        onClick={() => void queue(favorites.map((item) => item.uri))}>
-        {t("playlist.allFavorites", { count: favorites.length })}
-      </button>
+    {/* Alle vier Werkzeuge bleiben gemountet: ein Tabwechsel darf weder
+        importierte Songlisten noch Playlist-Auswahl oder ungesendete Eingaben löschen. */}
+    <div className="zukato-playlist-workspace__tabs" role="tablist"
+      aria-label={t("playlistWorkspace.navigation")} onKeyDown={handleTabKey}>
+      {PLAYLIST_WORKSPACE_TABS.map((tab) => <button type="button" key={tab}
+        id={`zukato-playlist-tab-${tab}`} data-playlist-tab={tab}
+        role="tab" aria-selected={activeTab === tab}
+        aria-controls={`zukato-playlist-panel-${tab}`}
+        tabIndex={activeTab === tab ? 0 : -1}
+        onClick={() => selectTab(tab)}>
+        <span>{t(`playlistWorkspace.${tab}`)}</span>
+        {tab === "transfer" && favorites.length > 0 &&
+          <small aria-label={t("playlistWorkspace.favoritesCount", { count: favorites.length })}>
+            {favorites.length}
+          </small>}
+      </button>)}
     </div>
-    <h3>{t("playlistTransfer.heading")}</h3>
-    <p>{t("playlistTransfer.description")}</p>
-    <PlaylistDestination t={t} uris={favorites.map((track) => track.uri)} disabled={working} />
-    <TrackSearch t={t} actionLabel={t("search.queue")} disabled={working}
-      onChoose={async (track) => { await queue([track.uri]); }} />
-    <label htmlFor="zukato-queue-uri">{t("playlist.label")}</label>
-    <div className="zukato-toolbar">
-      <input id="zukato-queue-uri" placeholder="https://open.spotify.com/track/…"
-        value={uri} disabled={working} onChange={(event) => setUri(event.target.value)} />
-      <button type="button" disabled={working || !uri.trim()}
-        onClick={() => void queue([uri.trim()])}>{t("playlist.queue")}</button>
-    </div>
+    <section id="zukato-playlist-panel-queue" role="tabpanel"
+      aria-labelledby="zukato-playlist-tab-queue" hidden={activeTab !== "queue"}
+      className="zukato-playlist-workspace__panel">
+      <h3>{t("playlistWorkspace.queue")}</h3>
+      <div className="zukato-toolbar">
+        <button type="button" disabled={working} onClick={() => {
+          const track = currentTrack();
+          if (track) void queue([track.uri]);
+          else Spicetify.showNotification(t("playlist.noCurrent"), true);
+        }}>{t("playlist.current")}</button>
+        <button type="button" disabled={working || favorites.length === 0}
+          onClick={() => void queue(favorites.map((item) => item.uri))}>
+          {t("playlist.allFavorites", { count: favorites.length })}
+        </button>
+      </div>
+      <TrackSearch t={t} actionLabel={t("search.queue")} disabled={working}
+        onChoose={async (track) => { await queue([track.uri]); }} />
+      <label htmlFor="zukato-queue-uri">{t("playlist.label")}</label>
+      <div className="zukato-toolbar">
+        <input id="zukato-queue-uri" placeholder="https://open.spotify.com/track/…"
+          value={uri} disabled={working} onChange={(event) => setUri(event.target.value)} />
+        <button type="button" disabled={working || !uri.trim()}
+          onClick={() => void queue([uri.trim()])}>{t("playlist.queue")}</button>
+      </div>
+    </section>
+    <section id="zukato-playlist-panel-import" role="tabpanel"
+      aria-labelledby="zukato-playlist-tab-import" hidden={activeTab !== "import"}
+      className="zukato-playlist-workspace__panel">
+      <BulkLinkImporter t={t} disabled={working} onQueue={queue} />
+    </section>
+    <section id="zukato-playlist-panel-manage" role="tabpanel"
+      aria-labelledby="zukato-playlist-tab-manage" hidden={activeTab !== "manage"}
+      className="zukato-playlist-workspace__panel">
+      <PlaylistManager t={t} disabled={working} onQueue={queue} />
+    </section>
+    <section id="zukato-playlist-panel-transfer" role="tabpanel"
+      aria-labelledby="zukato-playlist-tab-transfer" hidden={activeTab !== "transfer"}
+      className="zukato-playlist-workspace__panel">
+      <h3>{t("playlistTransfer.heading")}</h3>
+      <p>{t("playlistTransfer.description")}</p>
+      <PlaylistDestination t={t} uris={favorites.map((track) => track.uri)} disabled={working} />
+    </section>
   </section>;
 }

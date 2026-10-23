@@ -10,6 +10,8 @@ import { collectionPage, filterCollection } from "../../../shared/collection-vie
 import { toggleTrackSelection } from "../../../shared/bulk-selection";
 import { BulkTrackActions } from "../../components/BulkTrackActions";
 import { TrackList } from "../../components/TrackList";
+import { CollectionControls } from "../../components/CollectionControls";
+import { orderCollection, readCollectionDisplay, rememberCollectionDisplay } from "../../../shared/collection-display";
 import { TrackSearch } from "../../components/TrackSearch";
 import { useToolkitData } from "../../hooks/useToolkitData";
 
@@ -18,13 +20,20 @@ const ReactRuntime = Spicetify.React as typeof import("react");
 export function Favorites({ t }: { t: Translator }): ReactElement {
   const { favorites } = useToolkitData();
   const [filter, setFilter] = ReactRuntime.useState("");
+  const [display, setDisplay] = ReactRuntime.useState(() => readCollectionDisplay("favorites"));
+  // Persistiert nur die Darstellung; Bibliotheksdaten bleiben unverändert.
+  function changeDisplay(next: typeof display): void {
+    setDisplay(next);
+    rememberCollectionDisplay("favorites", next);
+  }
   const [requestedPage, setRequestedPage] = ReactRuntime.useState(0);
   // Auswahl ist nur UI-State, wird nie in der lokalen Bibliothek gespeichert.
   // React-Updates erzeugen stets ein neues Set (kein Mutieren des alten State).
   const [selectedUris, setSelectedUris] = ReactRuntime.useState<Set<string>>(() => new Set());
-  const filteredTracks = filterCollection(favorites, filter);
+  const orderedTracks = orderCollection(favorites, display.sort);
+  const filteredTracks = filterCollection(orderedTracks, filter);
   // Eine durch Löschungen veraltete Seitennummer wird sofort geklemmt.
-  const view = collectionPage(favorites, filter, requestedPage);
+  const view = collectionPage(orderedTracks, filter, requestedPage);
   // Bei verkleinerter Sammlung den korrigierten Seitenindex im React-State
   // sichern, damit späteres Hinzufügen nicht plötzlich auf alte Seiten springt.
   ReactRuntime.useEffect(() => {
@@ -53,21 +62,13 @@ export function Favorites({ t }: { t: Translator }): ReactElement {
         Spicetify.showNotification(t("library.actionFailed"), true);
       }
     }} />
-    {favorites.length > 0 && <div className="zukato-collection__filter">
-      <label htmlFor="zukato-favorites-filter">{t("collection.filter")}</label>
-      <input id="zukato-favorites-filter" type="search" maxLength={150} value={filter}
-        placeholder={t("collection.placeholder")}
-        onChange={(event) => {
-          setFilter(event.currentTarget.value);
-          setRequestedPage(0);
-          setSelectedUris(new Set()); // Keine versteckte Auswahl aus altem Filter.
-        }} />
-      <small aria-live="polite">{t("collection.results", { count: view.total })}</small>
-    </div>}
+    {favorites.length > 0 && <CollectionControls t={t} kind="favorites" filter={filter}
+      results={view.total} display={display} onDisplay={changeDisplay}
+      onSearch={(value) => { setFilter(value); setRequestedPage(0); setSelectedUris(new Set()); }} />}
     {favorites.length > 0 && <BulkTrackActions t={t} sourceTracks={favorites}
       filteredTracks={filteredTracks} pageTracks={view.items} mode="favorites"
       selectedUris={selectedUris} onSelectionChange={setSelectedUris} />}
-    <TrackList playLabel={t("common.play")} tracks={view.items}
+    <TrackList playLabel={t("common.play")} tracks={view.items} compact={display.compact}
       emptyText={favorites.length ? t("collection.noResults") : t("favorites.empty")}
       action={toggleFavorite} actionLabel={t("common.remove")}
       actionErrorLabel={t("library.actionFailed")}

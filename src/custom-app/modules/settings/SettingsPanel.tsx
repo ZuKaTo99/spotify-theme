@@ -43,6 +43,10 @@ export function SettingsPanel(
   // Lokale Entwürfe erlauben Leerzeichen und Backspace, bevor trim() beim Blur greift.
   const [titleDraft, setTitleDraft] = ReactRuntime.useState(props.workspaceTitle);
   const [nameDraft, setNameDraft] = ReactRuntime.useState(props.displayName);
+  // Escape löst unmittelbar blur() aus. Der Ref verhindert, dass ein noch
+  // nicht neu gerenderter React-Entwurf beim Blur doch gespeichert wird.
+  const cancelTitleRef = ReactRuntime.useRef(false);
+  const cancelNameRef = ReactRuntime.useRef(false);
   ReactRuntime.useEffect(() => setTitleDraft(props.workspaceTitle), [props.workspaceTitle]);
   ReactRuntime.useEffect(() => setNameDraft(props.displayName), [props.displayName]);
 
@@ -102,12 +106,19 @@ export function SettingsPanel(
           type="text"
           maxLength={60}
           value={titleDraft}
-          onBlur={() => props.onChange({ workspaceTitle: titleDraft })}
-          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+          onBlur={() => {
+            if (cancelTitleRef.current) { cancelTitleRef.current = false; return; }
+            if (titleDraft !== props.workspaceTitle) props.onChange({ workspaceTitle: titleDraft });
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") { cancelTitleRef.current = true; setTitleDraft(props.workspaceTitle); event.currentTarget.blur(); }
+          }}
           onChange={
             handleWorkspaceTitleChange
           }
         />
+        <small className="zukato-settings__length" aria-live="polite">{props.t("settings.characters", { count: titleDraft.length, max: 60 })}</small>
       </div>
 
       <div className="zukato-settings__field">
@@ -122,8 +133,14 @@ export function SettingsPanel(
           type="text"
           maxLength={40}
           value={nameDraft}
-          onBlur={() => props.onChange({ displayName: nameDraft })}
-          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+          onBlur={() => {
+            if (cancelNameRef.current) { cancelNameRef.current = false; return; }
+            if (nameDraft !== props.displayName) props.onChange({ displayName: nameDraft });
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") { cancelNameRef.current = true; setNameDraft(props.displayName); event.currentTarget.blur(); }
+          }}
           onChange={
             handleDisplayNameChange
           }
@@ -133,6 +150,7 @@ export function SettingsPanel(
             )
           }
         />
+        <small className="zukato-settings__length" aria-live="polite">{props.t("settings.characters", { count: nameDraft.length, max: 40 })}</small>
       </div>
 
       <div className="zukato-settings__field">

@@ -1,12 +1,84 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Stand: **v1.60.0**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Stand: **v1.73.0**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
+
+## v1.72.0 – Dashboard-Informationskarten und Bibliotheksvorschau
+
+- Sechs Informationskarten frei mit Pfeiltasten anordnen und einzeln ein-/ausblenden.
+- Favoritenvorschau mit direktem Abspielen und Link zum Favoritenmodul.
+- Vier jüngste Song-Notizen lokal anzeigen und zum Notizmodul wechseln.
+- Alte Dashboard-Einstellungen rückwärtskompatibel erweitern; Kartenfolge bleibt gespeichert.
+- Responsive Zwei-Spalten-Ansicht und Ein-Spalten-Darstellung in schmalen Fenstern.
+- Visualizer, beide Nebula Engines und Musikbibliothek unverändert.
+
+## v1.64.0 – Playlist-Inhalte direkt im Workspace verwalten
+
+- **Playlist-Inhaltsverwaltung:** Eine bestehende Spotify-Playlist per Link oder
+  Auswahl aus den eigenen Playlists laden. Titel und Künstler anzeigen, lokal
+  suchen, markieren und seitenweise (50 pro API-Request, 30 pro UI-Seite)
+  durchsuchen. Maximal 500 geladene Einträge, keine ständigen Hintergrundabrufe.
+- **Zusammenhängende Aktionen:** Markierte Titel zur Spotify-Warteschlange
+  hinzufügen oder über das bekannte Playlist-Zielwerkzeug in eine andere
+  Spotify-Playlist kopieren. Die reine Auswahl verändert Spotify nicht.
+- **Entfernen mit Sicherheitsdialog:** Ausschließlich explizit ausgewählte URIs
+  über `DELETE /playlists/{id}/items` entfernen. **Wichtig:** Spotify kann
+  dabei sämtliche Vorkommen der URI entfernen, auch auf noch nicht geladenen
+  Seiten. Der Dialog warnt davor; anschließend Ansicht neu laden.
+- **API-Sicherheit:** Nur feste Spotify-Domains und gültige IDs. Keine
+  automatischen Wiederholungsversuche nach unklaren Schreibfehlern; Teilerfolge
+  werden angezeigt und die Ansicht danach als veraltet markiert.
+- **Berechtigungen:** Das seit Februar 2026 aktualisierte GET-Endpoint kann nur
+  Inhalte eigener oder kollaborativ bearbeitbarer Playlists freigeben. Ein
+  `403` wird als Lesefehler angezeigt. Löschungen erfordern Schreibrechte.
+- **Unverändert:** Visualizer, importierte Wallpaper, Nebula Engines, Presets.
+
+## v1.63.0 – Eigene Spotify-Playlists direkt als Ziel auswählen
+
+- Playlist-Browser ist jetzt in **allen** Export-Ansichten vorhanden: Favoriten,
+  Hörverlauf, Playlist-Werkzeug und Mehrfachimport.
+- Per Klick werden die eigenen und abonnierten Spotify-Playlists aus
+  `GET /v1/me/playlists` abgerufen. Suche nach Namen oder Besitzer, Auswahl über
+  Dropdown; der bisherige manuelle Link bleibt vollständig nutzbar.
+- Bei über 50 Playlists lassen sich weitere Seiten nachladen (bis zu 500). Die
+  Folgeanfragen verwenden sichere feste Offset-URLs, keine fremden `next`-Links.
+- **Nur Lesen** beim Laden und Auswählen: Erst der separate, bestätigte
+  Übertragungsbutton versucht Änderungen. Abonnierte Playlists ohne Schreibrecht
+  können trotzdem sichtbar sein; Spotify entscheidet über die Berechtigung.
+- Keine Playlist-Metadaten werden lokal gespeichert. Bereinigte API-Antworten,
+  Schutz gegen Doppelklicks, Fehleranzeige, keine automatischen Wiederholungen.
+- Deutsche und englische Texte, kommentierter Code, Regressionstests und
+  bestehende Audio-/Wallpaper-Quellen unverändert.
+
+## v1.62.0 – Import-Arbeitsliste für Spotify-Links
+
+- **Bearbeitbare Auswahl:** Bis zu 500 validierte Titel lassen sich einzeln an- und
+  abwählen; alle markieren oder die Auswahl aufheben. Nur ausgewählte Einträge
+  werden in die Warteschlange bzw. Spotify-Playlist übertragen.
+- **Reihenfolge und Suche:** Songs mit Pfeiltasten-Buttons verschieben, nach URI
+  oder Spotify-ID filtern und über Seiten mit je 30 Einträgen navigieren.
+  Die Suche verändert die eigentliche Auswahl nicht.
+- **Eingabe aufräumen:** Auf Wunsch bleibt nur die aktuelle Auswahl in der
+  Texteingabe. Diese bewusst verändernde Aktion benötigt eine Bestätigung.
+- **Sicherheit:** Quelle und Spotify-API bleiben beim bloßen Bearbeiten
+  unverändert. Alle Versandwege verwenden dieselbe geprüfte Auswahl und
+  schützen weiterhin vor Doppelklicks sowie großen Mehrfachanfragen.
+- **Unverändert:** HTML-Wallpapers, Nebula Engines und Visualizer-Effekte.
+
+## v1.61.0 – Mehrfachimporte und zuletzt genutzte Playlists
+
+- Spotify-Titel und Episoden per mehrzeiligem Link-/URI-Feld importieren, mit
+  Analyse von ungültigen und doppelten Einträgen. Höchstens 500 gültige Songs;
+  mehr als 500 führt zu einer Fehlermeldung statt stillschweigender Kürzung.
+- Importierte Titel ausdrücklich in die Warteschlange oder eine bestehende
+  Spotify-Playlist übernehmen, niemals automatisch.
+- Zuletzt erfolgreich verwendete Playlist-Ziele bleiben lokal verfügbar, bis
+  sie in der Oberfläche gelöscht werden.
 
 ## v1.60.0 – Ausgewählte Songs in Spotify-Playlists übertragen
 
@@ -711,3 +783,207 @@ Spotify-Desktop-Abnahme muss auf dem Zielrechner erfolgen.
   tatsächlichen Shortcut-Eventhandler für Konflikt, erneuten Versuch und Abbruch.
 - Visualizer, Wallpaper und gespeicherte Presets bleiben unverändert.
   Das Release-ZIP enthält keine zusätzlichen TXT-Dateien.
+
+
+## v1.62.0 – Playlist-Sammelimport und häufige Ziele
+
+- Im Modul „Playlist-Werkzeuge“ lassen sich bis zu 500 Spotify-Titel oder
+  Episoden per Mehrfach-Einfügen übernehmen (Link oder URI, getrennt durch
+  Zeilenwechsel, Leerraum, Kommas und Semikola).
+- Vor einer Aktion zeigt die Vorschau gültige, ungültige und doppelte Einträge.
+  Die Reihenfolge der gültigen ersten Treffer bleibt erhalten; bei zu langen
+  Eingaben oder mehr als 500 unterschiedlichen Titeln wird **nichts** verschickt.
+- Die Vorschau kann mit einem Klick in die Warteschlange oder nach einer
+  separaten Bestätigung in eine bestehende Spotify-Playlist übertragen werden.
+- Bis zu fünf **erfolgreich verwendete** Ziel-Playlists werden lokal gespeichert
+  und können direkt wiedergewählt oder komplett entfernt werden. Niemals Token
+  oder Playlist-Inhalte speichern. Ausfälle des lokalen Speichers blockieren
+  Spotify-Transfers nicht.
+- Alle bestehenden Favoriten, Hörverlauf, Visualizer-Quellen, Effekte und
+  Nebula-Engines bleiben unverändert.
+- Prüfen: `npm test`, `npm run install:spicetify`, danach in Spotify einen
+  kleinen Import gegen eine Playlist testen, die man bearbeiten darf.
+
+
+## v1.65.0 – Playlists erstellen und einzelne Vorkommen verschieben
+
+- In den bestehenden Playlist-Zielfeldern gibt es einen **optionalen Dialog
+  zum Erstellen einer neuen Spotify-Playlist** (Name, Beschreibung, privat/
+  öffentlich). Der Standard ist **privat**. Ein Bestätigungsklick erstellt
+  nur die leere Playlist und übernimmt deren URI als Ziel; Songs werden
+  ausdrücklich **erst nach der separaten Transferbestätigung** übertragen.
+- Im Playlist-Inhaltsmanager lässt sich die **absolute Position eines einzelnen
+  Playlist-Eintrags** ändern, auch wenn der Song mehrfach in der Playlist
+  enthalten ist. Den Eintrag über „Position ändern“ markieren, Zielplatz
+  zwischen 1 und der Playlist-Gesamtzahl eingeben und bestätigen.
+- Spotifys aktueller PUT-`/items`-Endpunkt verschiebt exakt eine Position und
+  nutzt eine unmittelbar vor dem Schreiben angeforderte `snapshot_id`.
+  So werden URI-Duplikate nicht gemeinsam verändert. Bei einem unsicheren
+  API-Ausgang wird **nicht automatisch erneut geschrieben**.
+- Nach einer Verschiebung muss die Playlist neu geladen werden. Das verhindert,
+  dass eine veraltete Ansicht weiter für Aktionen verwendet wird.
+- Typprüfung und Tests: `npm run check && npm test`. Ein echter Spotify-Client
+  mit Playlist-Schreibrechten bleibt für einen Praxistest erforderlich.
+- Alle neu eingefügten Quellcodebereiche sind kommentiert; Visualizer,
+  Effekt-Persistenz und beide Nebula Engines bleiben unverändert.
+
+
+## v1.66.0 – Große Playlists und eigene Metadaten
+
+- Playlist-Inhaltsmanager lädt bis zu 10.000 Positionen über Spotify-50er-Seiten.
+  Eine gewünschte Spotify-Seite kann direkt angesprungen werden, ohne alle
+  vorherigen Seiten abfragen zu müssen. Nachgeladen wird nur auf Klick.
+- Die sichtbare Suche/Auswahl bleibt ausdrücklich auf **geladene Titel**
+  begrenzt; entfernte, nicht geladene Duplikate sind weiterhin vor der
+  Löschbestätigung zu beachten.
+- Besitzer können Playlist-Namen und Beschreibungen über einen eigenen
+  Dialog laden, bearbeiten und nach ausdrücklicher Bestätigung ändern.
+  Vorher werden Spotify-Konto und Playlist-Eigentümer verglichen.
+- Spotify kann bei einem erfolgreichen Metadaten-PUT eine leere Antwort liefern.
+  Bei uneindeutiger Antwort wird NICHT automatisch erneut geschrieben;
+  die Metadaten müssen erst neu geladen werden.
+- API-URLs werden nur aus validierten Spotify-IDs konstruiert.
+  Playlist-Songs, Sichtbarkeit, Visualizer und Nebula-Engines bleiben unverändert.
+
+
+## v1.67.0 – Aufgeräumter Playlist-Workspace mit echter Tab-Navigation
+
+- Die bisher sehr lange Seite „Playlist-Werkzeuge“ ist in vier übersichtliche
+  Bereiche unterteilt: **Schnell einreihen**, **Links importieren**,
+  **Playlists verwalten** und **Favoriten übertragen**.
+- Die Unterbereiche bleiben **gleichzeitig gemountet**, während nur der
+  aktive Bereich angezeigt wird. Beim Wechsel gehen deshalb bereits
+  eingegebene Spotify-Links, markierte Songs und geladene Playlist-Seiten
+  nicht verloren. API-Schreibaktionen werden dabei nicht automatisch ausgelöst.
+- Der zuletzt geöffnete Unterbereich wird für die aktuelle Sitzung gemerkt.
+  Gesperrter oder defekter Sitzungsspeicher bleibt ausdrücklich toleriert.
+- Vollständige Tastatursteuerung: `Pfeil links/rechts`, `Home` und `End`;
+  der Tastaturfokus folgt der aktuellen Registerkarte. `Tab` und Eingaben
+  innerhalb der Werkzeuge bleiben unverändert benutzbar.
+- Vier flexible Registerkarten (auf schmalen Fenstern zwei Spalten),
+  zugängliche Beschriftungen und ein Favoritenzähler an der Übertragung.
+- Neun zusätzliche UI- und Logiktests. Der vollständige Projektstand,
+  Visualizer, Audioanalyse und beide Nebula Engines bleiben erhalten.
+
+
+## v1.68.0 – Navigationszentrale, Suchfeld und dauerhafte Schnellzugriffe
+
+- Die übergreifende Workspace-Navigation hat nun eine **direkte Modulsuche**,
+  auch bei benutzerdefinierten Modultiteln. Umlaute und Schreibweise werden
+  beim Suchen normalisiert. Die Suchfunktion startet keine Spotify-Aktion.
+- Bis zu fünf Module können über das Stern-Symbol **dauerhaft angeheftet**
+  werden. Sie erscheinen oben als Schnellzugriff. Der lokale Speicher enthält
+  nur bekannte Modul-IDs, keine Spotify-Tokens, Playlists oder Songdaten.
+- Vorübergehend deaktivierte Module werden nie über gespeicherte Pins geöffnet.
+  Werden sie erneut aktiviert, kann ihre alte Anheftung wieder erscheinen.
+- Die volle Modulnavigation ist ein- und ausklappbar. Tippen im Suchfeld
+  klappt sie wieder auf; `Escape` löscht die aktuelle Modulsuche.
+  `Enter` öffnet einen eindeutigen Treffer, `Pfeil runter` fokussiert den ersten.
+- Für kleine Workspace-Flächen gibt es **horizontal scrollbar erreichbare**
+  Modulgruppen statt überfüllter mehrzeiliger Navigation. CSS-Container-Queries
+  berücksichtigen auch eine breite Spotify-Seitenleiste. Sichtbare Fokusrahmen
+  und beschriftete Pin-Tasten erleichtern Tastatur- und Screenreader-Bedienung.
+- Fehlender, beschädigter oder gesperrter Browser-Speicher verhindert niemals
+  Navigation oder Pin-Klicks in der laufenden Ansicht. Schnelle Pin-Klicks werden
+  vollständig übernommen; bei fünf Pins werden weitere Pins deutlich gesperrt.
+- Alle Änderungen sind lokal auf die Workspace-Navigation begrenzt.
+  Bestehende Playlist-Tools, Audioanalyse, Presets und beide Nebula Engines
+  bleiben unverändert.
+- Neue Tests: `tests/workspace-navigation-v168.test.mjs`. Gesamttest:
+  `npm test` und anschließend bei dir `npm run install:spicetify`.
+
+
+## v1.69.0 – Einheitliche Bibliothekslisten und klarere Einstellungen
+
+- **Favoriten, Hörverlauf und Song-Notizen** erhalten eine gemeinsame Such-
+  und Sortierleiste mit aufgeräumter Bedienung. Die Suche lässt sich direkt
+  zurücksetzen; gefundene Titel und Notizen werden weiterhin paginiert.
+- Sortierung: gespeicherte Reihenfolge (Standard), Titel A–Z und Künstler A–Z.
+  Hörverlauf und Notizen bieten zusätzlich „Neueste“ und „Älteste zuerst“
+  anhand ihrer jeweiligen Zeitstempel. Doppelte Wiedergaben im Hörverlauf
+  bleiben als eigenständige Zeilen erhalten.
+- Eine **kompakte Listenansicht** reduziert die Zeilenhöhe in allen drei
+  Bibliotheksbereichen. Die Auswahl und sämtliche Titelaktionen bleiben
+  vollständig nutzbar – auch in schmaleren Spotify-Fenstern.
+- Sortierung und Dichte werden gerätelokal je Bereich gespeichert und bei
+  erneutem Öffnen wiederhergestellt. Defekter oder gesperrter Browser-Speicher
+  blockiert die Oberfläche nicht. Kein Schreiben in die Favoriten-, Verlaufs-
+  oder Notizbibliothek; kein Umbau des bestehenden Backups.
+- In den allgemeinen Einstellungen zeigen Workspace-Titel und Anzeigename
+  jetzt einen Zeichenzähler. `Esc` verwirft ungespeicherte Feldänderungen auch
+  bei unmittelbar folgendem `blur`; unveränderte Texte werden nicht erneut
+  gespeichert. Deutsch und Englisch sind ergänzt.
+- Die Anpassungen sind kommentiert, mit gemeinsamen Funktionen statt
+  dreifach kopierter Sortierlogik. Testdatei:
+  `tests/collection-display-v169.test.mjs`.
+- Visualizer, Wallpaper-Host, beide Nebula Engines und Spotify-Schreibaktionen
+  wurden für dieses Release **nicht** geändert.
+
+
+## v1.70.0 – Lokale Musikstatistik und Dashboard-Aktivität
+
+- **Statistik:** Auswahl zwischen 7 Tagen, 30 Tagen und dem gesamten lokal
+  gespeicherten Hörverlauf. Anzahl der Songwechsel, einzigartige Titel,
+  heutige Ereignisse und aktive Kalendertage werden passend zum Zeitraum angezeigt.
+- **7-Tage-Aktivitätsverlauf:** Sieben Kalender-Tagesbalken, auch an Tagen ohne
+  Ereignisse. Dashboard und Statistik verwenden dieselbe reine Datenberechnung.
+- **Ranglisten:** Top 10 der Künstler und Songs im gewählten Zeitraum.
+  Songs werden nach Spotify-URI statt nach gleich klingendem Titel gruppiert.
+  Gleiche Künstler-/Song-Häufigkeiten behalten eine stabile Reihenfolge.
+- **Dashboard:** Die neue Aktivitätskurve verlinkt auf die Statistik, wenn
+  das Modul aktiviert ist. Keine zusätzliche Spotify-API-Abfrage.
+- **Ehrliche Datenbasis:** Es werden nur beobachtete lokale Songwechsel aus
+  maximal 500 gespeicherten Verlaufsereignissen ausgewertet. Keine erfundenen
+  Hörminuten, vollständigen Spotify-Statistiken oder Jahresrückblicke.
+  Die Auswertung verändert die gespeicherten Daten nicht.
+- Deutsch/Englisch, kompakte Bildschirmbreiten, Tastaturbedienung und
+  Regressionstests ergänzt. Visualizer und Nebula Engines unverändert.
+
+
+## v1.72.0 – Persönliches Dashboard und Schnellzugriffe
+
+- **Dashboard-Schnellzugriffe anpassen:** Bis zu sechs Module direkt auf der
+  Startseite platzieren, entfernen und mit Auf-/Ab-Tasten umsortieren. Eigene
+  Modulnamen aus den allgemeinen Einstellungen werden übernommen. Deaktivierte
+  Seiten bleiben auch bei früher gespeicherten Verknüpfungen unzugänglich.
+- **Dashboard-Bereiche auswählen:** Aktivitätskurve, zuletzt gehörte Titel und
+  Workspace-Überblick können einzeln ein- und ausgeblendet werden. Der aktive
+  Spotify-Player und die Kennzahlen bleiben immer erreichbar.
+- **Persönlicher Statistikzeitraum:** Titelwechsel und eindeutige Songs auf
+  dem Dashboard für 7 Tage, 30 Tage oder den gesamten *lokalen* Verlauf.
+  Die darunter stehende Sieben-Tage-Kurve bleibt ausdrücklich auf sieben
+  Kalendertage beschränkt, statt falsche Langzeitbalken anzuzeigen.
+- **Dauerhafte Speicherung:** Einstellungen werden ausschließlich unter
+  `zukato-toolkit.dashboard.preferences.v1` im lokalen Browser-Speicher
+  abgelegt; ältere Einstellungen, die Bibliothek und Spotify-Daten bleiben
+  unverändert. Gesperrter oder defekter Speicher verhindert die Bedienung
+  während der laufenden Sitzung nicht. „Dashboard zurücksetzen“ stellt die
+  Standardwerte wieder her.
+- **Barrierearm und responsiv:** Bedienelemente haben Beschriftungen,
+  sichtbare Tastatur-Fokusmarkierungen und ein schmalfenstertaugliches Layout.
+  Deutsch/Englisch vollständig ergänzt.
+- **Regression:** `tests/dashboard-personalization-v171.test.mjs` prüft die
+  Speicherung, strikte Datenvalidierung und tatsächliche TSX-Callbacks.
+  Visualizer, Audioanalyse und beide Nebula Engines wurden nicht verändert.
+
+
+## v1.73.0 – Musik wiederentdecken (lokale Bibliothekswerkzeuge)
+
+- **Neue Statistik-Ansicht:** „Musik wiederentdecken“ zeigt Songs und Episoden,
+  die im lokalen Hörverlauf mehrfach vorkommen. Die Ansicht ist über die
+  Statistik und den Dashboard-Schnellzugriff erreichbar, sofern aktiviert.
+- **Zwei nachvollziehbare Sortierungen:** Am häufigsten gehört und am längsten
+  nicht gehört. Zusammenfassung anhand gültiger Spotify-URIs; gleiche Namen
+  verschiedener Songs werden nicht verwechselt.
+- **Flexible Filter:** Mindestens 1, 2, 3 oder 5 lokale Songwechsel, Suche
+  nach Titel/Künstler und optional nur noch nicht gemerkte Favoriten.
+- **Direkte Aktionen:** Auswahl einzelner Titel, einer Seite oder aller Treffer,
+  mit anschließendem gezieltem Speichern als lokale Favoriten, Einreihen in
+  die Warteschlange oder Übernehmen in bestehende Spotify-Playlists.
+  Markieren allein löst keinerlei Speicher- oder Spotify-Schreibaktion aus.
+- **Begrenzte, ehrliche Datenbasis:** Nur die maximal 500 lokal gespeicherten
+  Songwechsel; keine serverseitigen Spotify-Empfehlungen oder Hörminuten.
+  Ungültige und zukünftige Zeitstempel werden ausgeschlossen. Kein Eingriff
+  in Visualizer, Nebula Engines oder gespeicherte Presets.
+- Deutsch/Englisch, schmale Fenster, kommentierter Quellcode und
+  `tests/library-discovery-v173.test.mjs` als neue Regression.
