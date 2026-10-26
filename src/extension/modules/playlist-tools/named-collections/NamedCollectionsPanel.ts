@@ -212,8 +212,8 @@ export function mountNamedCollectionsPanel(
     root.replaceChildren();
     const header = createElement('div', 'zukato-collections__header');
     const heading = createElement('h3', 'zukato-collections__heading', 'Meine Sammlungen');
-    const subtitle = createElement('p', 'zukato-collections__subtitle', 'Bis zu 40 Sammlungen mit je 500 Songs.');
-    header.append(heading, subtitle);
+    heading.setAttribute('title', 'Bis zu 40 Sammlungen mit je 500 Songs.');
+    header.append(heading);
     root.append(header);
 
     // Fehler und Erfolgsmeldungen direkt im Panel anzeigen.
@@ -284,9 +284,8 @@ export function mountNamedCollectionsPanel(
     root.append(list);
 
     const active = snapshot.collections.find((entry) => entry.id === snapshot.activeCollectionId)!;
-    // Abschnitt 4: Playlist-Export bleibt deaktiviert, bis Spotify angebunden ist.
+    // Abschnitt 4: Playlist-Export erst für eine nicht leere Sammlung anbieten.
     const exportSection = createElement('div', 'zukato-collections__export');
-    exportSection.append(createElement('p', '', `Aktiv: ${active.name} · ${trackCount(active.trackUris.length)}`));
     const canExport = Boolean(options.onExportConfirmed) && active.trackUris.length > 0 && !exporting;
     const exportButton = createButton('Als Spotify-Playlist exportieren', () => { exportId = active.id; render(); }, 'zukato-collections__button--primary');
     exportButton.disabled = !canExport;

@@ -2,7 +2,7 @@
 // Datei: src/custom-app/modules/settings/SettingsModule.tsx
 // Zweck: Vereinfachte Einstellungen mit fünf klaren Bereichen statt einer
 //        endlosen Seite voller unterschiedlicher Formulare.
-// Wo ändern? Tab-Reihenfolge und Einleitung hier; einzelne Optionen bleiben
+// Wo ändern? Tab-Reihenfolge und Navigation hier; einzelne Optionen bleiben
 // in SettingsPanel, WallpaperSettings, FeatureManager, Shortcuts und DataBackup.
 // =============================================================================
 import type { ReactElement } from "react";
@@ -59,18 +59,14 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
   const current = tabs.find((item) => item.id === view) ?? tabs[0];
 
   return <section className="zukato-preferences">
-    <div className="zukato-preferences__heading">
-      <div>
-        <p className="zukato-eyebrow">ZUKATO · {t("settings.heading")}</p>
-        <h3>{t("settings.simpleHeading")}</h3>
-        <p>{t("settings.simpleIntro")}</p>
-      </div>
-    </div>
+    {/* Der gemeinsame Seitenkopf nennt bereits die Einstellungen. Die
+        Kategorien und der aktive Bereich dienen hier als Orientierung. */}
     <div className="zukato-preferences__layout">
       <nav className="zukato-preferences__tabs" aria-label={t("settings.heading")}>
         {tabs.map((item) => <button key={item.id} type="button"
           aria-current={view === item.id ? "page" : undefined}
           className={view === item.id ? "is-current" : ""}
+          title={item.description}
           data-settings-section={item.id}
           onKeyDown={(event) => onTabKey(event, item.id)}
           onClick={() => selectView(item.id)}>
@@ -79,18 +75,10 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
       </nav>
       <div className="zukato-preferences__content">
         <header className="zukato-preferences__section-heading">
-          <h3>{current.title}</h3><p>{current.description}</p>
+          <h3>{current.title}</h3>
         </header>
         {view === "overview" && <div className="zukato-preferences__overview">
-          <p className="zukato-preferences__lead">{t("settings.overviewIntro")}</p>
           <WallpaperSettings t={t} simpleOnly />
-          <div className="zukato-preferences__overview-grid">
-            {tabs.filter((item) => item.id !== "overview").map((item) => <button type="button" key={item.id}
-              onClick={() => selectView(item.id)}>
-              <strong>{item.title} <span aria-hidden="true">→</span></strong>
-              <small>{item.description}</small>
-            </button>)}
-          </div>
           <p className="zukato-preferences__summary" aria-live="polite">
             {t("settings.overviewStats", {
               modules: getEnabledFeaturesBySurface("custom-app", settings.features).length,

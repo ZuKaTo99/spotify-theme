@@ -24,14 +24,13 @@ interface ModuleContentProps {
   t: Translator;
   onSettingsChange: (changes: SettingsChanges) => void;
   onNavigate: (featureId: FeatureId) => void;
-  onOpenQuick: () => void;
 }
 
 /** Wichtig: kein verschachteltes if nach return (ursprünglicher Router-Bug). */
-export function ModuleContent({ featureId, settings, t, onSettingsChange, onNavigate, onOpenQuick }: ModuleContentProps): ReactElement {
+export function ModuleContent({ featureId, settings, t, onSettingsChange, onNavigate }: ModuleContentProps): ReactElement {
   switch (featureId) {
     case "settings": return <SettingsModule settings={settings} t={t} onChange={onSettingsChange} />;
-    case "dashboard": return <Dashboard features={settings.features} t={t} onNavigate={onNavigate} onOpenQuick={onOpenQuick} />;
+    case "dashboard": return <Dashboard features={settings.features} t={t} onNavigate={onNavigate} />;
     case "listening-history": return <ListeningHistory t={t} />;
     case "statistics": return <Statistics t={t} />;
     case "favorites": return <Favorites t={t} />;

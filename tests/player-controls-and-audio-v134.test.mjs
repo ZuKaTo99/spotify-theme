@@ -31,9 +31,9 @@ test("Player-Buttons verwenden SVG statt Emoji und besitzen sprechende Namen", (
 });
 
 test("Ohne explizite Freigabe erscheinen klare Audiohinweise und Aktionen", () => {
-  assert.match(app, /Visualizer wartet auf eine Audioquelle/);
+  assert.match(app, /Audioeffekte aus/);
   assert.match(app, /Spotify gibt keine FFT-Daten direkt frei/);
-  assert.match(app, /Audiofreigabe aktiv, aber kein Ton erkannt/);
+  assert.match(app, /Kein Audiosignal/);
   assert.match(app, /spectrum\.startSystem\(\)/);
   assert.match(app, /spectrum\.start\(\)/);
   assert.match(app, /disabled=\{spectrum\.starting\}/);

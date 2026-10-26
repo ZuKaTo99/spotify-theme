@@ -42,7 +42,9 @@ export function AppNavigation({
   onSelect,
 }: AppNavigationProps): ReactElement {
   const [search, setSearch] = ReactRuntime.useState("");
-  const [expanded, setExpanded] = ReactRuntime.useState(true);
+  // Die Suche bleibt immer sichtbar. Die vollständige Modulliste öffnet sich
+  // erst bei Bedarf oder beim Suchen und verdeckt so nicht jede Arbeitsseite.
+  const [expanded, setExpanded] = ReactRuntime.useState(false);
   const [pins, setPins] = ReactRuntime.useState<FeatureId[]>(readWorkspacePins);
   // Ref verhindert verlorene Änderungen bei zwei sehr schnellen Pin-Klicks.
   const pinsRef = ReactRuntime.useRef(pins);
@@ -65,15 +67,16 @@ export function AppNavigation({
     if (value.trim()) setExpanded(true);
   }
 
-  const activeTitle = items.find((item) => item.id === activeFeatureId)?.title;
+  /** Nach einem Suchtreffer wird der Platz für die gewählte Seite frei.
+   * Manuell geöffnete Modullisten bleiben dagegen bis zum Einklappen offen. */
+  function selectItem(featureId: FeatureId): void {
+    if (search.trim()) { setSearch(""); setExpanded(false); }
+    onSelect(featureId);
+  }
 
   return (
     <nav className="spotify-toolkit-navigation" aria-label={ariaLabel}>
       <div className="spotify-toolkit-navigation__toolbar">
-        <div className="spotify-toolkit-navigation__heading">
-          <strong>{t("navigation.heading")}</strong>
-          {activeTitle && <small>{t("navigation.current", { title: activeTitle })}</small>}
-        </div>
         <label className="spotify-toolkit-navigation__search">
           <span className="zukato-visually-hidden">{t("navigation.search")}</span>
           <input type="search" value={search} placeholder={t("navigation.search")}
@@ -85,7 +88,7 @@ export function AppNavigation({
               } else if (event.key === "Enter" && visibleItems.length === 1) {
                 // Ein eindeutiger Treffer kann direkt per Tastatur geöffnet werden.
                 event.preventDefault();
-                onSelect(visibleItems[0].id);
+                selectItem(visibleItems[0].id);
               } else if (event.key === "ArrowDown" && expanded && visibleItems.length > 0) {
                 // Fokus auf den ersten Treffer setzen; normale Texteingabe bleibt möglich.
                 const nav = event.currentTarget.closest("nav");
@@ -115,7 +118,7 @@ export function AppNavigation({
                 ? "spotify-toolkit-navigation__item spotify-toolkit-navigation__item--active"
                 : "spotify-toolkit-navigation__item"}
               aria-current={item.id === activeFeatureId ? "page" : undefined}
-              onClick={() => onSelect(item.id)}>{item.title}</button>)}
+              onClick={() => selectItem(item.id)}>{item.title}</button>)}
           </div>
         </div>
       )}
@@ -135,7 +138,7 @@ export function AppNavigation({
                       ? "spotify-toolkit-navigation__item spotify-toolkit-navigation__item--active"
                       : "spotify-toolkit-navigation__item"}
                     aria-current={isActive ? "page" : undefined}
-                    onClick={() => onSelect(item.id)}>{item.title}</button>
+                    onClick={() => selectItem(item.id)}>{item.title}</button>
                   <button type="button" className="spotify-toolkit-navigation__pin"
                     aria-label={t(isPinned ? "navigation.unpin" : "navigation.pin", { title: item.title })}
                     title={t(isPinned ? "navigation.unpin" : "navigation.pin", { title: item.title })}

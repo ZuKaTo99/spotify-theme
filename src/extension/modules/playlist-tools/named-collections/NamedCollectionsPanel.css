@@ -12,7 +12,7 @@
 /* Überschrift und Hilfstext richten sich nach der Breite des bisherigen Panels. */
 .zukato-collections__header { display: grid; gap: 2px; }
 .zukato-collections__heading { margin: 0; font-size: 1.12rem; line-height: 1.3; }
-.zukato-collections__subtitle, .zukato-collections__hint { margin: 0; font-size: .87rem; opacity: .78; }
+.zukato-collections__hint { margin: 0; font-size: .87rem; opacity: .78; }
 
 /* Bedienknöpfe bleiben auf kleinen Spotify-Fenstern erreichbar. */
 .zukato-collections__toolbar, .zukato-collections__actions,

@@ -30,7 +30,6 @@ interface DashboardProps {
   features: FeaturePreferences;
   t: Translator;
   onNavigate: (featureId: FeatureId) => void;
-  onOpenQuick: () => void;
 }
 
 /** Beobachtet echte Player-Ereignisse – die Ansicht muss dafür nicht neu geöffnet werden. */
@@ -55,7 +54,7 @@ function useNowPlaying(): { track: TrackInfo | null; playing: boolean; cover: st
 }
 
 /** Schaltflächen erscheinen nur, wenn das Zielmodul tatsächlich aktiviert ist. */
-export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardProps): ReactElement {
+export function Dashboard({ features, t, onNavigate }: DashboardProps): ReactElement {
   const { history, favorites, notes } = useToolkitData();
   const { track, playing, cover } = useNowPlaying();
   const summary = ReactRuntime.useMemo(() => summarizeDashboard(history), [history]);
@@ -142,15 +141,8 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
   const availableShortcuts = DASHBOARD_SHORTCUT_IDS.filter((id) => visible.has(id) && !preferences.shortcuts.includes(id));
 
   return <section className="zukato-dashboard">
-    <div className="zukato-dashboard__intro">
-      <div>
-        <p className="zukato-eyebrow">{t("dashboard.welcomeLabel")}</p>
-        <h3>{t("dashboard.welcome")}</h3>
-        <p>{t("dashboard.description")}</p>
-      </div>
-      <span className="zukato-dashboard__indicator">● {playing ? t("dashboard.playing") : t("dashboard.idle")}</span>
-    </div>
-
+    {/* Der Modultitel steht bereits im gemeinsamen Seitenkopf. Die Karten
+        beginnen sofort mit Musik und Aktionen statt einer zweiten Begrüßung. */}
     <div className="zukato-dashboard__main">
       <section className="zukato-dashboard__now" aria-label={t("dashboard.nowPlaying")}>
         <p className="zukato-eyebrow">{t("dashboard.nowPlaying")}</p>
@@ -160,7 +152,7 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
         <div className="zukato-dashboard__now-details">
           <h3>{track?.title ?? t("dashboard.noTrack")}</h3>
           <p>{track?.artist ?? t("dashboard.noTrackHelp")}</p>
-          {track?.album && <small>{track.album}</small>}
+          {track?.album && track.album !== track.title && <small>{track.album}</small>}
         </div>
         <div className="zukato-dashboard__timeline" aria-label={t("dashboard.progress")}>
           <div className="zukato-dashboard__progress" role="progressbar" aria-valuemin={0}
@@ -174,7 +166,6 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
             {playing ? t("dashboard.pause") : t("dashboard.resume")}
           </button>
           <button type="button" onClick={() => Spicetify.Player.next()} aria-label={t("dashboard.next")}>{t("dashboard.next")}</button>
-          <button type="button" onClick={onOpenQuick}>{t("quick.open")}</button>
           <button type="button" disabled={!track} aria-pressed={isFavorite} onClick={() => {
             if (track) {
               try {
@@ -192,17 +183,15 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
       </section>
       <section className="zukato-dashboard__shortcuts" aria-labelledby="dashboard-shortcuts-heading">
         <div className="zukato-dashboard__shortcut-header">
-          <div><h3 id="dashboard-shortcuts-heading">{t("dashboard.quickAccess")}</h3>
-            <p>{t("dashboard.quickAccessHelp")}</p></div>
+          <h3 id="dashboard-shortcuts-heading">{t("dashboard.quickAccess")}</h3>
           <button type="button" aria-expanded={customizing} aria-controls="zukato-dashboard-editor"
             onClick={() => setCustomizing((open) => !open)}>{customizing ? t("dashboard.done") : t("dashboard.customize")}</button>
         </div>
         <div className="zukato-dashboard__shortcut-grid">
           {shortcuts.map((id) => <button type="button" key={id} className="zukato-dashboard__shortcut"
-            onClick={() => onNavigate(id)}>
+            title={shortcutDescriptions[id]} onClick={() => onNavigate(id)}>
             <span className="zukato-dashboard__shortcut-icon" aria-hidden="true">{shortcutIcons[id]}</span>
             <strong>{shortcutTitle(id)}</strong>
-            <small>{shortcutDescriptions[id]}</small>
             <span className="zukato-dashboard__shortcut-arrow" aria-hidden="true">↗</span>
           </button>)}
           {shortcuts.length === 0 && <p className="zukato-empty">{t("dashboard.noShortcuts")}</p>}
@@ -251,9 +240,6 @@ export function Dashboard({ features, t, onNavigate, onOpenQuick }: DashboardPro
           <button type="button" className="zukato-dashboard__reset"
             onClick={() => changePreferences(() => defaultDashboardPreferences())}>{t("dashboard.reset")}</button>
         </div>}
-        <button className="zukato-dashboard__search-link" type="button" onClick={onOpenQuick}>
-          {t("dashboard.findSong")} →
-        </button>
       </section>
     </div>
 

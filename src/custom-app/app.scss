@@ -393,8 +393,22 @@
   .zukato-viz__timeline { position: absolute; z-index: 4; bottom: 0; width: 100%; height: 4px;
     background: rgba(255,255,255,.25); }
   .zukato-viz__timeline > div { height: 100%; background: var(--zukato-accent); }
+  .zukato-viz__stage-controls {
+    position: absolute; z-index: 5; left: 50%; bottom: clamp(18px, 4vh, 42px);
+    transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+    padding: 8px 14px; border-radius: 18px; background: rgba(8, 14, 26, .78);
+    border: 1px solid rgba(200, 225, 255, .24); backdrop-filter: blur(12px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  }
+  .zukato-viz__stage-controls .zukato-player-monitor__buttons { padding: 0; }
+  .zukato-viz__stage-controls .zukato-player-monitor__control { width: 44px; height: 44px; }
+  .zukato-viz__stage-controls .zukato-player-monitor__control--primary { width: 52px; height: 52px; }
+  .zukato-viz__exit-fullscreen { display: none; white-space: nowrap; }
+  .zukato-viz__stage:fullscreen .zukato-viz__exit-fullscreen { display: block; }
   .zukato-viz__stage:fullscreen { border-radius: 0; aspect-ratio: auto; width: 100vw; height: 100vh; }
   .zukato-viz__settings { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,310px),1fr)); gap: 14px; }
+  // Versteckte Register behalten ihre Vorschau im DOM, belegen aber keinen Platz.
+  .zukato-viz__settings-pane[hidden] { display: none !important; }
   .zukato-viz__controls { min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 17px;
     background: var(--zukato-panel); border: 1px solid var(--zukato-border); border-radius: 15px; }
   .zukato-viz__controls h3, .zukato-viz__controls p { margin: 0; }
@@ -546,32 +560,30 @@
     border-color: var(--zukato-accent); font-weight: 750; }
   button.zukato-primary:hover:not(:disabled) { filter: brightness(1.09); }
 
-  /* Kompakte Kopfzeile: kein riesiger Leerraum vor den Funktionen. */
-  &__header { max-width: none; margin: 0 0 14px; padding: 0 4px; }
-  &__header h1 { margin: 0; font-size: clamp(25px, 2.8vw, 36px); letter-spacing: -.04em; }
-  &__header > p:last-child { margin: 5px 0 0; color: var(--zukato-muted); font-size: 13px; }
-  &__greeting { margin: 4px 0!important; font-size: 13px; }
-  .spotify-toolkit-navigation { margin-bottom: 22px; display: flex; gap: 5px;
+  /* Eine Zeile für Identität und Schnellaktion; die Modulinhalte folgen direkt. */
+  &__header { display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px 18px; margin: 0 0 12px; padding: 0 4px; }
+  &__identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; min-width: 0; }
+  &__label { color: var(--zukato-accent); font-size: 10px; font-weight: 750;
+    letter-spacing: .11em; text-transform: uppercase; }
+  &__header h1 { margin: 0; font-size: clamp(21px, 2.2vw, 27px); letter-spacing: -.035em; }
+  &__greeting { color: var(--zukato-muted); font-size: 12px; }
+  &__quick-action { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+  &__quick-action kbd { font-size: 10px; padding: 3px 6px; border-radius: 5px;
+    border: 1px solid rgba(0,0,0,.17); background: rgba(0,0,0,.12); }
+  .spotify-toolkit-navigation { margin-bottom: 14px; display: flex; gap: 5px;
     flex-wrap: wrap; align-items: center; padding: 6px; border: 1px solid var(--zukato-hairline);
     background: var(--zukato-surface); border-radius: 14px; }
   .spotify-toolkit-navigation__item { background: transparent; border-color: transparent;
     font-size: 13px; font-weight: 600; border-radius: 9px; padding: 9px 12px; }
   .spotify-toolkit-navigation__item--active { box-shadow: 0 3px 12px rgba(0,0,0,.15); }
-  .spotify-toolkit-module-page__header { margin: 0 0 16px; }
+  .spotify-toolkit-module-page__header { margin: 0 0 12px; }
   .spotify-toolkit-module-page__header h2 { font-size: clamp(19px,2vw,25px); letter-spacing: -.025em; margin: 0; }
   .spotify-toolkit-module-page__content { min-width: 0; }
   .zukato-panel:not(.zukato-viz__controls) { min-width: 0; }
 
   /* Dashboard – links aktive Musik, rechts die eigentlichen Arbeitsaktionen. */
-  .zukato-dashboard { display: grid; gap: 18px; min-width: 0; }
-  .zukato-dashboard__intro { display: flex; justify-content: space-between;
-    align-items: start; gap: 16px; padding: 2px 4px 0; }
-  .zukato-dashboard__intro h3 { font-size: clamp(22px,2.7vw,31px); letter-spacing: -.035em;
-    margin: 0 0 7px; line-height: 1.15; }
-  .zukato-dashboard__intro p:last-child { font-size: 13px; color: var(--zukato-muted); margin: 0; }
-  .zukato-dashboard__indicator { white-space: nowrap; font-size: 12px; font-weight: 650;
-    border: 1px solid var(--zukato-hairline); background: var(--zukato-surface);
-    border-radius: 30px; padding: 6px 11px; color: var(--zukato-accent); }
+  .zukato-dashboard { display: grid; gap: 14px; min-width: 0; }
   .zukato-dashboard__main { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(280px,1fr); gap: 16px; }
   .zukato-dashboard__now, .zukato-dashboard__shortcuts, .zukato-dashboard__recent, .zukato-dashboard__insights {
     min-width: 0; border: 1px solid var(--zukato-hairline);
@@ -598,17 +610,18 @@
   .zukato-dashboard__feedback { color: var(--zukato-accent); margin: 9px 0 0; font-size: 12px; }
   .zukato-dashboard__shortcuts h3, .zukato-dashboard__recent h3, .zukato-dashboard__insights h3 {
     margin: 0 0 7px; font-size: 17px; letter-spacing: -.015em; }
-  .zukato-dashboard__shortcuts > p { color: var(--zukato-muted); font-size: 12px; margin: 0 0 18px; }
   .zukato-dashboard__shortcut-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+  .zukato-dashboard__shortcuts { container-type: inline-size; }
+  @container (max-width: 520px) {
+    .zukato-dashboard__shortcut-grid { grid-template-columns: minmax(0,1fr); }
+  }
   .zukato-dashboard__shortcut { display: grid; grid-template-columns: auto 1fr auto; align-items: center;
-    gap: 4px 9px; text-align: left; padding: 13px; border-color: var(--zukato-hairline);
-    background: var(--zukato-surface-raised); min-width: 0; min-height: 89px; }
-  .zukato-dashboard__shortcut-icon { grid-row: 1 / 3; font-size: 22px; color: var(--zukato-accent);
+    gap: 9px; text-align: left; padding: 11px 13px; border-color: var(--zukato-hairline);
+    background: var(--zukato-surface-raised); min-width: 0; min-height: 54px; }
+  .zukato-dashboard__shortcut-icon { font-size: 22px; color: var(--zukato-accent);
     width: 28px; text-align: center; }
   .zukato-dashboard__shortcut strong { min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
-  .zukato-dashboard__shortcut small { font-size: 11px; color: var(--zukato-muted); grid-column: 2 / 3;
-    overflow-wrap: anywhere; }
-  .zukato-dashboard__shortcut-arrow { grid-row: 1 / 3; grid-column: 3; font-size: 16px;
+  .zukato-dashboard__shortcut-arrow { grid-column: 3; font-size: 16px;
     color: var(--zukato-muted); }
   .zukato-dashboard__stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
   .zukato-dashboard__stats > div { display: flex; flex-direction: column; gap: 5px; min-width: 0;
@@ -636,9 +649,6 @@
 
   /* Einstellungen – links Kategorien, rechts jeweils nur der aktive Inhalt. */
   .zukato-preferences { min-width: 0; display: grid; gap: 18px; }
-  .zukato-preferences__heading { padding: 4px; }
-  .zukato-preferences__heading h3 { font-size: 24px; margin: 0 0 5px; letter-spacing: -.03em; }
-  .zukato-preferences__heading p:last-child { color: var(--zukato-muted); font-size: 13px; margin: 0; }
   .zukato-preferences__layout { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 16px; align-items: start; }
   nav.zukato-preferences__tabs { display: grid; gap: 5px; padding: 7px; margin: 0;
     border: 1px solid var(--zukato-hairline); border-radius: var(--zukato-radius);
@@ -651,7 +661,6 @@
     border: 1px solid var(--zukato-hairline); border-radius: var(--zukato-radius); padding: clamp(16px,2.4vw,27px); }
   .zukato-preferences__section-heading { padding-bottom: 17px; border-bottom: 1px solid var(--zukato-hairline); margin-bottom: 18px; }
   .zukato-preferences__section-heading h3 { font-size: 20px; margin: 0 0 5px; }
-  .zukato-preferences__section-heading p { color: var(--zukato-muted); margin: 0; font-size: 13px; }
   .zukato-preferences__content .zukato-settings { padding: 0; margin: 0; border: 0; background: transparent; }
   .zukato-preferences__content .zukato-settings__field { padding: 12px 0; margin: 0;
     border-bottom: 1px solid var(--zukato-hairline); }
@@ -697,8 +706,6 @@
     .zukato-preferences__layout { grid-template-columns: 1fr; }
     nav.zukato-preferences__tabs { display: flex; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin; }
     .zukato-preferences__tabs button { width: auto; flex: none; white-space: nowrap; }
-    .zukato-dashboard__intro { flex-direction: column; }
-    .zukato-dashboard__shortcut-grid { grid-template-columns: 1fr 1fr; }
   }
   @media (max-width: 420px) {
     .zukato-dashboard__shortcut-grid { grid-template-columns: 1fr; }
@@ -744,18 +751,6 @@
  * Anpassungspunkte: Navigation, Schnellaktionen, Dashboard und Einstellungsstart.
  * ============================================================================= */
 .zukato-app {
-  /* Die Toolbar zeigt die meistverwendete Aktion an jeder Workspace-Seite. */
-  .zukato-app__commandbar {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    margin: 0 0 14px; padding: 10px 14px;
-    background: var(--zukato-surface); border: 1px solid var(--zukato-hairline);
-    border-radius: 14px;
-  }
-  .zukato-app__commandbar > span { color: var(--zukato-muted); font-size: 12px; }
-  .zukato-app__commandbar button { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .zukato-app__commandbar kbd { font-size: 10px; padding: 3px 6px;
-    border-radius: 5px; border: 1px solid rgba(0,0,0,.17); background: rgba(0,0,0,.12); }
-
   /* Gruppen folgen dem Aufgabenkontext; die individuelle Feature-Reihenfolge bleibt. */
   .spotify-toolkit-navigation { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
   .spotify-toolkit-navigation__group { display: flex; flex: 1 1 auto;
@@ -800,28 +795,15 @@
     background: var(--zukato-accent); transition: width .25s linear; }
   .zukato-dashboard__times { display: flex; justify-content: space-between; margin-top: 5px;
     font-size: 11px; color: var(--zukato-muted); font-variant-numeric: tabular-nums; }
-  .zukato-dashboard__search-link { margin-top: 12px; width: 100%; text-align: left;
-    background: var(--zukato-surface-raised); border: 1px solid var(--zukato-hairline); }
 
-  /* Einstellungen: Startseite als verständliche Entscheidung, nicht als Formularwand. */
+  /* Die Übersicht zeigt nur ihren Schalter und Status; die Kategorien stehen links. */
   .zukato-preferences__overview { display: grid; gap: 14px; }
-  .zukato-preferences__lead { font-size: 13px; color: var(--zukato-muted); margin: 0; }
-  .zukato-preferences__overview-grid { display: grid;
-    grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
-  .zukato-preferences__overview-grid button { display: grid; gap: 6px; min-width: 0;
-    padding: 16px; text-align: left; background: var(--zukato-surface-raised); }
-  .zukato-preferences__overview-grid strong { display: flex; align-items: center;
-    justify-content: space-between; gap: 8px; }
-  .zukato-preferences__overview-grid strong span { color: var(--zukato-accent); }
-  .zukato-preferences__overview-grid small { font-size: 12px; color: var(--zukato-muted); line-height: 1.45; }
   .zukato-preferences__summary { font-size: 12px; color: var(--zukato-muted); margin: 0; }
 
   @media (max-width: 600px) {
-    .zukato-app__commandbar > span, .zukato-app__commandbar kbd { display: none; }
-    .zukato-app__commandbar button { width: 100%; justify-content: center; }
+    .zukato-app__quick-action kbd { display: none; }
     .spotify-toolkit-navigation { gap: 7px; }
     .spotify-toolkit-navigation__group { flex-basis: 100%; }
-    .zukato-preferences__overview-grid { grid-template-columns: 1fr; }
     .zukato-quick .zukato-track { align-items: stretch; }
     .zukato-quick .zukato-track__actions button { flex: 1 1 auto; }
     .zukato-quick__current button { flex: 1 1 110px; }
@@ -846,6 +828,20 @@
   .zukato-viz__commandbar-info strong { font-size: 16px; overflow-wrap: anywhere; }
   .zukato-viz__commandbar-info small { font-size: 12px; color: var(--spice-subtext, #aaa); }
   .zukato-viz__commandbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  // Die Bühne und die Player-Tasten sind der Startbildschirm. Ausführliche
+  // Diagnosen und Regler erscheinen erst nach dem bewussten Klick auf Anpassen.
+  .zukato-viz--simple .zukato-viz__audio-status small,
+  .zukato-viz--simple .zukato-viz__source-note,
+  .zukato-viz--simple .zukato-viz__diagnostics,
+  .zukato-viz--simple .zukato-toolbar,
+  .zukato-viz--simple .zukato-viz__panel-tabs,
+  .zukato-viz--simple .zukato-viz__settings,
+  .zukato-viz--simple .zukato-viz__track-scenes,
+  .zukato-viz--simple .zukato-viz__presets,
+  .zukato-viz--cinema .zukato-viz__panel-tabs,
+  .zukato-viz--cinema .zukato-viz__settings,
+  .zukato-viz--cinema .zukato-viz__track-scenes,
+  .zukato-viz--cinema .zukato-viz__presets { display: none !important; }
   /* Permanente Audio-Diagnose direkt an der Bühne, nicht erst in den
    * verschachtelten Einstellungen. Die Freigabe bleibt ausdrücklich opt-in. */
   .zukato-viz__audio-status {
@@ -908,7 +904,11 @@
   .zukato-viz__library-panel { max-width: 880px; margin-top: 12px; padding: 13px;
     border-radius: 12px; border: 1px solid var(--zukato-border); }
   .zukato-viz__library-panel > summary { cursor: pointer; font-weight: 700; }
-  .zukato-viz--cinema .zukato-viz__stage { max-height: 82vh; min-height: 460px; }
+  // Die Spotify-Playerleiste darf die Bühnentasten bei üblicher Fensterhöhe
+  // nicht überdecken. Die Bühne füllt den Platz unter dem Workspace-Kopf.
+  .zukato-viz--cinema .zukato-viz__stage {
+    height: max(320px, calc(100vh - 435px)); max-height: none; min-height: 0;
+  }
   .zukato-viz--cinema .zukato-viz__commandbar { background: var(--zukato-panel); padding: 10px;
     border-radius: 12px; }
   @media (max-width: 670px) {
@@ -939,20 +939,10 @@
   .spotify-toolkit-navigation {
     display: block;
     container-type: inline-size;
-    padding: 11px;
+    padding: 8px;
   }
   .spotify-toolkit-navigation__toolbar {
     display: flex; align-items: center; flex-wrap: wrap; gap: 9px;
-    padding: 0 0 10px;
-  }
-  .spotify-toolkit-navigation__heading {
-    flex: 1 1 175px; min-width: 0;
-    display: flex; flex-direction: column; gap: 1px;
-  }
-  .spotify-toolkit-navigation__heading > strong { font-size: 13px; font-weight: 750; }
-  .spotify-toolkit-navigation__heading > small {
-    color: var(--zukato-muted); font-size: 11px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .spotify-toolkit-navigation__search { flex: 1 1 210px; min-width: 0; }
   .spotify-toolkit-navigation__search input {
@@ -1010,7 +1000,6 @@
 
 @container (max-width: 680px) {
   .zukato-app .spotify-toolkit-navigation__toolbar { align-items: stretch; }
-  .zukato-app .spotify-toolkit-navigation__heading { flex-basis: 100%; }
   .zukato-app .spotify-toolkit-navigation__search { flex: 1 1 155px; }
   .zukato-app .spotify-toolkit-navigation__groups { display: block; }
   .zukato-app .spotify-toolkit-navigation__group { width: 100%; margin-bottom: 9px; }
@@ -1092,7 +1081,6 @@
   }
   .zukato-dashboard__shortcut-header { margin-bottom: 12px; }
   .zukato-dashboard__shortcut-header h3 { margin-bottom: 5px; }
-  .zukato-dashboard__shortcut-header p { margin: 0; color: var(--zukato-muted); font-size: 12px; }
   .zukato-dashboard__shortcut-header > button,
   .zukato-dashboard__editor button {
     color: var(--spice-text); background: var(--zukato-surface-raised);
@@ -1182,4 +1170,47 @@
   .zukato-workbench__pages { display: flex; flex-wrap: wrap; gap: 8px;
     align-items: center; justify-content: center; }
   @container (max-width: 760px) { .zukato-workbench__columns { grid-template-columns: minmax(0,1fr); } }
+}
+
+// Die laufende Bühne wechselt beim Öffnen anderer Module nur ihre Größe.
+// iframe und video bleiben dieselben DOM-Elemente und spielen weiter.
+.zukato-app {
+  .zukato-viz-host--mini {
+    position: fixed; right: 18px; bottom: 112px;
+    width: min(400px, calc(100vw - 36px)); z-index: 800;
+    filter: drop-shadow(0 12px 26px rgba(0,0,0,.56));
+  }
+  .zukato-viz--mini > :not(.zukato-viz__stage) { display: none !important; }
+  .zukato-viz--mini .zukato-viz__stage {
+    width: 100%; min-height: 0; height: auto; aspect-ratio: 16 / 9;
+    border-radius: 13px; border-color: rgba(162,206,255,.55);
+  }
+  .zukato-viz--mini .zukato-viz__overlay { padding: 10px; }
+  .zukato-viz--mini .zukato-viz__lyrics { display: none; }
+  .zukato-viz--mini .zukato-viz__track { max-width: 55%; text-align: left; }
+  .zukato-viz--mini .zukato-viz__track strong { font-size: 12px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .zukato-viz--mini .zukato-viz__track span { font-size: 10px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .zukato-viz--mini .zukato-viz__stage-controls {
+    display: flex; bottom: 8px; gap: 5px; padding: 4px 7px;
+    border-radius: 12px;
+  }
+  .zukato-viz--mini .zukato-viz__stage-controls .zukato-player-monitor__control,
+  .zukato-viz--mini .zukato-viz__stage-controls .zukato-player-monitor__control--primary {
+    width: 32px; height: 32px;
+  }
+  .zukato-viz--mini .zukato-viz__mini-actions {
+    position: absolute; z-index: 5; top: 8px; right: 8px; display: flex; gap: 5px;
+  }
+  .zukato-viz--mini .zukato-viz__mini-actions button {
+    padding: 4px 6px; border-radius: 7px; font-size: 11px;
+    color: #fff; background: rgba(8,14,26,.86);
+    border: 1px solid rgba(200,225,255,.42); cursor: pointer;
+  }
+  .zukato-viz--mini .zukato-viz__mini-actions button:disabled { opacity: .45; cursor: default; }
+  @media (max-width: 600px) {
+    .zukato-viz-host--mini { width: min(300px, calc(100vw - 36px)); bottom: 102px; }
+    .zukato-viz--mini .zukato-viz__track { display: none; }
+  }
 }

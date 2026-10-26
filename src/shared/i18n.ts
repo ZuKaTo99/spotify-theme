@@ -494,9 +494,18 @@ const germanTranslations = {
   'viz.sceneOriginalActive': 'Originalvideo-Ausschnitt (Onlinequelle)',
   // ---------------------------------------------------------------------------
   // Visualizer v1.12: schlanke Steuerelemente und fokussierter Kinomodus.
-  // Nur die aktive Registerkarte wird gerendert; Medien-Daten bleiben intakt.
+  // Die Medien-Bühne und bereits geöffnete Vorschauen bleiben beim Reiterwechsel intakt.
   // ---------------------------------------------------------------------------
   'viz.panelsLabel': 'Visualizer-Einstellungen',
+  'viz.optionsOpen': 'Anpassen',
+  'viz.optionsClose': 'Einstellungen schließen',
+  'viz.miniWindow': 'Desktop-Player',
+  'viz.miniWindowHint': 'Wallpaper mit Player-Tasten vor dem Minimieren als Desktop-Fenster öffnen',
+  'viz.miniUnsupported': 'Diese Spotify-Webview unterstützt kein separates Mini-Fenster',
+  'viz.miniWindowFailed': 'Mini-Fenster konnte in diesem Spotify-Client nicht geöffnet werden.',
+  'viz.miniExpand': 'Groß',
+  'viz.miniExpandHint': 'Visualizer groß öffnen',
+  'viz.miniPopup': 'Desktop',
   'viz.panel.wallpapers': 'Wallpapers',
   'viz.panel.lyrics': 'Songtexte',
   'viz.panel.audio': 'Audioeffekte',
@@ -1355,6 +1364,15 @@ const englishTranslations:
   // Visualizer v1.12: focused controls and a distraction-free cinema mode.
   // ---------------------------------------------------------------------------
   'viz.panelsLabel': 'Visualizer controls',
+  'viz.optionsOpen': 'Customize',
+  'viz.optionsClose': 'Close settings',
+  'viz.miniWindow': 'Desktop player',
+  'viz.miniWindowHint': 'Open the wallpaper and playback controls on the desktop before minimizing',
+  'viz.miniUnsupported': 'This Spotify WebView does not support a separate mini window',
+  'viz.miniWindowFailed': 'Could not open a mini window in this Spotify client.',
+  'viz.miniExpand': 'Expand',
+  'viz.miniExpandHint': 'Open visualizer',
+  'viz.miniPopup': 'Desktop',
   'viz.panel.wallpapers': 'Wallpapers',
   'viz.panel.lyrics': 'Lyrics',
   'viz.panel.audio': 'Audio effects',

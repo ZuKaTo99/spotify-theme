@@ -41,6 +41,7 @@ import { SceneManager } from "./SceneManager";
 import { loadSongSession, observeSongSession, SONG_SESSION_EVENT } from "../../../shared/song-session";
 import { readVisualizerPanel, rememberVisualizerPanel, sourceStatus, VISUALIZER_PANELS, type VisualizerPanel } from "../../../shared/visualizer-workspace";
 import { playerPollDelayMs, sameVisibleSongRun, shouldReadNativeLyrics } from "./visualizer-runtime";
+import { closeVisualizerMiniWindow, miniWindowSupported, openVisualizerMiniWindow } from "./mini-window";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -81,15 +82,31 @@ function RangeControl({ label, value, min, max, step = 1, suffix = "", onChange 
 }
 
 /** Die Seite hält nur UI-State; große Dateien verbleiben lokal in IndexedDB. */
-export function Visualizer({ t }: { t: Translator }): ReactElement {
+export function Visualizer({ t, compact = false, onOpenFull }: {
+  t: Translator; compact?: boolean; onOpenFull?: () => void;
+}): ReactElement {
   const [player, setPlayer] = ReactRuntime.useState(snapshot);
   // Die UI-Navigation ist bewusst vom Media-Store getrennt: Beim Wechsel
   // zwischen Registern wird keine Datei geladen, gelöscht oder neu zugeordnet.
   const [activePanel, setActivePanel] = ReactRuntime.useState(readVisualizerPanel);
+  const [optionsOpen, setOptionsOpen] = ReactRuntime.useState(false);
+  const [optionsVisited, setOptionsVisited] = ReactRuntime.useState(false);
+  // Die Wallpaper-Verwaltung erst beim ersten Besuch laden, danach aber im
+  // React-Baum behalten. Sonst starten Vorschau-iframe und -Video bei jedem
+  // Wechsel zu Lyrics/Audio/Erweitert wieder von vorn.
+  const [wallpapersVisited, setWallpapersVisited] = ReactRuntime.useState(false);
   const [cinemaMode, setCinemaMode] = ReactRuntime.useState(false);
   function selectPanel(panel: VisualizerPanel): void {
+    if (panel === "wallpapers") setWallpapersVisited(true);
     rememberVisualizerPanel(panel);
     setActivePanel(panel);
+  }
+  function openMiniPopup(): void {
+    const stage = stageRef.current;
+    if (!stage) return;
+    void openVisualizerMiniWindow(stage).then((opened) => {
+      if (!opened) Spicetify.showNotification(t("viz.miniWindowFailed"), true);
+    });
   }
   // Der Zähler ist der Index des SONGS in der Ordnerfolge – niemals Sekunden.
   // Spotify-Repeats derselben URI lösen ebenfalls songchange aus und zählen.
@@ -164,6 +181,7 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
   const [error, setError] = ReactRuntime.useState("");
   const [busy, setBusy] = ReactRuntime.useState(false);
   const stageRef = ReactRuntime.useRef<HTMLDivElement>(null);
+  ReactRuntime.useLayoutEffect(() => () => closeVisualizerMiniWindow(), []);
   const spectrum = useMicrophoneSpectrum(
     config.spectrum, config.bars, config.sensitivity, config.smoothing, player.playing,
     config.spectrumColor, config.spectrumOpacity, config.spectrumGlow,
@@ -517,8 +535,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
     setError(message === "VIDEO_UNSUPPORTED" ? t("viz.unsupportedVideo") : message);
   }
 
-  return <section className={`zukato-viz zukato-panel${cinemaMode ? " zukato-viz--cinema" : ""}`}>
-    {!cinemaMode && <p>{t("viz.intro")}</p>}
+  return <section className={`zukato-viz zukato-panel${cinemaMode ? " zukato-viz--cinema" : ""}${compact ? " zukato-viz--mini" : ""}${optionsOpen ? "" : " zukato-viz--simple"}`}>
+    {/* Der Seitenkopf nennt den Visualizer bereits. Die aktive Quelle und
+        Bühne sind die wichtigen Informationen direkt beim Öffnen. */}
     <div className="zukato-viz__commandbar">
       <div className="zukato-viz__commandbar-info">
         <strong>{player.title || t("viz.noTrack")}</strong>
@@ -526,6 +545,13 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           ? "Spotify Canvas aus der Seitenleiste (experimentell)" : t(`viz.status.${backgroundStatus}`)}</small>
       </div>
       <div className="zukato-viz__commandbar-actions">
+        <button type="button" aria-expanded={optionsOpen} onClick={() => {
+          setOptionsVisited(true);
+          if (activePanel === "wallpapers") setWallpapersVisited(true);
+          setOptionsOpen((open) => !open);
+        }}>
+          {t(optionsOpen ? "viz.optionsClose" : "viz.optionsOpen")}
+        </button>
         <button type="button" aria-pressed={sceneSettings.mode === "original"}
           title={t("viz.originalModeInfo")}
           onClick={() => {
@@ -542,6 +568,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         <button type="button" aria-pressed={cinemaMode} onClick={() => setCinemaMode((previous) => !previous)}>
           {cinemaMode ? t("viz.cinemaExit") : t("viz.cinemaEnter")}
         </button>
+        <button type="button" disabled={!miniWindowSupported()}
+          title={t(miniWindowSupported() ? "viz.miniWindowHint" : "viz.miniUnsupported")}
+          onClick={openMiniPopup}>{t("viz.miniWindow")}</button>
         <button type="button" onClick={enterFullscreen}>{t("viz.fullscreen")}</button>
       </div>
     </div>
@@ -580,6 +609,22 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
                 : null}
         </div>}
       </div>
+      {/* Die Bühne selbst wird vollflächig angezeigt. Deshalb müssen die
+          Player-Tasten innerhalb dieses Elements bleiben. */}
+      <div className="zukato-viz__stage-controls">
+        <PlayerControls playing={player.playing} disabled={!player.uri}
+          onPrevious={() => Spicetify.Player.back()}
+          onToggle={() => Spicetify.Player.togglePlay()}
+          onNext={() => Spicetify.Player.next()} />
+        <button type="button" className="zukato-viz__exit-fullscreen"
+          onClick={() => void document.exitFullscreen?.()}>Vollbild verlassen</button>
+      </div>
+      {compact && <div className="zukato-viz__mini-actions">
+        <button type="button" onClick={onOpenFull} title={t("viz.miniExpandHint")}>{t("viz.miniExpand")}</button>
+        <button type="button" disabled={!miniWindowSupported()}
+          title={t(miniWindowSupported() ? "viz.miniWindowHint" : "viz.miniUnsupported")}
+          onClick={openMiniPopup}>{t("viz.miniPopup")}</button>
+      </div>}
       <div className="zukato-viz__timeline" aria-hidden="true"><div style={{ width: `${progress}%` }} /></div>
     </div>
     {/* Audio ist ein eigenständiger, bewusst freizugebender Eingang. Die
@@ -591,13 +636,13 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
       <div className="zukato-viz__audio-status-info">
         <span className="zukato-viz__audio-led" aria-hidden="true" />
         <div>
-          <strong>{spectrum.starting ? "Audiofreigabe wird geöffnet …"
-            : spectrum.error ? "Audioquelle konnte nicht gestartet werden"
-            : !spectrum.active ? "Visualizer wartet auf eine Audioquelle"
-            : spectrum.signal === "detected" ? "Audiosignal erkannt – Visualizer aktiv"
-            : spectrum.signal === "paused" ? "Audiovisualisierung pausiert mit Spotify"
-            : spectrum.signal === "silent" ? "Audiofreigabe aktiv, aber kein Ton erkannt"
-            : "Audioquelle verbunden – prüfe das Signal …"}</strong>
+          <strong>{spectrum.starting ? "Audiofreigabe …"
+            : spectrum.error ? "Audio nicht verfügbar"
+            : !spectrum.active ? "Audioeffekte aus"
+            : spectrum.signal === "detected" ? "Audio aktiv"
+            : spectrum.signal === "paused" ? "Audio pausiert"
+            : spectrum.signal === "silent" ? "Kein Audiosignal"
+            : "Audio verbindet …"}</strong>
           <small>{spectrum.error || (!spectrum.active
             ? "Spotify gibt keine FFT-Daten direkt frei. Für musikgesteuerte Effekte Tonquelle auswählen."
             : spectrum.signal === "silent" ? "Prüfe bei System-/Tab-Freigabe, ob Audio mit freigegeben wurde."
@@ -661,14 +706,9 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
         : wallpaperInfo.filename ? `${t("viz.background")}: ${wallpaperInfo.filename} (${wallpaperInfo.key.endsWith(":default") ? t("viz.default") : t("viz.forTrack")})` : t("viz.noWallpaper")}</span>
       <span>{Spicetify.Player.formatTime(player.progress)} / {Spicetify.Player.formatTime(player.duration)} · {player.playing ? t("visualizer.playing") : t("visualizer.paused")}</span>
     </div>}
-    {/* Ein SVG-Iconsatz statt unterschiedlich gerenderter Emoji-Tasten. */}
-    {!cinemaMode && <PlayerControls playing={player.playing} disabled={!player.uri}
-      onPrevious={() => Spicetify.Player.back()}
-      onToggle={() => Spicetify.Player.togglePlay()}
-      onNext={() => Spicetify.Player.next()} />}
     {message && <p role="status">{message}</p>}
     {error && <p className="zukato-error" role="alert">{error}</p>}
-    {!cinemaMode && <>
+    {optionsVisited && <>
       <nav className="zukato-viz__panel-tabs" aria-label={t("viz.panelsLabel")}>
         {VISUALIZER_PANELS.map((panel) => <button key={panel} type="button"
           className={activePanel === panel ? "is-active" : ""}
@@ -676,7 +716,8 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           onClick={() => selectPanel(panel)}>{t(`viz.panel.${panel}`)}</button>)}
       </nav>
       <div className="zukato-viz__settings">
-      {activePanel === "wallpapers" && <>
+      <div className="zukato-viz__settings-pane" hidden={activePanel !== "wallpapers"}>
+      {wallpapersVisited && <>
         <section className="zukato-viz__controls">
           <label className="zukato-viz__checkbox">
             <input type="checkbox" checked={config.preserveSceneAppearance}
@@ -735,6 +776,7 @@ export function Visualizer({ t }: { t: Translator }): ReactElement {
           onError={backdropError} />
         </details>
       </>}
+      </div>
       {activePanel === "audio" && <section className="zukato-viz__controls">
         <h3>{t("viz.audioHeading")}</h3>
         <p>{t("viz.audioHelp")}</p>

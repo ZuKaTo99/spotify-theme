@@ -101,7 +101,6 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
   }
 
   return <section className="zukato-panel zukato-playlist-workspace">
-    <p>{t("playlist.intro")}</p>
     {/* Bereits geöffnete Werkzeuge bleiben gemountet: ein Tabwechsel darf weder
         importierte Songlisten noch Playlist-Auswahl oder ungesendete Eingaben löschen. */}
     <div className="zukato-playlist-workspace__tabs" role="tablist"
@@ -122,7 +121,6 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
     <section id="zukato-playlist-panel-queue" role="tabpanel"
       aria-labelledby="zukato-playlist-tab-queue" hidden={activeTab !== "queue"}
       className="zukato-playlist-workspace__panel">
-      <h3>{t("playlistWorkspace.queue")}</h3>
       <div className="zukato-toolbar">
         <button type="button" disabled={working} onClick={() => {
           const track = currentTrack();

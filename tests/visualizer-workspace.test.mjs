@@ -62,7 +62,8 @@ test("Visualizer: Steuerung besitzt Quellschalter, Kinoansicht und Panels", asyn
   assert.match(tsx, /setSceneSettings\(saveScenePreferences\(\{ \.\.\.loadScenePreferences\(\), mode \}\)\)/);
   assert.match(tsx, /VISUALIZER_PANELS\.map/);
   assert.match(tsx, /aria-pressed=\{cinemaMode\}/);
-  assert.match(tsx, /activePanel === "wallpapers" && <>/);
+  assert.match(tsx, /hidden=\{activePanel !== "wallpapers"\}/);
+  assert.match(tsx, /wallpapersVisited && <>/);
   assert.match(tsx, /showModeToggle=\{false\}/);
   assert.match(css, /zukato-viz__panel-tabs/);
   for (const key of ["viz.cinemaEnter", "viz.cinemaExit", "viz.panel.lyrics", "viz.status.missing", "viz.switchToOriginals"]) {

@@ -33,6 +33,7 @@ import {
   ModulePage,
 } from "./components/ModulePage";
 import { QuickTrackPanel } from "./components/QuickTrackPanel";
+import { Visualizer } from "./modules/visualizer/Visualizer";
 import { readWorkspaceFeature, rememberWorkspaceFeature, resolveWorkspaceFeature } from "../shared/workspace-navigation";
 import { shouldToggleQuickTrackPanel } from "../shared/workspace-shortcuts";
 
@@ -57,6 +58,7 @@ export function App(): ReactElement {
 
   // Eigene Palette anwenden, ohne CSS anderer Spotify-Seiten zu verändern.
   const rootRef = ReactRuntime.useRef<HTMLElement>(null);
+  const miniHostRef = ReactRuntime.useRef<HTMLDivElement>(null);
   ReactRuntime.useEffect(() => {
     const refresh = (): void => applyPalette(rootRef.current, loadPalette());
     const onPalette = (event: Event): void => {
@@ -135,6 +137,30 @@ export function App(): ReactElement {
     activeNavigationItem?.title ??
     settingsTitle;
 
+  const visualizerAvailable = navigationItems.some((item) => item.id === "visualizer");
+
+  // Spotify kann "fixed" auf die mittlere Webview statt den Bildschirm
+  // beziehen. Die gemessene Kante richtet das Dock am rechten Fensterende aus.
+  ReactRuntime.useLayoutEffect(() => {
+    const host = miniHostRef.current;
+    const root = rootRef.current;
+    if (!host || !root || !visualizerAvailable || visibleFeatureId === "visualizer") return;
+    const position = (): void => {
+      host.style.right = "18px";
+      const actualRight = host.getBoundingClientRect().right;
+      host.style.right = `${18 - (window.innerWidth - 18 - actualRight)}px`;
+    };
+    position();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(position) : null;
+    observer?.observe(root);
+    window.addEventListener("resize", position);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", position);
+      host.style.removeProperty("right");
+    };
+  }, [visibleFeatureId, visualizerAvailable]);
+
   // Sicherer Fallback, falls ein Modul in den Einstellungen deaktiviert wurde.
   ReactRuntime.useEffect(() => {
     if (!navigationItems.some((item) => item.id === activeFeatureId)) {
@@ -160,31 +186,19 @@ export function App(): ReactElement {
       lang={resolvedLocale}
     >
       <header className="zukato-app__header">
-        <p className="zukato-app__label">
-          {t("app.productLabel")}
-        </p>
-
-        <h1>
-          {settings.workspaceTitle}
-        </h1>
-
-        {greeting && (
-          <p className="zukato-app__greeting">
-            {greeting}
-          </p>
-        )}
-
-        <p>
-          {t("app.description")}
-        </p>
-      </header>
-
-      <div className="zukato-app__commandbar">
-        <span>{t("quick.commandHint")}</span>
-        <button type="button" className="zukato-primary" onClick={() => setQuickOpen(true)}>
+        <div className="zukato-app__identity">
+          <span className="zukato-app__label">{t("app.productLabel")}</span>
+          <h1>{settings.workspaceTitle}</h1>
+          {greeting && <span className="zukato-app__greeting">{greeting}</span>}
+        </div>
+        {/* Die globale Aktion gehört zum Kopf; eine zweite Textleiste würde
+            auf jeder Modulseite Platz vor dem eigentlichen Inhalt verbrauchen. */}
+        <button type="button" className="zukato-primary zukato-app__quick-action"
+          title={`${t("quick.commandHint")} · Ctrl+Shift+F`}
+          onClick={() => setQuickOpen(true)}>
           {t("quick.open")} <kbd>Ctrl+Shift+F</kbd>
         </button>
-      </div>
+      </header>
       <AppNavigation
         items={navigationItems}
         activeFeatureId={
@@ -197,14 +211,17 @@ export function App(): ReactElement {
       <ModulePage
         title={visibleFeatureTitle}
       >
-        <ModuleContent
+        {visibleFeatureId !== "visualizer" && <ModuleContent
           featureId={visibleFeatureId}
           settings={settings}
           t={t}
           onSettingsChange={update}
           onNavigate={navigate}
-          onOpenQuick={() => setQuickOpen(true)}
-        />
+        />}
+        {visualizerAvailable && <div ref={miniHostRef} className={`zukato-viz-host${visibleFeatureId === "visualizer" ? "" : " zukato-viz-host--mini"}`}>
+          <Visualizer t={t} compact={visibleFeatureId !== "visualizer"}
+            onOpenFull={() => navigate("visualizer")} />
+        </div>}
       </ModulePage>
       {quickOpen && <QuickTrackPanel t={t} onClose={closeQuick} />}
     </main>

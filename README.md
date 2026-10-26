@@ -1,12 +1,66 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.4**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.8**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
+
+## v1.76.0-rc.8 – Visualizer rechts und Wallpaper auf dem Desktop
+
+- Die kleine Ansicht ist 400 px breit und fest am rechten Bildschirmrand. Sie
+  kann innerhalb von Spotify nicht verschoben oder skaliert werden.
+- „Desktop“ öffnet das laufende Wallpaper mit Zurück, Pause/Wiedergabe und Weiter
+  als verschiebbares Document-PiP-Fenster. „Spotify öffnen“ bringt das Hauptfenster
+  zurück und setzt dieselbe Bühne an ihren Platz. Das Fenster muss per Klick vor
+  dem Minimieren geöffnet werden; die Webview muss Document PiP unterstützen.
+- Das Übertragen eingebetteter HTML-Wallpaper zwischen Dokumenten kann deren
+  iframe beim Öffnen oder Schließen einmalig neu laden. Die konkrete Spotify-
+  Webview und das Minimieren müssen am Desktop geprüft werden.
+
+## v1.76.0-rc.7 – Kleine Visualizer-Ansicht und aufgeräumte Bedienung
+
+- Auf Dashboard und anderen Workspace-Seiten läuft dieselbe Visualizer-Bühne
+  unten rechts weiter. „Groß“ führt zurück, ohne Wallpaper und Tonquelle neu zu
+  laden. Die kleine Ansicht erscheint auch direkt beim Öffnen des Workspace.
+- Der erste Popup-Prototyp öffnete nach Klick ein separates Player-Fenster mit
+  Cover und Wiedergabesteuerung, wenn die Spotify-Webview Document PiP erlaubt.
+  Es kann beim Minimieren von Spotify sichtbar bleiben. Der Klick muss vor dem
+  Minimieren erfolgen. Die Client-Unterstützung muss noch praktisch geprüft
+  werden.
+- Die große Bühne zeigt ihre Wiedergabetasten direkt im Bild. Doppelte Tasten,
+  lange Statusmeldungen und Einstellungsfelder sind aus der Startansicht
+  entfernt; „Anpassen“ blendet die bisherigen Regler und Diagnosen ein.
+- Die geöffnete Wallpaper-Vorschau bleibt bei einem Wechsel der Visualizer-Reiter
+  erhalten. Ein echter Songwechsel darf die große Szene weiterhin neu starten.
+
+## v1.76.0-rc.6 – Visualizer-Bedienung
+
+- Zurück, Wiedergabe/Pause und Weiter liegen im Kino- und Vollbildmodus direkt
+  auf der Bühne. Im Vollbild gibt es zusätzlich eine sichtbare Schaltfläche zum
+  Verlassen. Die Kino-Bühne berücksichtigt die Spotify-Playerleiste.
+- Beim Wechsel zwischen Workspace-Modulen bleibt ein bereits geöffneter
+  Visualizer gemountet. Seine Szene und eine freigegebene Audioquelle müssen
+  deshalb nicht neu gestartet werden. Die eigene Spektrumszeichnung pausiert
+  währenddessen.
+- Der optionale ZuKaTo Mini-Player bietet bei unterstützter Webview ein
+  separates, schwebendes Fenster. Es wird vor dem Minimieren per Klick geöffnet
+  und bleibt dann beim Minimieren des Spotify-Hauptfensters sichtbar. Falls die Webview dies nicht
+  unterstützt, bleibt Spotifys eigener MiniPlayer unten rechts verfügbar.
+  Das separate ZuKaTo-Fenster ist im Desktop-Client noch nicht abgenommen.
+
+## v1.76.0-rc.5 – Kompakter Workspace
+
+Der gemeinsame Kopf zeigt Titel und Schnellsuche in einer Zeile. Die
+Modulnavigation startet kompakt; Suche und „Module anzeigen“ bleiben jederzeit
+erreichbar. Dashboard, Playlist-Werkzeuge, Einstellungen und Visualizer beginnen
+ohne wiederholte Einleitungen direkt mit ihren Aktionen. Hinweise zu
+Schnellzugriffen und Einstellungsbereichen bleiben als Tooltips verfügbar.
+Das Dashboard zeigt bei schmalem Platz lesbare Schnellzugriffe in einer Spalte;
+doppelte Songaktionen und doppelte Einstellungslinks wurden entfernt. Der
+rc.5-Build wurde lokal angewendet und in den vier Bereichen visuell geprüft.
 
 ## v1.76.0-rc.4 – Benannte Musiksammlungen
 

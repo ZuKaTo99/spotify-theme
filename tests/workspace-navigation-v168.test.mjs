@@ -78,7 +78,11 @@ function ui({ blocked = false, initial = null, available = items } = {}) {
   };
   const button = label => render().find(node => node.type === "button" && node.props?.["aria-label"] === label);
   const input = () => render().find(node => node.type === "input" && node.props?.type === "search");
-  return { render, button, input, visited, storage, helpers, setAvailable: value => { currentItems = value; } };
+  const expand = () => {
+    const toggle = render().find(node => node.type === "button" && node.props?.["aria-expanded"] !== undefined);
+    if (!toggle.props["aria-expanded"]) toggle.props.onClick();
+  };
+  return { render, button, input, expand, visited, storage, helpers, setAvailable: value => { currentItems = value; } };
 }
 
 test("Modulsuche: Umlaute und Groß-/Kleinschreibung spielen keine Rolle", () => {
@@ -129,6 +133,7 @@ test("Kaputter, übergroßer oder blockierter Speicher verhindert die Navigation
 
 test("UI: Pin-Klick merkt Ziel und zeigt es sofort im Schnellzugriff", () => {
   const h = ui();
+  h.expand();
   h.button("navigation.pin/Favoriten").props.onClick();
   assert.equal(h.button("navigation.unpin/Favoriten").props["aria-pressed"], true);
   assert.equal(h.render().filter(node => node.props?.className === "spotify-toolkit-navigation__pinned-list").length, 1);
@@ -137,6 +142,7 @@ test("UI: Pin-Klick merkt Ziel und zeigt es sofort im Schnellzugriff", () => {
 
 test("UI: zwei schnelle Pin-Klicks behalten beide Ziele", () => {
   const h = ui();
+  h.expand();
   // Absichtlich ohne dazwischen neu zu rendern: React hat Props noch nicht aktualisiert.
   const first = h.button("navigation.pin/Favoriten");
   const second = h.button("navigation.pin/Visualizer");
@@ -163,7 +169,7 @@ test("UI: Schnellzugriff navigiert ohne eine zweite Modulinstanz zu erzeugen", (
 
 test("UI: Suche öffnet eingeklappte Navigation und Escape löscht nur Suchtext", () => {
   const h = ui();
-  h.render().find(node => node.type === "button" && node.props?.["aria-expanded"] !== undefined).props.onClick();
+  // Die Arbeitsfläche bleibt beim Start frei; eine Suche öffnet Treffer direkt.
   assert.equal(h.render().find(node => node.props?.id === "zukato-workspace-navigation-groups"), undefined);
   h.input().props.onChange({ target: { value: "visual" } });
   assert.ok(h.render().find(node => node.props?.id === "zukato-workspace-navigation-groups"));
@@ -185,6 +191,7 @@ test("UI: unbekannte Suche zeigt verständlichen Leerstaat ohne Navigationseffek
 
 test("UI: das sechste Modul lässt sich nicht still anheften", () => {
   const h = ui({ initial: '["dashboard","listening-history","favorites","playlist-tools","visualizer"]' });
+  h.expand();
   const pin = h.button("navigation.pin/Einstellungen");
   assert.equal(pin.props.disabled, true);
   h.button("navigation.unpin/Visualizer").props.onClick();
@@ -199,10 +206,13 @@ test("UI: Enter öffnet genau einen Suchtreffer ohne Spotify-Suchshortcut", () =
   h.input().props.onKeyDown({ key: "Enter", preventDefault() { prevented++; } });
   assert.deepEqual(h.visited, ["visualizer"]);
   assert.equal(prevented, 1);
+  assert.equal(h.input().props.value, "");
+  assert.equal(h.render().find(node => node.props?.id === "zukato-workspace-navigation-groups"), undefined);
 });
 
 test("UI: ArrowDown setzt Fokus nur bei vorhandener Treffer-Schaltfläche", () => {
   const h = ui();
+  h.expand();
   let focusCount = 0, prevented = 0;
   h.input().props.onKeyDown({ key: "ArrowDown", preventDefault() { prevented++; },
     currentTarget: { closest: () => ({ querySelector: () => ({ focus() { focusCount++; } }) }) } });

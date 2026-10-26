@@ -59,7 +59,7 @@ function makeMockEnvironment() {
     createElement(type, props, ...children) { return { type, props: { ...props, children } }; },
     Fragment: "Fragment",
     useState(initial) { return [typeof initial === "function" ? initial() : initial, () => {}]; },
-    useEffect() {}, useCallback(value) { return value; },
+    useEffect() {}, useLayoutEffect() {}, useCallback(value) { return value; },
     useRef(value) { return { current: value }; },
   };
   const Spicetify = {
@@ -172,7 +172,7 @@ test("Feature-Toggles: Aktivierung und Deregistrierung zur Laufzeit", async () =
 });
 
 /** Die neue Video-Bühne muss über den bestehenden Feature-Router erreichbar sein. */
-test("Visualizer: Workspace-Router rendert Video-Bühne und Import-Controls", async () => {
+test("Visualizer: Workspace-Router zeigt Bühne sofort und lädt Regler erst bei Bedarf", async () => {
   const mock = makeMockEnvironment();
   const bundle = await readFile(new URL("../dist/custom-app/index.js", import.meta.url), "utf8");
   vm.runInContext(bundle, mock.context, { timeout: 3000 });
@@ -189,6 +189,10 @@ test("Visualizer: Workspace-Router rendert Video-Bühne und Import-Controls", as
   }
   const module = find(appTree, (node) => node.type?.name === "ModuleContent");
   assert.ok(module, "Feature-Router muss in der App liegen");
+  const miniHost = find(appTree, (node) =>
+    typeof node.props?.className === "string" && node.props.className.includes("zukato-viz-host--mini"));
+  assert.ok(miniHost, "Auf dem Dashboard bleibt die laufende Visualizer-Bühne als Mini-Ansicht eingebunden");
+  assert.ok(find(miniHost, (node) => node.type?.name === "Visualizer"));
   const visualizer = module.type({ ...module.props, featureId: "visualizer" });
   assert.equal(visualizer.type.name, "Visualizer");
   const stage = visualizer.type(visualizer.props);
@@ -201,17 +205,11 @@ test("Visualizer: Workspace-Router rendert Video-Bühne und Import-Controls", as
     collect(node.props?.children);
   }
   collect(stage);
-  // v1.12: Das Lyrics-Panel wird erst bei Auswahl eingeblendet. Das spart
-  // UI-Elemente, ohne die optionale LRC-Funktion aus dem Code zu entfernen.
-  assert.equal(fileInputs.length, 1, "Der Wallpaper-Tab enthält den Legacy-Videoimport");
-  assert.ok(find(stage, (node) => node.type?.name === "SceneManager"),
-    "Ordnerimport und Reihenfolgenverwaltung müssen sofort zugänglich sein.");
-  assert.ok(find(stage, (node) => node.props?.className === "zukato-viz__panel-tabs"),
-    "Visualizer-Registerkarten müssen im Workspace erreichbar sein.");
+  assert.equal(fileInputs.length, 0, "Dateiimporte brauchen beim Öffnen des Visualizers noch keinen DOM-Platz");
+  assert.ok(find(stage, (node) => node.type === "button" && node.props?.["aria-expanded"] === false),
+    "Anpassen öffnet die vorhandenen Einstellungsreiter bei Bedarf");
   assert.ok(find(stage, (node) => node.type?.name === "WallpaperBackdrop"),
     "Der Workspace nutzt die eigenständige Crossfade-Bühne.");
-  assert.ok(find(stage, (node) => node.type?.name === "WallpaperLibrary"),
-    "Die Wallpaper-Bibliothek muss im Workspace erreichbar sein.");
 });
 
 /**
