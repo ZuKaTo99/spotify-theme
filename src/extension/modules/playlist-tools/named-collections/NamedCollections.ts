@@ -80,7 +80,8 @@ export const COLLECTION_LIMITS = Object.freeze({
   maxNameLength: 60,
 });
 
-const DEFAULT_STORAGE_KEY = 'zukato:playlist-workspace:named-collections:v1';
+/** Ein einziger Schlüssel für Werkbank, Backup und spätere Migrationen. */
+export const NAMED_COLLECTIONS_STORAGE_KEY = 'zukato:playlist-workspace:named-collections:v1';
 const TRACK_URI_PATTERN = /^spotify:track:[A-Za-z0-9]{22}$/;
 
 /**
@@ -136,7 +137,7 @@ function cloneDocument(document: CollectionsDocument): CollectionsDocument {
 /** Prüft Daten aus localStorage ohne Vertrauen in fremdes oder altes JSON. */
 // Abschnitt 2: Gespeicherte Daten werden erst geprüft, bevor wir sie verwenden.
 // Bei beschädigten Daten stoppen wir, statt sie zu überschreiben.
-function parseDocument(raw: string): CollectionsDocument {
+export function parseCollectionsDocument(raw: string): CollectionsDocument {
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -242,7 +243,7 @@ export class NamedCollectionsStore {
 
   constructor(storage: CollectionStorage, options: CollectionsOptions = {}) {
     this.storage = storage;
-    this.storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
+    this.storageKey = options.storageKey ?? NAMED_COLLECTIONS_STORAGE_KEY;
     this.now = options.now ?? (() => Date.now());
     this.newId = options.newId ?? (() => crypto.randomUUID());
   }
@@ -261,7 +262,7 @@ export class NamedCollectionsStore {
       throw new CollectionStorageError('Die Sammlungen konnten nicht gelesen werden.');
     }
     if (raw !== null) {
-      this.document = parseDocument(raw);
+      this.document = parseCollectionsDocument(raw);
       return cloneDocument(this.document);
     }
     // Beim ersten Start übernehmen wir die alte Arbeitsliste genau einmal.

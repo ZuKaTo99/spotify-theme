@@ -19,6 +19,8 @@ export interface ToolkitBackupData {
   visualizerPresets?: unknown[];
   trackVisualizerScenes?: unknown[];
   scenePreferences?: Record<string, unknown>;
+  /** Seit v1.76 optional; alte Backups lassen vorhandene Sammlungen unberührt. */
+  namedCollections?: Record<string, unknown>;
 }
 
 /** Dateigröße schützt vor sehr großen oder absichtlich manipulierten JSON-Dateien. */
@@ -172,6 +174,12 @@ export function validateToolkitBackup(value: unknown): ToolkitBackupData {
       if (isRecord(scenes[key]) && Object.keys(scenes[key]).length > BACKUP_COLLECTION_LIMITS.scenePlaylistScopes)
         invalid(`Zu viele Wallpaper-Einträge in ${key}`);
     }
+  }
+
+  // Die genaue Prüfung des versionierten Sammlungsformats erfolgt im Import
+  // durch parseCollectionsDocument, bevor irgendein Bereich geschrieben wird.
+  if (value.namedCollections !== undefined && !isRecord(value.namedCollections)) {
+    invalid("Benannte Sammlungen ungültig");
   }
 
   // Den Typ erst nach erfolgreicher Prüfung zusichern; keine Daten verändern.

@@ -73,6 +73,8 @@ test("Kaputte optionale Blöcke dürfen bestehende Presets/Szenen nicht leeren",
     { visualizer: [] },
     { scenePreferences: { playlists: ["defekt"] } },
     { scenePreferences: { playlists: { default: "kein array" } } },
+    { namedCollections: [] },
+    { namedCollections: "defekt" },
   ]) assert.throws(() => validateToolkitBackup({ ...fixture(), ...change }), /Backup beschädigt/);
 });
 
