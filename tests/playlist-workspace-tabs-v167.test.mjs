@@ -11,7 +11,7 @@ import { loadPureSharedModule } from "./helpers/load-ts-module.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const tabs = loadPureSharedModule(root, "src/shared/playlist-workspace-tabs.ts");
-const order = ["queue", "import", "manage", "transfer"];
+const order = ["queue", "import", "manage", "transfer", "collections"];
 
 function walk(node, result = []) {
   if (Array.isArray(node)) for (const child of node) walk(child, result);
@@ -35,6 +35,7 @@ function harness({ blocked = false, stored = null, count = 3 } = {}) {
     PlaylistDestination: () => null,
     BulkLinkImporter: () => null,
     PlaylistManager: () => null,
+    CollectionWorkbench: () => null,
   };
   const react = {
     createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
@@ -83,17 +84,17 @@ test("Nur erlaubte Tabs aus dem Sitzungsspeicher öffnen", () => {
 });
 
 test("Pfeiltasten navigieren zyklisch und Home/End springen zu den Rändern", () => {
-  assert.equal(tabs.nextPlaylistWorkspaceTab("queue", "ArrowLeft"), "transfer");
-  assert.equal(tabs.nextPlaylistWorkspaceTab("transfer", "ArrowRight"), "queue");
+  assert.equal(tabs.nextPlaylistWorkspaceTab("queue", "ArrowLeft"), "collections");
+  assert.equal(tabs.nextPlaylistWorkspaceTab("collections", "ArrowRight"), "queue");
   assert.equal(tabs.nextPlaylistWorkspaceTab("import", "Home"), "queue");
-  assert.equal(tabs.nextPlaylistWorkspaceTab("import", "End"), "transfer");
+  assert.equal(tabs.nextPlaylistWorkspaceTab("import", "End"), "collections");
   assert.equal(tabs.nextPlaylistWorkspaceTab("import", "Enter"), null);
 });
 
-test("Nur genau ein Panel ist sichtbar, alle vier Inhalte bleiben gemountet", () => {
+test("Nur genau ein Panel ist sichtbar, alle fünf Inhalte bleiben gemountet", () => {
   const ui = harness();
-  assert.deepEqual(order.map(x => ui.panel(x).props.hidden), [false, true, true, true]);
-  assert.equal(ui.render().filter(n => typeof n.type === "function").length, 4);
+  assert.deepEqual(order.map(x => ui.panel(x).props.hidden), [false, true, true, true, true]);
+  assert.equal(ui.render().filter(n => typeof n.type === "function").length, 5);
   for (const name of order) {
     const target = ui.tab(name).props;
     assert.equal(target.role, "tab");
@@ -105,7 +106,7 @@ test("Nur genau ein Panel ist sichtbar, alle vier Inhalte bleiben gemountet", ()
 test("Klick öffnet nur Zielpanel und merkt Tab für die Sitzung", () => {
   const ui = harness();
   ui.tab("manage").props.onClick();
-  assert.deepEqual(order.map(x => ui.panel(x).props.hidden), [true,true,false,true]);
+  assert.deepEqual(order.map(x => ui.panel(x).props.hidden), [true,true,false,true,true]);
   assert.deepEqual(ui.writes, [[tabs.PLAYLIST_WORKSPACE_TAB_STORAGE_KEY, "manage"]]);
   assert.equal(ui.tab("manage").props["aria-selected"], true);
   assert.equal(ui.tab("manage").props.tabIndex, 0);

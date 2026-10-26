@@ -1,6 +1,6 @@
 {
   "name": "zukato-spicetify",
-  "version": "1.73.0",
+  "version": "1.76.0-rc.1",
   "description": "Kommentiertes Spicetify-Workspace mit HTML-Wallpaper-Visualizer, Songverwaltung und Lyrics",
   "main": "index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "doctor": "node tools/doctor.mjs",
     "build": "npm run check && node tools/build.mjs",
     "install:spicetify": "npm run build && node tools/install.mjs",
-    "test": "npm run build && node --test tests/*.test.mjs"
+    "test": "npm run build && node --test tests/*.test.mjs tests/named-collections/*.test.mjs tests/named-collections/*.smoke.cjs"
   },
   "keywords": [],
   "author": "",

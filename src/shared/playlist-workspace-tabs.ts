@@ -6,7 +6,7 @@
 // =============================================================================
 
 /** Feste IDs ändern sich nicht mit Sprache oder angepassten Modulnamen. */
-export const PLAYLIST_WORKSPACE_TABS = ["queue", "import", "manage", "transfer"] as const;
+export const PLAYLIST_WORKSPACE_TABS = ["queue", "import", "manage", "transfer", "collections"] as const;
 export type PlaylistWorkspaceTab = typeof PLAYLIST_WORKSPACE_TABS[number];
 export const PLAYLIST_WORKSPACE_TAB_STORAGE_KEY = "zukato:playlist-workspace-tab";
 

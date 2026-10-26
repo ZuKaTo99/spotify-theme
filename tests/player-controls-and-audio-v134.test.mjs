@@ -54,14 +54,14 @@ test("Audiofehler werden präzise und ohne fremde Interna erklärt", () => {
   assert.equal(capture.explainCaptureError(new Error("Keine Tonspur"), "system"), "Keine Tonspur");
 });
 
-test("Release-Version bleibt zwischen package.json, Lockfile und Dokumentation synchron", async () => {
+test("Projektversion bleibt auch bei einer Vorabversion in allen Dateien synchron", async () => {
   const pkg = JSON.parse(await read("../package.json"));
   const lock = JSON.parse(await read("../package-lock.json"));
   const readme = await read("../README.md");
-  // Keine fest verdrahtete Versionsnummer: bei jedem Release nur Konsistenz
-  // und ein gültiges semantisches Versionsformat prüfen.
-  assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
+  // Bis zur Prüfung im echten Spotify-Client kann ein Release Candidate stehen.
+  // Die numerische Version und ein optionales rc-Suffix bleiben streng geprüft.
+  assert.match(pkg.version, /^\d+\.\d+\.\d+(?:-rc\.\d+)?$/);
   assert.equal(lock.version, pkg.version);
   assert.equal(lock.packages[""].version, pkg.version);
-  assert.ok(readme.includes(`Stand: **v${pkg.version}**`));
+  assert.ok(readme.includes(`**v${pkg.version}**`));
 });

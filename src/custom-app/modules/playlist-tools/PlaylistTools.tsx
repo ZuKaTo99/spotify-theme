@@ -14,6 +14,7 @@ import { TrackSearch } from "../../components/TrackSearch";
 import { PlaylistDestination } from "../../components/PlaylistDestination";
 import { BulkLinkImporter } from "../../components/BulkLinkImporter";
 import { PlaylistManager } from "../../components/PlaylistManager";
+import { CollectionWorkbench } from "./CollectionWorkbench";
 import { PLAYLIST_WORKSPACE_TABS, PLAYLIST_WORKSPACE_TAB_STORAGE_KEY,
   normalizePlaylistWorkspaceTab, nextPlaylistWorkspaceTab, type PlaylistWorkspaceTab,
 } from "../../../shared/playlist-workspace-tabs";
@@ -97,7 +98,7 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
 
   return <section className="zukato-panel zukato-playlist-workspace">
     <p>{t("playlist.intro")}</p>
-    {/* Alle vier Werkzeuge bleiben gemountet: ein Tabwechsel darf weder
+    {/* Alle Werkzeuge bleiben gemountet: ein Tabwechsel darf weder
         importierte Songlisten noch Playlist-Auswahl oder ungesendete Eingaben löschen. */}
     <div className="zukato-playlist-workspace__tabs" role="tablist"
       aria-label={t("playlistWorkspace.navigation")} onKeyDown={handleTabKey}>
@@ -155,6 +156,11 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
       <h3>{t("playlistTransfer.heading")}</h3>
       <p>{t("playlistTransfer.description")}</p>
       <PlaylistDestination t={t} uris={favorites.map((track) => track.uri)} disabled={working} />
+    </section>
+    <section id="zukato-playlist-panel-collections" role="tabpanel"
+      aria-labelledby="zukato-playlist-tab-collections" hidden={activeTab !== "collections"}
+      className="zukato-playlist-workspace__panel">
+      <CollectionWorkbench t={t} />
     </section>
   </section>;
 }
