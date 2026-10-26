@@ -59,6 +59,16 @@ export class PlaylistTransferError extends Error {
   }
 }
 
+/** Eine unklare Exportantwort erfordert die Prüfung der Spotify-Playlist.
+ * Das Bedienfeld zeigt nur bei diesem Fehler eine bewusst bestätigte
+ * Freigabe des lokalen Duplikatschutzes an. */
+export class PlaylistExportReviewError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PlaylistExportReviewError";
+  }
+}
+
 /** POST ist injizierbar: die gesamte Transfersicherheit ist ohne Spotify testbar. */
 export async function addItemsToSpotifyPlaylist(
   destination: string,

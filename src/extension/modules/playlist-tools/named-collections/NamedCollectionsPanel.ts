@@ -12,6 +12,8 @@ import {
   type CollectionsDocument,
   type PlaylistExportPlan,
 } from './NamedCollections';
+import { PlaylistExportReviewError } from '../../../../shared/spotify-playlist-transfer';
+export { PlaylistExportReviewError } from '../../../../shared/spotify-playlist-transfer';
 
 /** Benötigte Schnittstellen zu den schon vorhandenen Playlist-Werkzeugen. */
 export interface NamedCollectionsPanelOptions {
@@ -20,6 +22,8 @@ export interface NamedCollectionsPanelOptions {
   onCollectionChanged: (document: CollectionsDocument) => void;
   /** Bestehende Spotify-Playlist-Funktion, nur nach explizitem Klick aufgerufen. */
   onExportConfirmed?: (plan: PlaylistExportPlan) => Promise<void>;
+  /** Gibt einen unklaren Auftrag erst nach Prüfung und zweiter Bestätigung frei. */
+  onExportGuardReset?: (plan: PlaylistExportPlan) => void;
 }
 
 /** Öffentliche Steuerung für Aktualisierung und sicheres Entfernen des Panels. */
@@ -85,6 +89,8 @@ export function mountNamedCollectionsPanel(
   let renameId: string | null = null;
   let deletionId: string | null = null;
   let exportId: string | null = null;
+  let reviewPlan: PlaylistExportPlan | null = null;
+  let resetId: string | null = null;
   let exporting = false;
   let errorMessage = '';
   let successMessage = '';
@@ -107,6 +113,8 @@ export function mountNamedCollectionsPanel(
       renameId = null;
       deletionId = null;
       exportId = null;
+      reviewPlan = null;
+      resetId = null;
       errorMessage = '';
       successMessage = '';
       options.onCollectionChanged(result);
@@ -152,17 +160,37 @@ export function mountNamedCollectionsPanel(
     errorMessage = '';
     successMessage = '';
     render();
+    let plan: PlaylistExportPlan | null = null;
     try {
-      const plan = options.store.preparePlaylistExport(id);
+      plan = options.store.preparePlaylistExport(id);
       await options.onExportConfirmed(plan);
       successMessage = 'Der Playlist-Auftrag wurde erfolgreich abgeschlossen.';
       exportId = null;
+      reviewPlan = null;
+      resetId = null;
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : 'Die Playlist konnte nicht erstellt werden.';
+      reviewPlan = error instanceof PlaylistExportReviewError ? plan : null;
     } finally {
       exporting = false;
       render();
     }
+  }
+
+  /** Eine Freigabe löscht nur den lokalen Schutz dieses einen Auftrags.
+   * Der Nutzer bestätigt zuvor ausdrücklich, dass er Spotify geprüft hat. */
+  function confirmGuardReset(): void {
+    if (exporting || !reviewPlan || !options.onExportGuardReset) return;
+    try {
+      options.onExportGuardReset(reviewPlan);
+      reviewPlan = null;
+      resetId = null;
+      errorMessage = '';
+      successMessage = 'Export nach Prüfung wieder freigegeben.';
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : 'Der Exportstatus konnte nicht freigegeben werden.';
+    }
+    render();
   }
 
   /** Zeichnet nur das Panel neu; die übrige Spotify-Oberfläche bleibt unberührt. */
@@ -265,6 +293,22 @@ export function mountNamedCollectionsPanel(
         createButton('Abbrechen', () => { if (!exporting) { exportId = null; render(); } }),
       );
       exportSection.append(confirmation);
+    }
+    // Den Entsperrknopf nur für genau den Auftrag anbieten, dessen Ergebnis
+    // unklar war. Zwei eigene Klicks verhindern eine versehentliche Freigabe.
+    if (reviewPlan?.collectionId === active.id && options.onExportGuardReset) {
+      const review = createElement('div', 'zukato-collections__confirmation');
+      review.append(createElement('p', '', `Bitte „${reviewPlan.name}“ zuerst in Spotify prüfen. Eine erneute Freigabe kann eine doppelte Playlist erzeugen.`));
+      if (resetId === active.id) {
+        review.append(
+          createElement('p', '', 'Spotify geprüft und einen erneuten Export bewusst erlauben?'),
+          createButton('Exportstatus freigeben', confirmGuardReset, 'zukato-collections__button--danger'),
+          createButton('Abbrechen', () => { resetId = null; render(); }),
+        );
+      } else {
+        review.append(createButton('Nach Prüfung erneut erlauben', () => { resetId = active.id; render(); }));
+      }
+      exportSection.append(review);
     }
     root.append(exportSection);
   }

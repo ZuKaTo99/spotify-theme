@@ -13,7 +13,7 @@ const code = esbuild.buildSync({ entryPoints: [source], bundle: true, platform: 
   format: 'cjs', write: false }).outputFiles[0].text;
 const compiled = { exports: {} };
 new Function('module', 'exports', code)(compiled, compiled.exports);
-const { mountNamedCollectionsPanel } = compiled.exports;
+const { mountNamedCollectionsPanel, PlaylistExportReviewError } = compiled.exports;
 const storeSource = path.resolve(__dirname, '../../src/extension/modules/playlist-tools/named-collections/NamedCollections.ts');
 const storeCode = esbuild.buildSync({ entryPoints: [storeSource], bundle: true, platform: 'node',
   format: 'cjs', write: false }).outputFiles[0].text;
@@ -78,11 +78,17 @@ const host = new FakeElement('div');
 const store = new NamedCollectionsStore(storage, {newId: (() => { let id = 0; return () => `id-${++id}`; })()});
 const updates = [];
 const exportCalls = [];
+const resetCalls = [];
+let failNextExport = false;
 const controller = mountNamedCollectionsPanel(host, {
   store,
   legacyTrackUris: () => [uri],
   onCollectionChanged: (state) => updates.push(state.activeCollectionId),
-  onExportConfirmed: async (plan) => { exportCalls.push(plan); },
+  onExportConfirmed: async (plan) => {
+    exportCalls.push(plan);
+    if (failNextExport) throw new PlaylistExportReviewError('Spotify-Antwort unklar.');
+  },
+  onExportGuardReset: (plan) => { resetCalls.push(plan); },
 });
 
 /** Abschnitt 2: Startansicht, Formular, Speicherung und Auswahl prüfen. */
@@ -105,10 +111,22 @@ controller.refresh();
 find(host, (el) => el.textContent === 'Als Spotify-Playlist exportieren').trigger('click');
 assert.equal(exportCalls.length, 0);
 find(host, (el) => el.textContent === 'Playlist jetzt erstellen').trigger('click');
-Promise.resolve().then(() => {
+Promise.resolve().then(async () => {
   assert.equal(exportCalls.length, 1);
   assert.equal(exportCalls[0].name, 'Workout (Kopie 2)');
   assert.deepEqual(exportCalls[0].trackUris, [uri]);
+  /** Abschnitt 5: Eine unklare Antwort verlangt Prüfung und zwei Freigabeklicks. */
+  failNextExport = true;
+  find(host, (el) => el.textContent === 'Als Spotify-Playlist exportieren').trigger('click');
+  find(host, (el) => el.textContent === 'Playlist jetzt erstellen').trigger('click');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(find(host, (el) => el.textContent === 'Nach Prüfung erneut erlauben'));
+  assert.equal(resetCalls.length, 0);
+  find(host, (el) => el.textContent === 'Nach Prüfung erneut erlauben').trigger('click');
+  assert.equal(resetCalls.length, 0);
+  find(host, (el) => el.textContent === 'Exportstatus freigeben').trigger('click');
+  assert.equal(resetCalls.length, 1);
+  assert.equal(resetCalls[0].collectionId, activeId);
   assert.ok(updates.length >= 3);
   controller.destroy();
   assert.equal(host.children.length, 0);

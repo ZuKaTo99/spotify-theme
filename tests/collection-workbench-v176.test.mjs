@@ -31,17 +31,19 @@ function walk(node, result = []) {
 }
 
 /** Führt echte TSX-Callbacks mit lokalem Storage und einem Panel-Anschluss aus. */
-function harness(sourceCount = 2) {
-  const values = new Map();
+function harness(sourceCount = 2, values = new Map()) {
   const state = [];
   const effects = [];
   const exports = {};
   let index = 0;
   let refreshes = 0;
   let exportAction;
+  let resetAction;
   let creations = 0;
   let transfers = 0;
   let failTransfer = false;
+  let failCreate = false;
+  let failGuardWrite = false;
   const react = {
     createElement: (type, props, ...children) => ({type, props: {...props, children}}),
     useRef(initial) { const n = index++; return state[n] ??= {current: initial}; },
@@ -52,10 +54,14 @@ function harness(sourceCount = 2) {
     },
     useEffect(effect) { const n = index++; if (!state[n]) { state[n] = true; effects.push(effect); } },
   };
-  const storage = {getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value)};
+  const storage = {getItem: key => values.get(key) ?? null, setItem: (key, value) => {
+    if (failGuardWrite && key === "zukato:collections:export-guard:v1") throw Error("storage full");
+    values.set(key, value);
+  }};
   const collections = {useToolkitData: () => ({favorites: Array.from({length: sourceCount}, (_, n) => track(n)), history: []})};
   const panel = {mountNamedCollectionsPanel: (_host, options) => {
     exportAction = options.onExportConfirmed;
+    resetAction = options.onExportGuardReset;
     options.onCollectionChanged(options.store.load(options.legacyTrackUris()));
     return {refresh() { refreshes++; }, destroy() {}};
   }};
@@ -68,8 +74,13 @@ function harness(sourceCount = 2) {
       if (name.includes("collection-view")) return collectionView;
       if (name.includes("queue-batches")) return {QueueBatchError: class extends Error {}, enqueueQueueBatches: async () => ({queued: 0})};
       if (name.includes("spotify-playlist-transfer")) return {
+        PlaylistExportReviewError: class PlaylistExportReviewError extends Error {},
         addItemsToSpotifyPlaylist: async () => { transfers++; if (failTransfer) throw Error("network"); },
-        createSpotifyPlaylist: async () => { creations++; return "spotify:playlist:0000000000000000000001"; },
+        createSpotifyPlaylist: async () => {
+          creations++;
+          if (failCreate) throw Error("network");
+          return "spotify:playlist:0000000000000000000001";
+        },
       };
       if (name.includes("NamedCollectionsPanel")) return panel;
       if (name.includes("NamedCollections")) return storeModule.exports;
@@ -83,7 +94,10 @@ function harness(sourceCount = 2) {
   for (const effect of effects.splice(0)) effect();
   function button(label) { return render().find(node => node.type === "button" && node.props?.children?.includes(label)); }
   return {render, button, values, exportPlan: plan => exportAction(plan),
+    resetExport: plan => resetAction(plan),
     failTransfers: () => { failTransfer = true; },
+    failCreations: () => { failCreate = true; },
+    failGuardWrites: () => { failGuardWrite = true; },
     get refreshes() { return refreshes; },
     get creations() { return creations; }, get transfers() { return transfers; }};
 }
@@ -119,4 +133,47 @@ test("unklarer Spotify-Export erzeugt beim erneuten Klick keine zweite Playlist"
   await assert.rejects(() => ui.exportPlan(plan), /bereits gestartet/);
   assert.equal(ui.creations, 1);
   assert.equal(ui.transfers, 1);
+});
+
+test("unklare Playlist-Erstellung bleibt vor einem erneuten Spotify-Auftrag gesperrt", async () => {
+  const ui = harness();
+  const plan = {collectionId: "id-1", name: "Meine Sammlung", trackUris: [uri(0)]};
+  ui.failCreations();
+  await assert.rejects(() => ui.exportPlan(plan), /Erstellung ist unklar/);
+  const guard = JSON.parse(ui.values.get("zukato:collections:export-guard:v1"));
+  assert.equal(Object.values(guard)[0], "pending");
+  await assert.rejects(() => ui.exportPlan(plan), /bereits gestartet/);
+  assert.equal(ui.creations, 1);
+  assert.equal(ui.transfers, 0);
+});
+
+test("ohne dauerhaft gespeicherten Exportstatus wird Spotify nicht aufgerufen", async () => {
+  const ui = harness();
+  const plan = {collectionId: "id-1", name: "Meine Sammlung", trackUris: [uri(0)]};
+  ui.failGuardWrites();
+  await assert.rejects(() => ui.exportPlan(plan), /nichts an Spotify gesendet/);
+  assert.equal(ui.creations, 0);
+  assert.equal(ui.transfers, 0);
+});
+
+test("nach bestätigter Prüfung kann genau der gesperrte Auftrag freigegeben werden", async () => {
+  const ui = harness();
+  const plan = {collectionId: "id-1", name: "Meine Sammlung", trackUris: [uri(0)]};
+  ui.failCreations();
+  await assert.rejects(() => ui.exportPlan(plan), /Erstellung ist unklar/);
+  ui.resetExport(plan);
+  assert.deepEqual(JSON.parse(ui.values.get("zukato:collections:export-guard:v1")), {});
+  await assert.rejects(() => ui.exportPlan(plan), /Erstellung ist unklar/);
+  assert.equal(ui.creations, 2);
+});
+
+test("der Duplikatschutz übersteht ein erneutes Laden der Werkbank", async () => {
+  const values = new Map();
+  const first = harness(2, values);
+  const plan = {collectionId: "id-1", name: "Meine Sammlung", trackUris: [uri(0)]};
+  first.failCreations();
+  await assert.rejects(() => first.exportPlan(plan), /Erstellung ist unklar/);
+  const reopened = harness(2, values);
+  await assert.rejects(() => reopened.exportPlan(plan), /bereits gestartet/);
+  assert.equal(reopened.creations, 0);
 });

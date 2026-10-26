@@ -9,7 +9,7 @@ import type { Translator } from "../../../shared/i18n";
 import type { TrackInfo } from "../../../shared/library";
 import { collectionPage, filterCollection } from "../../../shared/collection-view";
 import { QueueBatchError, enqueueQueueBatches } from "../../../shared/queue-batches";
-import { addItemsToSpotifyPlaylist, createSpotifyPlaylist } from "../../../shared/spotify-playlist-transfer";
+import { addItemsToSpotifyPlaylist, createSpotifyPlaylist, PlaylistExportReviewError } from "../../../shared/spotify-playlist-transfer";
 import { useToolkitData } from "../../hooks/useToolkitData";
 import { PlaylistDestination } from "../../components/PlaylistDestination";
 import {
@@ -34,6 +34,24 @@ function uniqueTracks(tracks: readonly TrackInfo[]): TrackInfo[] {
 
 /** Ein bereits bestätigter Spotify-Request wird bei unklarer API-Antwort nie wiederholt. */
 const EXPORT_GUARD_KEY = "zukato:collections:export-guard:v1";
+
+/** Ein Exportauftrag ist an Sammlung, Namen und Songreihenfolge gebunden. */
+function exportGuardId(plan: PlaylistExportPlan): string {
+  return `${plan.collectionId}:${JSON.stringify([plan.name, plan.trackUris])}`;
+}
+
+/** Beschädigte Wächterdaten niemals durch einen leeren Zustand ersetzen. */
+function readExportGuards(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(EXPORT_GUARD_KEY);
+    const guarded = raw ? JSON.parse(raw) as Record<string, string> : {};
+    if (!guarded || Array.isArray(guarded) || typeof guarded !== "object" ||
+        Object.values(guarded).some((value) => typeof value !== "string")) throw Error();
+    return guarded;
+  } catch {
+    throw new Error("Der Exportstatus konnte nicht gelesen werden. Es wurde nichts an Spotify gesendet.");
+  }
+}
 
 export function CollectionWorkbench({ t }: { t: Translator }): ReactElement {
   const { favorites, history } = useToolkitData();
@@ -78,6 +96,7 @@ export function CollectionWorkbench({ t }: { t: Translator }): ReactElement {
         setError("");
       },
       onExportConfirmed: exportCollection,
+      onExportGuardReset: releaseExportGuard,
     });
     panelRef.current = controller;
     return () => { controller.destroy(); panelRef.current = null; };
@@ -102,38 +121,56 @@ export function CollectionWorkbench({ t }: { t: Translator }): ReactElement {
    * Nach einer unklaren Antwort blockiert ein dauerhafter Wächter erneutes
    * Erstellen derselben Playlist. Der Nutzer prüft sie dann zuerst in Spotify. */
   async function exportCollection(plan: PlaylistExportPlan): Promise<void> {
-    const signature = JSON.stringify([plan.name, plan.trackUris]);
-    const guardId = `${plan.collectionId}:${signature}`;
-    let guarded: Record<string, string> = {};
-    try {
-      const raw = window.localStorage.getItem(EXPORT_GUARD_KEY);
-      guarded = raw ? JSON.parse(raw) as Record<string, string> : {};
-      if (!guarded || Array.isArray(guarded) || typeof guarded !== "object") throw Error();
-    } catch {
-      throw new Error("Der Exportstatus konnte nicht gelesen werden. Es wurde nichts an Spotify gesendet.");
-    }
+    const guardId = exportGuardId(plan);
+    const guarded = readExportGuards();
     if (guarded[guardId] || exportGuard.current.has(guardId)) {
-      throw new Error("Dieser Export wurde bereits gestartet. Bitte die Playlist in Spotify prüfen, bevor du erneut exportierst.");
+      throw new PlaylistExportReviewError("Dieser Export wurde bereits gestartet. Bitte die Playlist in Spotify prüfen, bevor du erneut exportierst.");
     }
-    const playlistUri = await createSpotifyPlaylist(plan.name, "ZuKaTo Sammlung", false,
-      (url, body) => Spicetify.CosmosAsync.post(url, body));
+    // Den Auftrag schon vor dem ersten Spotify-POST dauerhaft markieren.
+    // Gerade die Playlist-Erstellung kann serverseitig gelungen sein, obwohl
+    // die Antwort verloren geht. Ohne diesen Schritt würde ein neuer Klick
+    // eine zweite Playlist anlegen. Scheitert das lokale Speichern, senden wir
+    // überhaupt keinen Request.
+    guarded[guardId] = "pending";
+    try { window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(guarded)); }
+    catch { throw new Error("Der Exportstatus konnte nicht gespeichert werden. Es wurde nichts an Spotify gesendet."); }
     exportGuard.current.add(guardId);
+    let playlistUri: string;
+    try {
+      playlistUri = await createSpotifyPlaylist(plan.name, "ZuKaTo Sammlung", false,
+        (url, body) => Spicetify.CosmosAsync.post(url, body));
+    } catch {
+      throw new PlaylistExportReviewError("Die Playlist-Erstellung ist unklar. Bitte zuerst in Spotify prüfen; ein erneuter Export ist gesperrt.");
+    }
     // Die Playlist existiert jetzt. Vor dem Senden der Titel den Wächter
     // schreiben, damit Neustart und Doppelklick keinen zweiten Export auslösen.
     guarded[guardId] = playlistUri;
     try { window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(guarded)); }
-    catch { throw new Error(`Playlist ${playlistUri} wurde erstellt. Der Exportstatus konnte nicht gespeichert werden; bitte manuell in Spotify prüfen.`); }
+    catch { throw new PlaylistExportReviewError(`Playlist ${playlistUri} wurde erstellt. Der Exportstatus konnte nicht gespeichert werden; bitte manuell in Spotify prüfen.`); }
     try {
       await addItemsToSpotifyPlaylist(playlistUri, plan.trackUris,
         (url, body) => Spicetify.CosmosAsync.post(url, body));
     } catch {
-      throw new Error(`Playlist ${playlistUri} wurde erstellt. Die Titelübertragung ist unklar; bitte in Spotify prüfen.`);
+      throw new PlaylistExportReviewError(`Playlist ${playlistUri} wurde erstellt. Die Titelübertragung ist unklar; bitte in Spotify prüfen.`);
     }
     // Nach bestätigtem Erfolg darf der Benutzer später bewusst erneut
     // exportieren. Nur ein unklarer Teilversand bleibt dauerhaft gesperrt.
     delete guarded[guardId];
     try { window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(guarded)); }
     catch { /* Der Export war erfolgreich; ein verbliebener Wächter ist sicher. */ }
+    exportGuard.current.delete(guardId);
+  }
+
+  /** Nach Prüfung in Spotify darf der Nutzer genau diesen Auftrag freigeben.
+   * Erst den dauerhaft gespeicherten Wächter entfernen; bei Speicherfehlern
+   * bleibt auch die Sperre dieser laufenden Sitzung erhalten. */
+  function releaseExportGuard(plan: PlaylistExportPlan): void {
+    const guardId = exportGuardId(plan);
+    const guarded = readExportGuards();
+    if (!guarded[guardId]) throw new Error("Für diese Sammlung liegt kein gesperrter Export vor.");
+    delete guarded[guardId];
+    try { window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(guarded)); }
+    catch { throw new Error("Der Exportstatus konnte nicht freigegeben werden."); }
     exportGuard.current.delete(guardId);
   }
 
