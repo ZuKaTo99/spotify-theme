@@ -8,18 +8,21 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const esbuild = require('esbuild');
-const source = path.resolve(__dirname, '../../src/extension/modules/playlist-tools/named-collections/NamedCollectionsPanel.ts');
-const code = esbuild.buildSync({ entryPoints: [source], bundle: true, platform: 'node',
-  format: 'cjs', write: false }).outputFiles[0].text;
+// Panel und Store gemeinsam bündeln: Nur so teilen sie sich auch im Test
+// dieselbe Fehlerklasse, genau wie im tatsächlichen App-Bundle.
+const root = path.resolve(__dirname, '../..');
+const code = esbuild.buildSync({
+  stdin: {
+    contents: "export { mountNamedCollectionsPanel, PlaylistExportReviewError } from './src/extension/modules/playlist-tools/named-collections/NamedCollectionsPanel'; export { NamedCollectionsStore } from './src/extension/modules/playlist-tools/named-collections/NamedCollections';",
+    resolveDir: root,
+    sourcefile: 'named-collections-smoke.ts',
+    loader: 'ts',
+  },
+  bundle: true, platform: 'node', format: 'cjs', write: false,
+}).outputFiles[0].text;
 const compiled = { exports: {} };
 new Function('module', 'exports', code)(compiled, compiled.exports);
-const { mountNamedCollectionsPanel, PlaylistExportReviewError } = compiled.exports;
-const storeSource = path.resolve(__dirname, '../../src/extension/modules/playlist-tools/named-collections/NamedCollections.ts');
-const storeCode = esbuild.buildSync({ entryPoints: [storeSource], bundle: true, platform: 'node',
-  format: 'cjs', write: false }).outputFiles[0].text;
-const storeModule = { exports: {} };
-new Function('module', 'exports', storeCode)(storeModule, storeModule.exports);
-const { NamedCollectionsStore } = storeModule.exports;
+const { mountNamedCollectionsPanel, PlaylistExportReviewError, NamedCollectionsStore } = compiled.exports;
 
 /** Minimaler DOM-Knoten zur Simulation der benötigten Standardmethoden. */
 class FakeElement {
@@ -128,6 +131,17 @@ Promise.resolve().then(async () => {
   assert.equal(resetCalls.length, 1);
   assert.equal(resetCalls[0].collectionId, activeId);
   assert.ok(updates.length >= 3);
+  /** Abschnitt 6: Ein extern umbenannter Stand darf nicht überschrieben werden. */
+  const external = new NamedCollectionsStore(storage);
+  external.load();
+  external.rename(activeId, 'Extern umbenannt');
+  const priorCount = store.getSnapshot().collections.length;
+  find(host, (el) => el.textContent === 'Neue Sammlung').trigger('click');
+  find(host, (el) => el.tagName === 'input').value = 'Veralteter Entwurf';
+  find(host, (el) => el.tagName === 'form').trigger('submit');
+  assert.equal(store.getSnapshot().collections.length, priorCount);
+  assert.equal(store.getSnapshot().collections.find((entry) => entry.id === activeId).name, 'Extern umbenannt');
+  assert.ok(find(host, (el) => el.textContent.includes('an anderer Stelle geändert')));
   controller.destroy();
   assert.equal(host.children.length, 0);
   console.log('UI-Smoke-Test: OK');

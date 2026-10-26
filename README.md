@@ -1,14 +1,14 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.3**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.4**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
 
-## v1.76.0-rc.3 – Benannte Musiksammlungen
+## v1.76.0-rc.4 – Benannte Musiksammlungen
 
 Unter **Playlist-Werkzeuge → Sammlung zusammenstellen** lassen sich Favoriten und
 Hörverlauf durchsuchen und in mehreren benannten Sammlungen organisieren. Jede
@@ -23,13 +23,19 @@ werden.
 Die vorhandene JSON-Datensicherung übernimmt benannte Sammlungen jetzt
 einschließlich Reihenfolge und Songinformationen. Ältere Backups ohne diesen
 Abschnitt lassen bereits vorhandene Sammlungen unverändert.
+Die Sammlungswerkbank initialisiert ihren lokalen Speicher erst beim ersten
+Öffnen des Tabs. Ändert ein zweites Spotify-Fenster die Sammlungen, wird der
+neue Stand angezeigt. Eine inzwischen veraltete Aktion wird vor dem Speichern
+abgebrochen und kann nach dem Neuladen bewusst erneut ausgeführt werden.
+Auch Export-Sperren anderer Fenster bleiben erhalten, wenn während einer
+Spotify-Anfrage der Status des eigenen Exports aktualisiert wird.
 
 Der verfügbare GitLab-Stand vor dieser Änderung war v1.73.0. Deshalb existiert
 hier kein v1.75.0-Speicherschlüssel für die frühere einzelne Arbeitsliste;
 eine Übernahme solcher bereits gespeicherten Daten ist noch nicht nachgewiesen.
-Der rc.2-Build wurde lokal mit Spicetify angewendet; der Spotify-Client startet
-und zeigt die Sammlungswerkbank mit Quellen und aktiver Sammlung an. Die
-Sammlungsaktionen, der neue rc.3-Exportwächter und der Playlist-Export müssen
+Der rc.4-Build wurde lokal mit Spicetify angewendet. Mit rc.2 startete der
+Spotify-Client und zeigte die Sammlungswerkbank mit Quellen und aktiver
+Sammlung an. Die Sammlungsaktionen, der Exportwächter und der Playlist-Export müssen
 im echten Client noch geprüft werden, bevor v1.76.0 als stabil gilt.
 
 ## v1.72.0 – Dashboard-Informationskarten und Bibliotheksvorschau

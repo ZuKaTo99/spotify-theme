@@ -13,7 +13,8 @@ import { addItemsToSpotifyPlaylist, createSpotifyPlaylist, PlaylistExportReviewE
 import { useToolkitData } from "../../hooks/useToolkitData";
 import { PlaylistDestination } from "../../components/PlaylistDestination";
 import {
-  NamedCollectionsStore, type CollectionsDocument, type PlaylistExportPlan,
+  CollectionConflictError, NAMED_COLLECTIONS_STORAGE_KEY, NamedCollectionsStore,
+  type CollectionsDocument, type PlaylistExportPlan,
 } from "../../../extension/modules/playlist-tools/named-collections/NamedCollections";
 import {
   mountNamedCollectionsPanel, type NamedCollectionsPanelController,
@@ -102,6 +103,29 @@ export function CollectionWorkbench({ t }: { t: Translator }): ReactElement {
     return () => { controller.destroy(); panelRef.current = null; };
   }, [store]);
 
+  /** Andere Spotify-Fenster und Backup-Imports in ihnen dürfen die sichtbare
+   * Liste nicht veralten lassen. Bei defekten externen Daten stoppen wir die
+   * Werkbank, statt mit einer alten Kopie darüberzuschreiben. */
+  ReactRuntime.useEffect(() => {
+    const onStorage = (event: StorageEvent): void => {
+      if (event.key !== NAMED_COLLECTIONS_STORAGE_KEY) return;
+      try {
+        const next = store.reload();
+        setSnapshot(next);
+        setWorkSelection(new Set());
+        setWorkPage(0);
+        setCopyTarget("");
+        setError("");
+        panelRef.current?.refresh();
+      } catch (cause) {
+        setSnapshot(null);
+        setError(cause instanceof Error ? cause.message : "Die Sammlungen konnten nicht neu geladen werden.");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [store]);
+
   /** Jede lokale Änderung geht zuerst durch den gemeinsamen Store. */
   function change(action: () => CollectionsDocument): boolean {
     try {
@@ -112,6 +136,21 @@ export function CollectionWorkbench({ t }: { t: Translator }): ReactElement {
       panelRef.current?.refresh();
       return true;
     } catch (cause) {
+      // Der Store hat einen neueren Speicherstand erkannt. Erst ihn laden,
+      // dann kann der Nutzer seine Aktion bewusst noch einmal ausführen.
+      if (cause instanceof CollectionConflictError) {
+        try {
+          setSnapshot(store.reload());
+          setWorkSelection(new Set());
+          setWorkPage(0);
+          setCopyTarget("");
+          panelRef.current?.refresh();
+        } catch (reloadError) {
+          setSnapshot(null);
+          setError(reloadError instanceof Error ? reloadError.message : "Die Sammlungen konnten nicht neu geladen werden.");
+          return false;
+        }
+      }
       setError(cause instanceof Error ? cause.message : "Die Sammlung konnte nicht gespeichert werden.");
       return false;
     }
@@ -142,21 +181,30 @@ export function CollectionWorkbench({ t }: { t: Translator }): ReactElement {
     } catch {
       throw new PlaylistExportReviewError("Die Playlist-Erstellung ist unklar. Bitte zuerst in Spotify prüfen; ein erneuter Export ist gesperrt.");
     }
-    // Die Playlist existiert jetzt. Vor dem Senden der Titel den Wächter
-    // schreiben, damit Neustart und Doppelklick keinen zweiten Export auslösen.
-    guarded[guardId] = playlistUri;
-    try { window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(guarded)); }
-    catch { throw new PlaylistExportReviewError(`Playlist ${playlistUri} wurde erstellt. Der Exportstatus konnte nicht gespeichert werden; bitte manuell in Spotify prüfen.`); }
+    // Während der Spotify-Anfrage kann ein anderes Fenster weitere Exporte
+    // sperren. Den Wächter daher erneut lesen und nur unseren Eintrag ändern.
+    // Ein veränderter eigener Auftrag bleibt gesperrt und braucht Prüfung.
+    try {
+      const latest = readExportGuards();
+      if (latest[guardId] !== "pending") throw Error();
+      latest[guardId] = playlistUri;
+      window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(latest));
+    } catch { throw new PlaylistExportReviewError(`Playlist ${playlistUri} wurde erstellt. Der Exportstatus konnte nicht gespeichert werden; bitte manuell in Spotify prüfen.`); }
     try {
       await addItemsToSpotifyPlaylist(playlistUri, plan.trackUris,
         (url, body) => Spicetify.CosmosAsync.post(url, body));
     } catch {
       throw new PlaylistExportReviewError(`Playlist ${playlistUri} wurde erstellt. Die Titelübertragung ist unklar; bitte in Spotify prüfen.`);
     }
-    // Nach bestätigtem Erfolg darf der Benutzer später bewusst erneut
-    // exportieren. Nur ein unklarer Teilversand bleibt dauerhaft gesperrt.
-    delete guarded[guardId];
-    try { window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(guarded)); }
+    // Nach Erfolg nur unseren Eintrag entfernen. Fremde Sperren, die während
+    // des Titelversands entstanden sind, müssen erhalten bleiben.
+    try {
+      const latest = readExportGuards();
+      if (latest[guardId] === playlistUri) {
+        delete latest[guardId];
+        window.localStorage.setItem(EXPORT_GUARD_KEY, JSON.stringify(latest));
+      }
+    }
     catch { /* Der Export war erfolgreich; ein verbliebener Wächter ist sicher. */ }
     exportGuard.current.delete(guardId);
   }

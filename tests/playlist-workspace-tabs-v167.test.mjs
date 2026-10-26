@@ -91,16 +91,20 @@ test("Pfeiltasten navigieren zyklisch und Home/End springen zu den Rändern", ()
   assert.equal(tabs.nextPlaylistWorkspaceTab("import", "Enter"), null);
 });
 
-test("Nur genau ein Panel ist sichtbar, alle fünf Inhalte bleiben gemountet", () => {
+test("Nur das aktive Panel ist sichtbar; die Sammlung startet erst bei Bedarf", () => {
   const ui = harness();
   assert.deepEqual(order.map(x => ui.panel(x).props.hidden), [false, true, true, true, true]);
-  assert.equal(ui.render().filter(n => typeof n.type === "function").length, 5);
+  assert.equal(ui.render().filter(n => typeof n.type === "function").length, 4);
   for (const name of order) {
     const target = ui.tab(name).props;
     assert.equal(target.role, "tab");
     assert.equal(target["aria-controls"], `zukato-playlist-panel-${name}`);
     assert.equal(ui.panel(name).props["aria-labelledby"], `zukato-playlist-tab-${name}`);
   }
+  ui.tab("collections").props.onClick();
+  assert.equal(ui.render().filter(n => typeof n.type === "function").length, 5);
+  ui.tab("queue").props.onClick();
+  assert.equal(ui.render().filter(n => typeof n.type === "function").length, 5);
 });
 
 test("Klick öffnet nur Zielpanel und merkt Tab für die Sitzung", () => {
@@ -117,6 +121,9 @@ test("Gespeicherten Bereich wieder öffnen, statt immer zum Anfang zu springen",
   const ui = harness({ stored: "import" });
   assert.equal(ui.panel("import").props.hidden, false);
   assert.equal(ui.panel("queue").props.hidden, true);
+  const collections = harness({ stored: "collections" });
+  assert.equal(collections.panel("collections").props.hidden, false);
+  assert.equal(collections.render().filter(n => typeof n.type === "function").length, 5);
 });
 
 test("Gesperrter Sitzungsspeicher verhindert weder Start noch Tabwechsel", () => {

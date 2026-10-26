@@ -37,9 +37,13 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
     try { return normalizePlaylistWorkspaceTab(window.sessionStorage.getItem(PLAYLIST_WORKSPACE_TAB_STORAGE_KEY)); }
     catch { return "queue"; }
   });
+  // Sammlungs-Storage erst beim ersten Öffnen des Tabs initialisieren. Danach
+  // bleibt die Werkbank wie die anderen Werkzeuge für Tabwechsel gemountet.
+  const [collectionsOpened, setCollectionsOpened] = ReactRuntime.useState(activeTab === "collections");
 
   function selectTab(tab: PlaylistWorkspaceTab): void {
     setActiveTab(tab);
+    if (tab === "collections") setCollectionsOpened(true);
     try { window.sessionStorage.setItem(PLAYLIST_WORKSPACE_TAB_STORAGE_KEY, tab); }
     catch { /* Sitzungsspeicher ist optional; der aktive Tab bleibt im RAM. */ }
   }
@@ -98,7 +102,7 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
 
   return <section className="zukato-panel zukato-playlist-workspace">
     <p>{t("playlist.intro")}</p>
-    {/* Alle Werkzeuge bleiben gemountet: ein Tabwechsel darf weder
+    {/* Bereits geöffnete Werkzeuge bleiben gemountet: ein Tabwechsel darf weder
         importierte Songlisten noch Playlist-Auswahl oder ungesendete Eingaben löschen. */}
     <div className="zukato-playlist-workspace__tabs" role="tablist"
       aria-label={t("playlistWorkspace.navigation")} onKeyDown={handleTabKey}>
@@ -160,7 +164,7 @@ export function PlaylistTools({ t }: { t: Translator }): ReactElement {
     <section id="zukato-playlist-panel-collections" role="tabpanel"
       aria-labelledby="zukato-playlist-tab-collections" hidden={activeTab !== "collections"}
       className="zukato-playlist-workspace__panel">
-      <CollectionWorkbench t={t} />
+      {collectionsOpened && <CollectionWorkbench t={t} />}
     </section>
   </section>;
 }

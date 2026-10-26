@@ -73,6 +73,14 @@ export class CollectionStorageError extends CollectionError {
   }
 }
 
+/** Ein anderes Fenster hat denselben Datensatz seit dem Laden geändert. */
+export class CollectionConflictError extends CollectionStorageError {
+  constructor() {
+    super('Die Sammlungen wurden an anderer Stelle geändert. Der neue Stand wird geladen; bitte die Aktion erneut ausführen.');
+    this.name = 'CollectionConflictError';
+  }
+}
+
 /** Sicherheitsgrenzen gegen versehentlich unbegrenzt wachsende Listen. */
 export const COLLECTION_LIMITS = Object.freeze({
   maxCollections: 40,
@@ -240,6 +248,9 @@ export class NamedCollectionsStore {
   private readonly now: () => number;
   private readonly newId: () => string;
   private document: CollectionsDocument | null = null;
+  // Der genaue zuletzt gelesene JSON-Text dient als Versionsnachweis. So kann
+  // eine zweite App-Instanz nichts stillschweigend überschreiben.
+  private persistedRaw: string | null = null;
 
   constructor(storage: CollectionStorage, options: CollectionsOptions = {}) {
     this.storage = storage;
@@ -263,6 +274,7 @@ export class NamedCollectionsStore {
     }
     if (raw !== null) {
       this.document = parseCollectionsDocument(raw);
+      this.persistedRaw = raw;
       return cloneDocument(this.document);
     }
     // Beim ersten Start übernehmen wir die alte Arbeitsliste genau einmal.
@@ -278,6 +290,19 @@ export class NamedCollectionsStore {
     };
     this.save(initial);
     return cloneDocument(this.requiredDocument());
+  }
+
+  /** Übernimmt ausdrücklich den neuesten gespeicherten Stand. Fehlerhafte
+   * externe Daten bleiben unangetastet und ersetzen den RAM-Stand nicht. */
+  reload(): CollectionsDocument {
+    let raw: string | null;
+    try { raw = this.storage.getItem(this.storageKey); }
+    catch { throw new CollectionStorageError('Die Sammlungen konnten nicht gelesen werden.'); }
+    if (raw === null) throw new CollectionStorageError('Die gespeicherten Sammlungen fehlen. Es wurde nichts überschrieben.');
+    const next = parseCollectionsDocument(raw);
+    this.document = next;
+    this.persistedRaw = raw;
+    return cloneDocument(next);
   }
 
   /** Liefert eine sichere Kopie des geladenen Workspaces. */
@@ -470,12 +495,17 @@ export class NamedCollectionsStore {
       next.trackDetails = Object.fromEntries(Object.entries(next.trackDetails)
         .filter(([uri]) => used.has(uri)));
     }
-    try {
-      this.storage.setItem(this.storageKey, JSON.stringify(next));
-    } catch {
-      throw new CollectionStorageError('Die Sammlungen konnten nicht gespeichert werden.');
-    }
+    // Erst den zuletzt gesehenen Text abgleichen. Ein zweites Fenster oder ein
+    // Backup-Import darf zwischen Laden und Speichern nicht verloren gehen.
+    let currentRaw: string | null;
+    try { currentRaw = this.storage.getItem(this.storageKey); }
+    catch { throw new CollectionStorageError('Die Sammlungen konnten vor dem Speichern nicht gelesen werden.'); }
+    if (currentRaw !== this.persistedRaw) throw new CollectionConflictError();
+    const serialized = JSON.stringify(next);
+    try { this.storage.setItem(this.storageKey, serialized); }
+    catch { throw new CollectionStorageError('Die Sammlungen konnten nicht gespeichert werden.'); }
     this.document = next;
+    this.persistedRaw = serialized;
     return cloneDocument(next);
   }
 }

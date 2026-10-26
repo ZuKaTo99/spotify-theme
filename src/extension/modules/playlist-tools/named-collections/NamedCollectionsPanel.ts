@@ -8,7 +8,7 @@
  */
 
 import {
-  NamedCollectionsStore,
+  CollectionConflictError, NamedCollectionsStore,
   type CollectionsDocument,
   type PlaylistExportPlan,
 } from './NamedCollections';
@@ -119,6 +119,18 @@ export function mountNamedCollectionsPanel(
       successMessage = '';
       options.onCollectionChanged(result);
     } catch (error) {
+      // Bei parallelen Änderungen die neue Version anzeigen, ohne den alten
+      // Entwurf darüberzuschreiben. Die ausgelöste Aktion wird nicht wiederholt.
+      if (error instanceof CollectionConflictError) {
+        try {
+          options.onCollectionChanged(options.store.reload());
+          mode = null; renameId = null; deletionId = null; exportId = null;
+        } catch (reloadError) {
+          errorMessage = reloadError instanceof Error ? reloadError.message : 'Die Sammlungen konnten nicht neu geladen werden.';
+          render();
+          return;
+        }
+      }
       errorMessage = error instanceof Error ? error.message : 'Die Aktion ist fehlgeschlagen.';
     }
     render();
@@ -316,7 +328,7 @@ export function mountNamedCollectionsPanel(
   render();
   return {
     /** Aktualisiert den angezeigten Stand nach Änderungen aus der vorhandenen Arbeitsliste. */
-    refresh() { render(); },
+    refresh() { errorMessage = ''; render(); },
     /** Entfernt das Panel und verhindert spätere Aktualisierungen. */
     destroy() { disposed = true; root.remove(); },
   };

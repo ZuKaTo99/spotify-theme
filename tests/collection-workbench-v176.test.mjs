@@ -34,6 +34,7 @@ function walk(node, result = []) {
 function harness(sourceCount = 2, values = new Map()) {
   const state = [];
   const effects = [];
+  const listeners = new Map();
   const exports = {};
   let index = 0;
   let refreshes = 0;
@@ -44,6 +45,8 @@ function harness(sourceCount = 2, values = new Map()) {
   let failTransfer = false;
   let failCreate = false;
   let failGuardWrite = false;
+  let onCreate = () => {};
+  let onTransfer = () => {};
   const react = {
     createElement: (type, props, ...children) => ({type, props: {...props, children}}),
     useRef(initial) { const n = index++; return state[n] ??= {current: initial}; },
@@ -67,7 +70,9 @@ function harness(sourceCount = 2, values = new Map()) {
   }};
   const components = {PlaylistDestination: () => null};
   runInNewContext(compileTsxForTest(root, "src/custom-app/modules/playlist-tools/CollectionWorkbench.tsx"), {
-    exports, window: {localStorage: storage}, Set, Map, Object,
+    exports, window: {localStorage: storage,
+      addEventListener: (name, fn) => listeners.set(name, fn),
+      removeEventListener: (name) => listeners.delete(name)}, Set, Map, Object, Error,
     Spicetify: {React: react, addToQueue: async () => {}, CosmosAsync: {post: async () => ({})}},
     require: name => {
       if (name.includes("useToolkitData")) return collections;
@@ -75,9 +80,10 @@ function harness(sourceCount = 2, values = new Map()) {
       if (name.includes("queue-batches")) return {QueueBatchError: class extends Error {}, enqueueQueueBatches: async () => ({queued: 0})};
       if (name.includes("spotify-playlist-transfer")) return {
         PlaylistExportReviewError: class PlaylistExportReviewError extends Error {},
-        addItemsToSpotifyPlaylist: async () => { transfers++; if (failTransfer) throw Error("network"); },
+        addItemsToSpotifyPlaylist: async () => { transfers++; onTransfer(); if (failTransfer) throw Error("network"); },
         createSpotifyPlaylist: async () => {
           creations++;
+          onCreate();
           if (failCreate) throw Error("network");
           return "spotify:playlist:0000000000000000000001";
         },
@@ -95,9 +101,12 @@ function harness(sourceCount = 2, values = new Map()) {
   function button(label) { return render().find(node => node.type === "button" && node.props?.children?.includes(label)); }
   return {render, button, values, exportPlan: plan => exportAction(plan),
     resetExport: plan => resetAction(plan),
+    dispatchStorage: key => listeners.get("storage")?.({key}),
     failTransfers: () => { failTransfer = true; },
     failCreations: () => { failCreate = true; },
     failGuardWrites: () => { failGuardWrite = true; },
+    onCreate: (callback) => { onCreate = callback; },
+    onTransfer: (callback) => { onTransfer = callback; },
     get refreshes() { return refreshes; },
     get creations() { return creations; }, get transfers() { return transfers; }};
 }
@@ -176,4 +185,50 @@ test("der Duplikatschutz übersteht ein erneutes Laden der Werkbank", async () =
   const reopened = harness(2, values);
   await assert.rejects(() => reopened.exportPlan(plan), /bereits gestartet/);
   assert.equal(reopened.creations, 0);
+});
+
+test("Exportstatus anderer Fenster bleibt während Erstellung und Titelversand erhalten", async () => {
+  const ui = harness();
+  const key = "zukato:collections:export-guard:v1";
+  const plan = {collectionId: "id-1", name: "Meine Sammlung", trackUris: [uri(0)]};
+  const addExternal = (id) => {
+    const guards = JSON.parse(ui.values.get(key));
+    guards[id] = "pending";
+    ui.values.set(key, JSON.stringify(guards));
+  };
+  ui.onCreate(() => addExternal("anderes-fenster-1"));
+  ui.onTransfer(() => addExternal("anderes-fenster-2"));
+  await ui.exportPlan(plan);
+  assert.deepEqual(JSON.parse(ui.values.get(key)), {
+    "anderes-fenster-1": "pending", "anderes-fenster-2": "pending",
+  });
+  assert.equal(ui.creations, 1);
+  assert.equal(ui.transfers, 1);
+});
+
+test("neue Sammlungsdaten aus einem zweiten Fenster erscheinen ohne Überschreiben", () => {
+  const ui = harness();
+  const key = "zukato:playlist-workspace:named-collections:v1";
+  const external = JSON.parse(ui.values.get(key));
+  external.collections[0].trackUris = [uri(44)];
+  ui.values.set(key, JSON.stringify(external));
+  ui.dispatchStorage(key);
+  assert.ok(ui.render().some(node => node.type === "h4" &&
+    node.props.children.flat(Infinity).join("").includes("Meine Sammlung · 1 Songs")));
+  assert.deepEqual(JSON.parse(ui.values.get(key)).collections[0].trackUris, [uri(44)]);
+});
+
+test("veraltete Werkbank meldet einen Konflikt und behält die neueren Daten", () => {
+  const ui = harness();
+  const key = "zukato:playlist-workspace:named-collections:v1";
+  const external = JSON.parse(ui.values.get(key));
+  external.collections[0].trackUris = [uri(44)];
+  ui.values.set(key, JSON.stringify(external));
+  const source = ui.render().find(node => node.props?.["aria-label"] === "Quellen");
+  walk(source).find(node => node.type === "input" && node.props?.type === "checkbox").props.onChange();
+  ui.button("Zur Sammlung hinzufügen").props.onClick();
+  assert.deepEqual(JSON.parse(ui.values.get(key)).collections[0].trackUris, [uri(44)]);
+  const alerts = ui.render().filter(node => node.props?.role === "alert")
+    .map(node => node.props.children.flat(Infinity).join(""));
+  assert.ok(alerts.some(text => text.includes("an anderer Stelle geändert")), JSON.stringify(alerts));
 });

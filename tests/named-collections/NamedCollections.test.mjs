@@ -13,7 +13,8 @@ const code = esbuild.buildSync({ entryPoints: [source], bundle: true, platform: 
   format: 'cjs', write: false }).outputFiles[0].text;
 const compiled = { exports: {} };
 new Function('module', 'exports', code)(compiled, compiled.exports);
-const { NamedCollectionsStore, CollectionError, CollectionStorageError, normalizeTrackUri } = compiled.exports;
+const { NamedCollectionsStore, CollectionError, CollectionStorageError,
+  CollectionConflictError, normalizeTrackUri } = compiled.exports;
 
 /** Reproduzierbarer In-Memory-Speicher mit simulierbaren Speicherfehlern. */
 function memoryStorage() {
@@ -151,6 +152,36 @@ test('bricht beim Speicherfehler ab ohne RAM oder gespeicherte Daten zu beschäd
   assert.throws(() => store.create('Nicht gespeichert'), CollectionStorageError);
   assert.deepEqual(store.getSnapshot(), original);
   assert.equal([...storage.values.values()][0], persisted);
+});
+
+// Zwei Spotify-Fenster dürfen einander keine neuen Songs überschreiben. Nach
+// der Konfliktmeldung wird bewusst der neue Stand geladen und erst dann erneut
+// gespeichert.
+test('verhindert verlorene Sammlungsänderungen aus einem zweiten Fenster', () => {
+  const storage = memoryStorage();
+  const first = newStore(storage);
+  const id = first.load().activeCollectionId;
+  const second = newStore(storage);
+  second.load();
+  first.addTracks(id, [uri(1)]);
+  assert.throws(() => second.addTracks(id, [uri(2)]), CollectionConflictError);
+  assert.deepEqual(second.getSnapshot().collections[0].trackUris, []);
+  assert.deepEqual(newStore(storage).load().collections[0].trackUris, [uri(1)]);
+  second.reload();
+  second.addTracks(id, [uri(2)]);
+  assert.deepEqual(newStore(storage).load().collections[0].trackUris, [uri(1), uri(2)]);
+});
+
+test('defekte externe Sammlungen werden weder überschrieben noch in den RAM geladen', () => {
+  const storage = memoryStorage();
+  const store = newStore(storage);
+  const before = store.load();
+  const key = 'zukato:playlist-workspace:named-collections:v1';
+  storage.values.set(key, '{defekt');
+  assert.throws(() => store.create('Neu'), CollectionConflictError);
+  assert.throws(() => store.reload(), CollectionStorageError);
+  assert.deepEqual(store.getSnapshot(), before);
+  assert.equal(storage.values.get(key), '{defekt');
 });
 
 // Prüft: Meldet defekte oder unbekannte Speicherstände ohne Überschreiben.
