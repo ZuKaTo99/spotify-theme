@@ -125,7 +125,7 @@ test("Visualizer: Canvas-Retry darf nur einmal erscheinen", async () => {
 });
 
 test("Audio: sämtliche Freigabe-Listener werden beim Stop entfernt", async () => {
-  const text = await source("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts");
+  const text = await source("../src/custom-app/modules/visualizer/audio-session.ts");
   assert.match(text, /for \(const track of old\.tracks\) track\.removeEventListener\("ended", old\.onEnded\)/);
 });
 

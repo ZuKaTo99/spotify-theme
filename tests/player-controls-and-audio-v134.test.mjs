@@ -14,6 +14,7 @@ const app = await read("../src/custom-app/modules/visualizer/Visualizer.tsx");
 const controls = await read("../src/custom-app/modules/visualizer/PlayerControls.tsx");
 const css = await read("../src/custom-app/app.scss");
 const hook = await read("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts");
+const session = await read("../src/custom-app/modules/visualizer/audio-session.ts");
 const mini = await read("../src/extension/modules/mini-player/MiniPlayerModule.ts");
 const captureSrc = await read("../src/custom-app/modules/visualizer/audio-capture.ts");
 const capture = await import("data:text/javascript," + encodeURIComponent(stripTypeScriptTypes(captureSrc, { mode: "strip" })));
@@ -37,8 +38,8 @@ test("Ohne explizite Freigabe erscheinen klare Audiohinweise und Aktionen", () =
   assert.match(app, /spectrum\.startSystem\(\)/);
   assert.match(app, /spectrum\.start\(\)/);
   assert.match(app, /disabled=\{spectrum\.starting\}/);
-  assert.match(hook, /setStarting\(true\)/);
-  assert.match(hook, /setStarting\(false\)/);
+  assert.match(session, /this\.starting = true/);
+  assert.match(session, /this\.starting = false/);
   assert.match(app, /config\.spectrum === "off" \? "Spotify-Wallpaper empfängt Audio/);
 });
 

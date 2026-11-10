@@ -12,6 +12,7 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 const rules = await read("../src/custom-app/modules/visualizer/audio-performance.ts");
 const policy = await import(`data:text/javascript,${encodeURIComponent(stripTypeScriptTypes(rules, { mode: "strip" }))}`);
 const hook = await read("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts");
+const session = await read("../src/custom-app/modules/visualizer/audio-session.ts");
 const scene = await read("../src/custom-app/modules/visualizer/SceneBackdrop.tsx");
 const app = await read("../src/custom-app/modules/visualizer/Visualizer.tsx");
 
@@ -30,8 +31,8 @@ test("Nur eine spielende Audiofreigabe benoetigt 20-Hz-Polling", () => {
 });
 
 test("Audio-Buffer bleiben ueber Animation, Signalpruefung und Wallpaper hinweg wiederverwendbar", () => {
-  assert.match(hook, /frequencyBytes: new Uint8Array\(analyser\.frequencyBinCount\)/);
-  assert.match(hook, /waveformBytes: new Uint8Array\(analyser\.fftSize\)/);
+  assert.match(session, /frequencyBytes: new Uint8Array\(analyser\.frequencyBinCount\)/);
+  assert.match(session, /waveformBytes: new Uint8Array\(analyser\.fftSize\)/);
   assert.match(hook, /getByteFrequencyData\(resource\.frequencyBytes\)/);
   assert.match(hook, /return spectrum64FromByteBins\(resource\.frequencyBytes\)/);
   assert.doesNotMatch(hook, /const bytes = new Uint8Array\(resource\.analyser\.frequencyBinCount\)/);

@@ -161,6 +161,7 @@ test("Persistenz: Wallpaper-Fallback, LRC-Speicherung und Löschen", async () =>
 async function inlineAudioHookCode() {
   const hook = await readFile(new URL("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts", import.meta.url), "utf8");
   const helper = await readFile(new URL("../src/custom-app/modules/visualizer/audio-capture.ts", import.meta.url), "utf8");
+  const session = await readFile(new URL("../src/custom-app/modules/visualizer/audio-session.ts", import.meta.url), "utf8");
   const performancePolicy = await readFile(new URL("../src/custom-app/modules/visualizer/audio-performance.ts", import.meta.url), "utf8");
   const visualizerHost = await readFile(new URL("../src/custom-app/modules/visualizer/visualizer-host.ts", import.meta.url), "utf8");
   const code = stripTypeScriptTypes(hook, { mode: "strip" });
@@ -175,7 +176,11 @@ async function inlineAudioHookCode() {
   const withHost = replaced.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/visualizer-host["'];?/,
     stripTypeScriptTypes(visualizerHost, { mode: "strip" }));
   assert.notEqual(withHost, replaced, "Popup-Fenster-Helfer muss für den Audio-Hook eingebunden sein.");
-  return withHost;
+  const sessionCode = stripTypeScriptTypes(session, { mode: "strip" })
+    .replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-capture["'];?/, "");
+  const withSession = withHost.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-session["'];?/, sessionCode);
+  assert.notEqual(withSession, withHost, "Die Audiofreigabe-Sitzung muss für den Hook eingebunden sein.");
+  return withSession;
 }
 
 /** Mikrofon wird ausschließlich nach explizitem start() angefordert und dann beendet. */
@@ -194,7 +199,7 @@ test("Audioanalyse: Opt-in und vollständige Freigabe der MediaStream-Ressourcen
       React: {
         useRef(value) { return { current: value }; },
         useState(value) { return [value, () => {}]; },
-        useEffect() {},
+        useEffect(callback) { if (String(callback).includes("session.subscribe")) callback(); },
         useCallback(callback) { return callback; },
       },
     };
@@ -525,7 +530,7 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
   try {
     globalThis.Spicetify = { React: {
       useRef(value) { return { current: value }; }, useState(value) { return [value, () => {}]; },
-      useEffect() {}, useCallback(callback) { return callback; },
+      useEffect(callback) { if (String(callback).includes("session.subscribe")) callback(); }, useCallback(callback) { return callback; },
     } };
     globalThis.window = { devicePixelRatio: 1, setInterval: () => 6, clearInterval: () => {} };
     Object.defineProperty(globalThis, "navigator", { configurable: true, value: { mediaDevices: {
@@ -697,7 +702,7 @@ test('Nebula: Audio bleibt ohne sichtbare ZuKaTo-Balken aktiv, ohne unsichtbaren
   try {
     globalThis.Spicetify = { React: {
       useRef(value) { return { current: value }; }, useState(value) { return [value, () => {}]; },
-      useEffect() {}, useCallback(callback) { return callback; },
+      useEffect(callback) { if (String(callback).includes("session.subscribe")) callback(); }, useCallback(callback) { return callback; },
     } };
     globalThis.window = { setInterval() { timerCount++; return 10; }, clearInterval() { timerStops++; } };
     Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{
@@ -742,7 +747,7 @@ test('Audiofehler NACH Streamstart gibt Tracks genau einmal frei und lässt kein
   const track={readyState:'live',stop(){stops++;},addEventListener(){},removeEventListener(){unsubscribed++;}};
   try {
     globalThis.Spicetify={React:{useRef(value){return{current:value};},useState(value){return[value,()=>{}];},
-      useEffect(){},useCallback(fn){return fn;}}};
+      useEffect(callback){if(String(callback).includes('session.subscribe'))callback();},useCallback(fn){return fn;}}};
     globalThis.window={setInterval(){return 1;},clearInterval(){}};
     Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{
       async getUserMedia(){return{getTracks:()=>[track],getAudioTracks:()=>[track],getVideoTracks:()=>[]};}

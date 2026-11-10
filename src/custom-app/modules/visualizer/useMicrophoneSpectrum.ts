@@ -9,14 +9,15 @@
 //   kann letzteres verweigern. Stille erzeugt KEINE erfundenen Peaks.
 //
 // Wo ändern?
-//   * Freigaben / Cleanup: startCapture() und stop() unten
+//   * Freigaben / Cleanup: audio-session.ts
 //   * Audiovalidierung: audio-capture.ts
 //   * Form-/Farbzeichnung: draw() unten
 // =============================================================================
 import type { RefObject } from "react";
 import type { SpectrumStyle } from "../../../shared/visualizer-config";
 import { shouldDrawSpectrum } from "./audio-performance";
-import { displayCaptureOptions, releaseCapturedStream, requireLiveAudioTrack, type CaptureSource, hasMeasuredAudioSignal, spectrum64FromByteBins, explainCaptureError } from "./audio-capture";
+import { type CaptureSource, hasMeasuredAudioSignal, spectrum64FromByteBins } from "./audio-capture";
+import { getAudioCaptureSession, type AudioResources } from "./audio-session";
 import { VISUALIZER_HOST_CHANGED_EVENT, visualizerHostHidden, visualizerHostWindow } from "./visualizer-host";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
@@ -39,19 +40,6 @@ export interface SpectrumControls {
   getSpectrum: () => number[] | null;
 }
 
-interface AudioResources {
-  stream: MediaStream;
-  context: AudioContext;
-  analyser: AnalyserNode;
-  /** Einmal pro Freigabe anlegen statt 20-60 Arrays pro Sekunde. */
-  frequencyBytes: Uint8Array<ArrayBuffer>;
-  /** Waveform nutzt die volle FFT-Laenge; die Frequenz nur deren Haelfte. */
-  waveformBytes: Uint8Array<ArrayBuffer>;
-  /** Alle Audio-/Videospuren tragen denselben End-Listener. */
-  tracks: MediaStreamTrack[];
-  onEnded: () => void;
-}
-
 /**
  * Ein Canvas wird mit requestAnimationFrame gezeichnet statt React 60 mal pro
  * Sekunde neu zu rendern. Die Eingabespuren werden niemals nach extern gesendet.
@@ -60,23 +48,23 @@ export function useMicrophoneSpectrum(
   style: SpectrumStyle, bars: number, gain: number, smoothing: number, playing: boolean,
   color = "#1ed760", opacity = 90, glow = 6,
 ): SpectrumControls {
+  const session = getAudioCaptureSession();
+  const initial = session.snapshot();
   const canvasRef = ReactRuntime.useRef<HTMLCanvasElement>(null);
-  const resourcesRef = ReactRuntime.useRef<AudioResources | null>(null);
+  const resourcesRef = ReactRuntime.useRef<AudioResources | null>(initial.resources);
   const frameRef = ReactRuntime.useRef<number | null>(null);
   const frameHostRef = ReactRuntime.useRef<Window | null>(null);
-  const generation = ReactRuntime.useRef(0);
-  const pendingRef = ReactRuntime.useRef(false);
-  const startedAtRef = ReactRuntime.useRef(0);
+  const startedAtRef = ReactRuntime.useRef(initial.startedAt);
   // Signalzustand ist von den gezeichneten Balken unabhängig.
   // Bei ausgeblendetem Overlay läuft nur diese günstige 700-ms-Prüfung.
   const signalTimerRef = ReactRuntime.useRef<number | null>(null);
   const signalHostRef = ReactRuntime.useRef<Window | null>(null);
-  const [signal, setSignal] = ReactRuntime.useState<AudioSignalState>("idle");
+  const [signal, setSignal] = ReactRuntime.useState<AudioSignalState>(initial.resources ? "waiting" : "idle");
   const settingsRef = ReactRuntime.useRef({ style, bars, gain, smoothing, playing, color, opacity, glow });
   settingsRef.current = { style, bars, gain, smoothing, playing, color, opacity, glow };
-  const [activeSource, setActiveSource] = ReactRuntime.useState<CaptureSource | null>(null);
-  const [starting, setStarting] = ReactRuntime.useState(false);
-  const [error, setError] = ReactRuntime.useState("");
+  const [activeSource, setActiveSource] = ReactRuntime.useState<CaptureSource | null>(initial.source);
+  const [starting, setStarting] = ReactRuntime.useState(initial.starting);
+  const [error, setError] = ReactRuntime.useState(initial.error);
 
   const cancelFrame = (): void => {
     if (frameRef.current !== null) {
@@ -94,28 +82,18 @@ export function useMicrophoneSpectrum(
       ? host.requestAnimationFrame(callback) : requestAnimationFrame(callback);
   };
 
-  /** Beendet jede Spur (auch Bildschirm-Video), WebAudio und die Animation. */
-  const stop = ReactRuntime.useCallback((): void => {
-    generation.current += 1;
-    pendingRef.current = false;
-    setStarting(false);
+  /** Nur UI-Arbeit beim Seitenwechsel beenden; die Audiofreigabe bleibt aktiv. */
+  const detachVisuals = (): void => {
     cancelFrame();
     if (signalTimerRef.current !== null)
       (signalHostRef.current ?? window).clearInterval(signalTimerRef.current);
     signalTimerRef.current = null;
     signalHostRef.current = null;
-    const old = resourcesRef.current;
-    resourcesRef.current = null;
-    if (old) {
-      for (const track of old.tracks) track.removeEventListener("ended", old.onEnded);
-      releaseCapturedStream(old.stream);
-      void old.context.close().catch(() => {});
-    }
     const canvas = canvasRef.current;
     canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    setActiveSource(null);
-    setSignal("idle");
-  }, []);
+  };
+
+  const stop = ReactRuntime.useCallback((): void => { session.stop(); }, [session]);
 
   /**
    * Audioerkennung unabhängig vom Canvas: auch im Modus „off“ bleibt die
@@ -226,99 +204,36 @@ export function useMicrophoneSpectrum(
     scheduleFrame(draw);
   }, []);
 
-  /**
-   * Sowohl Mikrofon als auch Systemton starten hier. Das Aufrufen von
-   * getDisplayMedia erfolgt DIREKT innerhalb der Button-Aktion; sonst kann
-   * der Browser die nötige Nutzeraktivierung verlieren.
-   */
-  const startCapture = ReactRuntime.useCallback(async (source: CaptureSource): Promise<void> => {
-    if (resourcesRef.current || pendingRef.current) return;
-    pendingRef.current = true;
-    setStarting(true);
-    setError("");
-    const token = ++generation.current;
-    let stream: MediaStream | null = null;
-    let context: AudioContext | null = null;
-    try {
-      if (source === "system") {
-        if (!navigator.mediaDevices?.getDisplayMedia) {
-          throw new Error("Dieser Spotify-Client unterstützt keine Bildschirm-/Tab-Audiofreigabe. Bitte Mikrofon verwenden.");
-        }
-        stream = await navigator.mediaDevices.getDisplayMedia(displayCaptureOptions());
-      } else {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("Mikrofonzugriff wird in diesem Spotify-Client nicht unterstützt.");
-        }
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-      }
-      if (generation.current !== token) {
-        releaseCapturedStream(stream);
-        return;
-      }
-      // Wichtig: audio:true bei Bildschirmfreigabe garantiert KEINEN Ton!
-      const track = requireLiveAudioTrack(stream);
-      context = new AudioContext();
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = settingsRef.current.smoothing;
-      context.createMediaStreamSource(stream).connect(analyser);
-      await context.resume();
-      if (generation.current !== token) {
-        releaseCapturedStream(stream);
-        await context.close();
-        return;
-      }
-      const onEnded = (): void => { setError("Die Audiofreigabe wurde beendet."); stop(); };
-      // Auch die Videospuren der Bildschirmfreigabe können alleine enden.
-      // Beim Stoppen ALLE Listener entfernen; sonst feuern alte Freigaben
-      // nach dem Start einer neuen Session in den aktuellen Visualizer.
-      const tracks = [track, ...stream.getVideoTracks()];
-      for (const mediaTrack of tracks) mediaTrack.addEventListener("ended", onEnded);
-      resourcesRef.current = {
-        stream, context, analyser, tracks, onEnded,
-        frequencyBytes: new Uint8Array(analyser.frequencyBinCount),
-        waveformBytes: new Uint8Array(analyser.fftSize),
-      };
-      startedAtRef.current = performance.now();
+  ReactRuntime.useEffect(() => session.subscribe(() => {
+    const snapshot = session.snapshot();
+    const previous = resourcesRef.current;
+    resourcesRef.current = snapshot.resources;
+    setActiveSource(snapshot.source);
+    setStarting(snapshot.starting);
+    setError(snapshot.error);
+    if (!snapshot.resources) {
+      detachVisuals();
+      setSignal("idle");
+      return;
+    }
+    if (snapshot.resources.context.state === "suspended")
+      void snapshot.resources.context.resume().catch(() => {});
+    if (previous !== snapshot.resources) {
+      startedAtRef.current = snapshot.startedAt;
       setSignal("waiting");
-      setActiveSource(source);
-      // Signalerkennung auch ohne sichtbare Balken. Die Timer werden beim
-      // Stoppen und nach Spur-Ende gemeinsam aufgeräumt.
       measureSignal();
+    }
+    if (signalTimerRef.current === null) {
       signalHostRef.current = visualizerHostWindow(canvasRef.current);
       signalTimerRef.current = signalHostRef.current.setInterval(measureSignal, 700);
-      if (shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, visualizerHostHidden(canvasRef.current)))
-        scheduleFrame(draw);
-    } catch (cause) {
-      // Wenn ein Fehler ERST nach dem Einhängen der Stream-Ressourcen
-      // auftritt, dürfen weder alte Listener noch ein halbaktiver Stream
-      // zurückbleiben. Andernfalls stoppt ein späterer Klick dieselbe Spur
-      // zweimal und verhindert anschließend neue Audiofreigaben.
-      if (resourcesRef.current?.stream === stream) {
-        const attached = resourcesRef.current;
-        resourcesRef.current = null;
-        for (const mediaTrack of attached.tracks)
-          mediaTrack.removeEventListener("ended", attached.onEnded);
-        if (signalTimerRef.current !== null)
-          (signalHostRef.current ?? window).clearInterval(signalTimerRef.current);
-        signalTimerRef.current = null;
-        signalHostRef.current = null;
-        if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-        frameRef.current = null;
-      }
-      releaseCapturedStream(stream);
-      if (context) void context.close().catch(() => {});
-      if (generation.current === token) {
-        setError(explainCaptureError(cause, source));
-        setActiveSource(null);
-      }
-    } finally {
-      if (generation.current === token) {
-        pendingRef.current = false;
-        setStarting(false);
-      }
     }
-  }, [draw, measureSignal, stop]);
+    if (frameRef.current === null &&
+        shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, visualizerHostHidden(canvasRef.current)))
+      scheduleFrame(draw);
+  }), [session, draw, measureSignal]);
+
+  const startCapture = ReactRuntime.useCallback((source: CaptureSource): Promise<void> =>
+    session.start(source, settingsRef.current.smoothing), [session]);
 
   // Eine eigene Abfrage statt 60 React-Renders/s: SceneBackdrop übernimmt die
   // Übertragung maximal zwanzigmal pro Sekunde, solange eine echte Freigabe läuft.
@@ -336,9 +251,9 @@ export function useMicrophoneSpectrum(
   // Eine Nebula-/HTML-Szene kann Audio benötigen, selbst wenn ZuKaTos eigene
   // Balken ausgeblendet sind. „off“ betrifft deshalb ausschließlich das
   // gezeichnete Overlay – eine ausdrücklich freigegebene Audioquelle bleibt
-  // bis zu „Audio stoppen“, Spur-Ende oder Unmount aktiv.
+  // bis zu „Audio stoppen“ oder Spur-Ende aktiv, auch nach einem Seitenwechsel.
   ReactRuntime.useEffect(() => {
-    if (resourcesRef.current) resourcesRef.current.analyser.smoothingTimeConstant = smoothing;
+    session.setSmoothing(smoothing);
     // Der Übergang off -> bars/ring/wave/particles benötigt einen neuen RAF.
     // Ein bereits laufender RAF wird dabei nicht verdoppelt.
     const canDraw = shouldDrawSpectrum(style, playing, visualizerHostHidden(canvasRef.current));
@@ -351,7 +266,7 @@ export function useMicrophoneSpectrum(
     if (resourcesRef.current && canDraw && frameRef.current === null)
       scheduleFrame(draw);
     measureSignal();
-  }, [smoothing, style, playing, draw, measureSignal]);
+  }, [smoothing, style, playing, draw, measureSignal, session]);
   // Chromium kann den Custom-App-Tab ausblenden. Bei Rueckkehr braucht der
   // RAF einen Neustart – ohne neuen MediaStream oder verlorene Freigabe.
   ReactRuntime.useEffect(() => {
@@ -395,7 +310,7 @@ export function useMicrophoneSpectrum(
         observedDoc.removeEventListener("visibilitychange", resumeVisible);
     };
   }, [draw, measureSignal]);
-  ReactRuntime.useEffect(() => () => stop(), [stop]);
+  ReactRuntime.useEffect(() => () => detachVisuals(), []);
   return { canvasRef, active: activeSource !== null, activeSource, signal, error,
     starting, start, startSystem, stop, getSpectrum };
 }
