@@ -12,7 +12,8 @@ const source = await readFile(new URL('../src/custom-app/modules/visualizer/Scen
 
 test('HTML-Szene überträgt Audio häufiger, ohne den Browser bei 60fps zu überlasten', () => {
   assert.match(source, /WALLPAPER_AUDIO_INTERVAL_MS = 50/);
-  assert.match(source, /window\.setInterval\(send, WALLPAPER_AUDIO_INTERVAL_MS\)/);
+  assert.match(source, /host\.setInterval\(send, WALLPAPER_AUDIO_INTERVAL_MS\)/);
+  assert.match(source, /visualizerHostWindow\(frameRef\.current\)/);
   assert.doesNotMatch(source, /window\.setInterval\(send, 100\)/);
 });
 

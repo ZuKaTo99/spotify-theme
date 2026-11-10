@@ -51,7 +51,8 @@ test('Sofortige Player-Events und Sichtbarkeits-Rueckkehr mit Timer-Cleanup', ()
   assert.match(visualizer,/Spicetify\.Player\.addEventListener\("onplaypause", refreshAndSchedule\)/);
   assert.match(visualizer,/document\.addEventListener\("visibilitychange", refreshAndSchedule\)/);
   assert.match(visualizer,/document\.removeEventListener\("visibilitychange", refreshAndSchedule\)/);
-  assert.match(visualizer,/window\.clearTimeout\(timer\)/);
+  assert.match(visualizer,/\(timerHost \?\? window\)\.clearTimeout\(timer\)/);
+  assert.match(visualizer,/VISUALIZER_HOST_CHANGED_EVENT, refreshAndSchedule/);
   assert.match(visualizer,/setSession\(\(previous\) => sameVisibleSongRun\(previous, next\) \? previous : next\)/);
   assert.match(visualizer,/shouldReadNativeLyrics\(/);
 });

@@ -16,6 +16,7 @@ import { wallpaperPlayerPacket, WallpaperAudioGate } from "./wallpaper-host-brid
 import { currentWallpaper } from "./current-wallpaper";
 import { syncCanvasVideoPlayback } from "./canvas-playback";
 import { loadWallpaperPrefs, applyWallpaperPrefsOperation, parseWallpaperPrefsOperation, WALLPAPER_PREFS_CHANGED } from "./wallpaper-preferences";
+import { VISUALIZER_HOST_CHANGED_EVENT, visualizerHostWindow } from "./visualizer-host";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 /** 20 Hz statt 10 Hz: flüssigere Übertragung, ohne pro Animationsframe zu senden. */
@@ -54,6 +55,7 @@ interface Content {
 /** Bei jedem Wechsel alte Object-URL sauber freigeben und Lade-Rennen meiden. */
 export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpectrum, audioActive, fit, speed, progressMs, durationMs, onError }: Props): ReactElement {
   const [content, setContent] = ReactRuntime.useState<Content | null>(null);
+  const [hostRevision, setHostRevision] = ReactRuntime.useState(0);
   const frameRef = ReactRuntime.useRef<HTMLIFrameElement>(null);
   const videoRef = ReactRuntime.useRef<HTMLVideoElement>(null);
   // React-Callbacks können erst nach einem späteren "canplay" ausgeführt werden.
@@ -77,6 +79,11 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
   getSpectrumRef.current = getSpectrum;
   const callback = ReactRuntime.useRef(onError);
   callback.current = onError;
+  ReactRuntime.useEffect(() => {
+    const moved = (): void => setHostRevision((previous) => previous + 1);
+    window.addEventListener(VISUALIZER_HOST_CHANGED_EVENT, moved);
+    return () => window.removeEventListener(VISUALIZER_HOST_CHANGED_EVENT, moved);
+  }, []);
   // Auch Fehler innerhalb der isolierten HTML-Sandbox sichtbar machen. Das
   // Wallpaper darf keine Spotify-Daten lesen; nur ein neutraler Status geht
   // in Gegenrichtung an die React-Oberfläche.
@@ -274,9 +281,10 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
     // Danach kein Dauer-Intervall, solange es nichts zu uebertragen gibt.
     send();
     if (!shouldPollWallpaperAudio(playing, audioActive)) return;
-    const interval = window.setInterval(send, WALLPAPER_AUDIO_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [visibleContent?.key, visibleContent?.kind, getSpectrum, playing, audioActive]);
+    const host = visualizerHostWindow(frameRef.current);
+    const interval = host.setInterval(send, WALLPAPER_AUDIO_INTERVAL_MS);
+    return () => host.clearInterval(interval);
+  }, [visibleContent?.key, visibleContent?.kind, getSpectrum, playing, audioActive, hostRevision]);
 
   // An selbst erstellte HTML-Wallpapers ausschließlich nichtprivate Playerwerte
   // übermitteln. Sie erhalten weder direkten Spotify-API-Zugriff noch Zugriff

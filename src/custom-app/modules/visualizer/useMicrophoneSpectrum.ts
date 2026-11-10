@@ -17,6 +17,7 @@ import type { RefObject } from "react";
 import type { SpectrumStyle } from "../../../shared/visualizer-config";
 import { shouldDrawSpectrum } from "./audio-performance";
 import { displayCaptureOptions, releaseCapturedStream, requireLiveAudioTrack, type CaptureSource, hasMeasuredAudioSignal, spectrum64FromByteBins, explainCaptureError } from "./audio-capture";
+import { VISUALIZER_HOST_CHANGED_EVENT, visualizerHostHidden, visualizerHostWindow } from "./visualizer-host";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -62,12 +63,14 @@ export function useMicrophoneSpectrum(
   const canvasRef = ReactRuntime.useRef<HTMLCanvasElement>(null);
   const resourcesRef = ReactRuntime.useRef<AudioResources | null>(null);
   const frameRef = ReactRuntime.useRef<number | null>(null);
+  const frameHostRef = ReactRuntime.useRef<Window | null>(null);
   const generation = ReactRuntime.useRef(0);
   const pendingRef = ReactRuntime.useRef(false);
   const startedAtRef = ReactRuntime.useRef(0);
   // Signalzustand ist von den gezeichneten Balken unabhängig.
   // Bei ausgeblendetem Overlay läuft nur diese günstige 700-ms-Prüfung.
   const signalTimerRef = ReactRuntime.useRef<number | null>(null);
+  const signalHostRef = ReactRuntime.useRef<Window | null>(null);
   const [signal, setSignal] = ReactRuntime.useState<AudioSignalState>("idle");
   const settingsRef = ReactRuntime.useRef({ style, bars, gain, smoothing, playing, color, opacity, glow });
   settingsRef.current = { style, bars, gain, smoothing, playing, color, opacity, glow };
@@ -75,15 +78,32 @@ export function useMicrophoneSpectrum(
   const [starting, setStarting] = ReactRuntime.useState(false);
   const [error, setError] = ReactRuntime.useState("");
 
+  const cancelFrame = (): void => {
+    if (frameRef.current !== null) {
+      const host = frameHostRef.current ?? window;
+      if (typeof host.cancelAnimationFrame === "function") host.cancelAnimationFrame(frameRef.current);
+      else cancelAnimationFrame(frameRef.current);
+    }
+    frameRef.current = null;
+    frameHostRef.current = null;
+  };
+  const scheduleFrame = (callback: FrameRequestCallback): void => {
+    const host = visualizerHostWindow(canvasRef.current);
+    frameHostRef.current = host;
+    frameRef.current = typeof host.requestAnimationFrame === "function"
+      ? host.requestAnimationFrame(callback) : requestAnimationFrame(callback);
+  };
+
   /** Beendet jede Spur (auch Bildschirm-Video), WebAudio und die Animation. */
   const stop = ReactRuntime.useCallback((): void => {
     generation.current += 1;
     pendingRef.current = false;
     setStarting(false);
-    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-    frameRef.current = null;
-    if (signalTimerRef.current !== null) window.clearInterval(signalTimerRef.current);
+    cancelFrame();
+    if (signalTimerRef.current !== null)
+      (signalHostRef.current ?? window).clearInterval(signalTimerRef.current);
     signalTimerRef.current = null;
+    signalHostRef.current = null;
     const old = resourcesRef.current;
     resourcesRef.current = null;
     if (old) {
@@ -118,24 +138,25 @@ export function useMicrophoneSpectrum(
   const draw = ReactRuntime.useCallback((): void => {
     const resources = resourcesRef.current;
     const canvas = canvasRef.current;
-    if (!resources || !canvas) { frameRef.current = null; return; }
+    if (!resources || !canvas) { frameRef.current = null; frameHostRef.current = null; return; }
     const ctx = canvas.getContext("2d");
-    if (!ctx) { frameRef.current = null; return; }
-    if (!shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, (typeof document !== "undefined" && document.hidden))) {
+    if (!ctx) { frameRef.current = null; frameHostRef.current = null; return; }
+    if (!shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, visualizerHostHidden(canvas))) {
       // Pause, Overlay=off oder Hintergrund: den letzten Peak entfernen und
       // KEINEN weiteren RAF einplanen. Spotify-Songwechsel/Visibility-Event
       // aktivieren die Zeichenschleife spaeter gezielt wieder.
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       frameRef.current = null;
+      frameHostRef.current = null;
       return;
     }
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     if (!width || !height) {
-      frameRef.current = requestAnimationFrame(draw);
+      scheduleFrame(draw);
       return;
     }
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const ratio = Math.min(visualizerHostWindow(canvas).devicePixelRatio || 1, 2);
     const targetW = Math.floor(width * ratio);
     const targetH = Math.floor(height * ratio);
     if (canvas.width !== targetW || canvas.height !== targetH) {
@@ -202,7 +223,7 @@ export function useMicrophoneSpectrum(
       }
       ctx.restore();
     }
-    frameRef.current = requestAnimationFrame(draw);
+    scheduleFrame(draw);
   }, []);
 
   /**
@@ -264,9 +285,10 @@ export function useMicrophoneSpectrum(
       // Signalerkennung auch ohne sichtbare Balken. Die Timer werden beim
       // Stoppen und nach Spur-Ende gemeinsam aufgeräumt.
       measureSignal();
-      signalTimerRef.current = window.setInterval(measureSignal, 700);
-      if (shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, (typeof document !== "undefined" && document.hidden)))
-        frameRef.current = requestAnimationFrame(draw);
+      signalHostRef.current = visualizerHostWindow(canvasRef.current);
+      signalTimerRef.current = signalHostRef.current.setInterval(measureSignal, 700);
+      if (shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, visualizerHostHidden(canvasRef.current)))
+        scheduleFrame(draw);
     } catch (cause) {
       // Wenn ein Fehler ERST nach dem Einhängen der Stream-Ressourcen
       // auftritt, dürfen weder alte Listener noch ein halbaktiver Stream
@@ -277,8 +299,10 @@ export function useMicrophoneSpectrum(
         resourcesRef.current = null;
         for (const mediaTrack of attached.tracks)
           mediaTrack.removeEventListener("ended", attached.onEnded);
-        if (signalTimerRef.current !== null) window.clearInterval(signalTimerRef.current);
+        if (signalTimerRef.current !== null)
+          (signalHostRef.current ?? window).clearInterval(signalTimerRef.current);
         signalTimerRef.current = null;
+        signalHostRef.current = null;
         if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
       }
@@ -317,37 +341,60 @@ export function useMicrophoneSpectrum(
     if (resourcesRef.current) resourcesRef.current.analyser.smoothingTimeConstant = smoothing;
     // Der Übergang off -> bars/ring/wave/particles benötigt einen neuen RAF.
     // Ein bereits laufender RAF wird dabei nicht verdoppelt.
-    const canDraw = shouldDrawSpectrum(style, playing,
-      (typeof document !== "undefined" && document.hidden));
+    const canDraw = shouldDrawSpectrum(style, playing, visualizerHostHidden(canvasRef.current));
     if (!canDraw && frameRef.current !== null) {
       // Ein ausstehender Frame darf bei Pause/off nicht weiterlaufen.
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
+      cancelFrame();
       const canvas = canvasRef.current;
       canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     }
     if (resourcesRef.current && canDraw && frameRef.current === null)
-      frameRef.current = requestAnimationFrame(draw);
+      scheduleFrame(draw);
     measureSignal();
   }, [smoothing, style, playing, draw, measureSignal]);
   // Chromium kann den Custom-App-Tab ausblenden. Bei Rueckkehr braucht der
   // RAF einen Neustart – ohne neuen MediaStream oder verlorene Freigabe.
   ReactRuntime.useEffect(() => {
+    let observedDoc: Document | null = null;
+    const listenToHost = (): void => {
+      const hostDoc = canvasRef.current?.ownerDocument ?? document;
+      if (observedDoc === hostDoc) return;
+      if (observedDoc && observedDoc !== document)
+        observedDoc.removeEventListener("visibilitychange", resumeVisible);
+      observedDoc = hostDoc;
+      if (hostDoc !== document) hostDoc.addEventListener("visibilitychange", resumeVisible);
+    };
     const resumeVisible = (): void => {
-      if (document.hidden) {
+      listenToHost();
+      const host = visualizerHostWindow(canvasRef.current);
+      if (signalTimerRef.current !== null && signalHostRef.current !== host) {
+        (signalHostRef.current ?? window).clearInterval(signalTimerRef.current);
+        signalHostRef.current = host;
+        signalTimerRef.current = host.setInterval(measureSignal, 700);
+      }
+      if (resourcesRef.current?.context.state === "suspended")
+        void resourcesRef.current.context.resume().catch(() => {});
+      if (visualizerHostHidden(canvasRef.current)) {
         // Chromium kann RAF bei Hintergrundwechsel einfrieren. Alte IDs
         // ausdrücklich verwerfen, sonst blockieren sie den spaeteren Restart.
-        if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-        frameRef.current = null;
+        cancelFrame();
         return;
       }
+      if (frameRef.current !== null && frameHostRef.current !== host) cancelFrame();
       if (resourcesRef.current &&
           shouldDrawSpectrum(settingsRef.current.style, settingsRef.current.playing, false) &&
-          frameRef.current === null) frameRef.current = requestAnimationFrame(draw);
+          frameRef.current === null) scheduleFrame(draw);
     };
     document.addEventListener("visibilitychange", resumeVisible);
-    return () => document.removeEventListener("visibilitychange", resumeVisible);
-  }, [draw]);
+    window.addEventListener(VISUALIZER_HOST_CHANGED_EVENT, resumeVisible);
+    listenToHost();
+    return () => {
+      document.removeEventListener("visibilitychange", resumeVisible);
+      window.removeEventListener(VISUALIZER_HOST_CHANGED_EVENT, resumeVisible);
+      if (observedDoc && observedDoc !== document)
+        observedDoc.removeEventListener("visibilitychange", resumeVisible);
+    };
+  }, [draw, measureSignal]);
   ReactRuntime.useEffect(() => () => stop(), [stop]);
   return { canvasRef, active: activeSource !== null, activeSource, signal, error,
     starting, start, startSystem, stop, getSpectrum };

@@ -58,6 +58,7 @@ function ui({ blocked = false, initial = null, available = items } = {}) {
       if (!(slot in refs)) refs[slot] = { current: initialValue };
       return refs[slot];
     },
+    useEffect() {},
   };
   const exported = {};
   runInNewContext(compileTsxForTest(root, "src/custom-app/components/AppNavigation.tsx"), {

@@ -37,17 +37,19 @@ test("Audio-Buffer bleiben ueber Animation, Signalpruefung und Wallpaper hinweg 
   assert.doesNotMatch(hook, /const bytes = new Uint8Array\(resource\.analyser\.frequencyBinCount\)/);
 });
 
-test("Bei Rueckkehr in die Spotify-App startet RAF wieder, ohne Audiofreigabe neu anzufordern", () => {
+test("RAF folgt der sichtbaren Bühne in Spotify oder im Desktop-Popup", () => {
   assert.match(hook, /document\.addEventListener\("visibilitychange", resumeVisible\)/);
   assert.match(hook, /document\.removeEventListener\("visibilitychange", resumeVisible\)/);
-  assert.match(hook, /if \(document\.hidden\) \{[\s\S]*?cancelAnimationFrame\(frameRef\.current\)/);
+  assert.match(hook, /if \(visualizerHostHidden\(canvasRef\.current\)\) \{[\s\S]*?cancelFrame\(\)/);
+  assert.match(hook, /frameHostRef\.current !== host/);
+  assert.match(hook, /VISUALIZER_HOST_CHANGED_EVENT/);
   assert.match(hook, /if \(!canDraw && frameRef\.current !== null\) \{/);
-  assert.match(hook, /frameRef\.current = null;\s*return;/);
+  assert.match(hook, /scheduleFrame\(draw\)/);
 });
 
 test("HTML-Wallpaper bekommt bei Stille den letzten Frame, aber keinen Dauertimer", () => {
   assert.match(scene, /send\(\);\s*if \(!shouldPollWallpaperAudio\(playing, audioActive\)\) return;/);
-  assert.match(scene, /window\.setInterval\(send, WALLPAPER_AUDIO_INTERVAL_MS\)/);
-  assert.match(scene, /playing, audioActive\]\)/);
+  assert.match(scene, /host\.setInterval\(send, WALLPAPER_AUDIO_INTERVAL_MS\)/);
+  assert.match(scene, /playing, audioActive, hostRevision\]\)/);
   assert.match(app, /audioActive=\{spectrum\.active\}/);
 });

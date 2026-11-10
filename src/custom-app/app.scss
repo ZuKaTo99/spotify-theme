@@ -1331,3 +1331,238 @@
   .zukato-viz__transport > button.is-active { color: #71c8ff; }
   .zukato-viz__transport > button:focus-visible { outline: 2px solid #71c8ff; }
 }
+
+/* Die Hauptfläche erhält eine feste, kurze Navigation. Die Modulliste liegt
+   darüber und nimmt der aktuellen Seite beim Öffnen keinen Platz weg. */
+.zukato-app:not(.zukato-now-dock) {
+  background:
+    radial-gradient(ellipse 55% 340px at 80% -80px, color-mix(in srgb, var(--zukato-accent) 12%, transparent), transparent),
+    radial-gradient(ellipse 45% 300px at -12% 42%, rgba(82,120,210,.06), transparent);
+  .zukato-app__header {
+    min-height: 66px; padding: 10px 14px 14px; margin-bottom: 8px;
+    border-bottom: 1px solid var(--zukato-hairline);
+  }
+  .zukato-app__identity { align-items: center; gap: 10px; }
+  .zukato-app__identity::before {
+    content: "Z"; flex: none; display: grid; place-items: center;
+    width: 38px; height: 38px; border-radius: 12px;
+    color: var(--zukato-on-accent); background: var(--zukato-accent);
+    font-size: 19px; font-weight: 900; letter-spacing: -.09em;
+    box-shadow: 0 7px 24px color-mix(in srgb, var(--zukato-accent) 26%, transparent);
+  }
+  .zukato-app__identity h1 { font-size: clamp(18px, 1.75vw, 25px); }
+  .zukato-app__quick-action { border-radius: 999px; padding: 9px 15px; }
+  .zukato-app__navigation-slot { position: relative; height: 50px; margin-bottom: 12px; z-index: 30; }
+  .spotify-toolkit-navigation {
+    width: 100%; max-width: 100%; margin: 0; padding: 4px;
+    border-radius: 15px; border: 1px solid var(--zukato-hairline);
+    background: color-mix(in srgb, var(--spice-main, #16171b) 89%, #ffffff 11%);
+    box-shadow: 0 7px 24px rgba(0,0,0,.12);
+  }
+  .spotify-toolkit-navigation:not(.spotify-toolkit-navigation--expanded) {
+    width: 100%; max-width: 100%; padding: 4px; margin: 0;
+    border-color: var(--zukato-hairline);
+    background: color-mix(in srgb, var(--spice-main, #16171b) 89%, #ffffff 11%);
+  }
+  .spotify-toolkit-navigation--expanded {
+    position: absolute; top: 0; left: 0; z-index: 31;
+    max-height: min(68vh, 560px); overflow-y: auto;
+    box-shadow: 0 24px 70px rgba(0,0,0,.65);
+  }
+  .spotify-toolkit-navigation__toolbar { flex-wrap: nowrap; }
+  .spotify-toolkit-navigation__primary {
+    display: flex; align-items: center; gap: 4px; min-width: 0;
+  }
+  .spotify-toolkit-navigation__primary-item {
+    flex: none; min-height: 36px; border: 1px solid transparent;
+    background: transparent; color: var(--zukato-muted);
+    border-radius: 10px; padding: 7px 12px; font-size: 12px;
+    font-weight: 700; white-space: nowrap;
+  }
+  .spotify-toolkit-navigation__primary-item:hover,
+  .spotify-toolkit-navigation__primary-item.is-active {
+    color: var(--spice-text, #fff);
+    background: color-mix(in srgb, var(--zukato-accent) 15%, var(--zukato-surface-raised));
+  }
+  .spotify-toolkit-navigation__primary-item.is-active::before {
+    content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 8px;
+    border-radius: 50%; background: var(--zukato-accent); vertical-align: middle;
+  }
+  .spotify-toolkit-navigation__toggle { margin-left: auto; white-space: nowrap; }
+  .spotify-toolkit-navigation--expanded .spotify-toolkit-navigation__primary { display: none; }
+  .spotify-toolkit-navigation--expanded .spotify-toolkit-navigation__search { flex: 1 1 auto; }
+  .spotify-toolkit-navigation__groups { gap: 8px; }
+  .spotify-toolkit-navigation__group { flex: 1 1 190px; }
+  .spotify-toolkit-module-page__header { margin: 0 0 14px; }
+  .spotify-toolkit-module-page__header h2 { font-size: clamp(21px, 2.1vw, 29px); }
+  .zukato-dashboard__now, .zukato-dashboard__shortcuts,
+  .zukato-dashboard__recent, .zukato-dashboard__insights,
+  .zukato-dashboard__stats > div {
+    box-shadow: 0 14px 36px rgba(0,0,0,.12);
+  }
+  .zukato-dashboard__now {
+    min-height: 245px;
+    grid-template-columns: clamp(102px, 20%, 142px) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    align-content: center; gap: 9px 20px;
+    padding: clamp(18px, 2.6vw, 27px);
+    background:
+      radial-gradient(circle at 75% 24%, color-mix(in srgb, var(--zukato-accent) 22%, transparent), transparent 55%),
+      linear-gradient(140deg, var(--zukato-surface-raised), var(--zukato-surface));
+  }
+  .zukato-dashboard__cover {
+    grid-column: 1; grid-row: 2 / span 3;
+    width: 100%; height: auto; aspect-ratio: 1;
+    margin: 0; align-self: center;
+    box-shadow: 0 12px 32px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.1);
+  }
+  .zukato-dashboard__now .zukato-eyebrow { grid-column: 1 / -1; }
+  .zukato-dashboard__now-details { grid-column: 2; grid-row: 2; align-self: end; }
+  .zukato-dashboard__now-details h3 { font-size: clamp(22px, 2.4vw, 32px); }
+  .zukato-dashboard__timeline { grid-column: 2; grid-row: 3; align-self: end; }
+  .zukato-dashboard__controls { grid-column: 2; grid-row: 4; align-self: start; }
+  .zukato-dashboard__main { grid-template-columns: minmax(0,1fr); gap: 10px; }
+  .zukato-dashboard__shortcuts { padding: 12px 14px; }
+  .zukato-dashboard__shortcut-header { margin-bottom: 9px; }
+  .zukato-dashboard__shortcuts h3 { font-size: 14px; }
+  .zukato-dashboard__shortcut-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
+  .zukato-dashboard__shortcut { min-height: 43px; padding: 6px 8px; gap: 4px; }
+  .zukato-dashboard__shortcut-icon { width: 18px; font-size: 16px; }
+  .zukato-dashboard__shortcut strong { font-size: 11px; }
+  .zukato-dashboard__shortcut-arrow { display: none; }
+  .zukato-dashboard__shortcut { transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+  .zukato-dashboard__shortcut:hover {
+    transform: translateX(3px); border-color: var(--zukato-accent);
+    background: color-mix(in srgb, var(--zukato-accent) 10%, var(--zukato-surface-raised));
+  }
+  .zukato-viz__commandbar { align-items: center; margin-bottom: 6px; }
+  .zukato-viz__commandbar-actions { gap: 5px; }
+  .zukato-viz__commandbar-actions button {
+    min-height: 34px; border-radius: 999px; padding: 6px 12px;
+    background: var(--zukato-surface-raised); border: 1px solid var(--zukato-hairline);
+  }
+  .zukato-viz__commandbar-actions button:hover {
+    border-color: var(--zukato-accent);
+    background: color-mix(in srgb, var(--zukato-accent) 12%, var(--zukato-surface-raised));
+  }
+  .zukato-viz__stage { box-shadow: 0 18px 55px rgba(0,0,0,.4); }
+  @media (max-width: 720px) {
+    .zukato-app__header { min-height: 55px; padding: 6px 2px 12px; }
+    .spotify-toolkit-navigation__primary-item { padding-inline: 8px; font-size: 11px; }
+    .zukato-app__quick-action { padding: 7px 10px; }
+    .zukato-dashboard__shortcut-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width: 500px) {
+    .zukato-app__identity::before { width: 30px; height: 30px; font-size: 15px; }
+    .spotify-toolkit-navigation__primary { overflow-x: auto; scrollbar-width: none; }
+    .spotify-toolkit-navigation__primary::-webkit-scrollbar { display: none; }
+    .spotify-toolkit-navigation__toggle { padding-inline: 7px; }
+    .zukato-dashboard__now { grid-template-columns: 94px minmax(0,1fr); gap: 7px 12px; }
+    .zukato-dashboard__controls button { min-height: 32px; padding: 5px 8px; }
+    .zukato-dashboard__shortcut-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .zukato-dashboard__shortcut { transition: none; }
+  }
+}
+
+.zukato-app.zukato-now-dock {
+  border-color: color-mix(in srgb, var(--zukato-accent) 32%, #383d4a);
+  background: linear-gradient(155deg, #192132, #0e121d 65%);
+  box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04) inset;
+  .zukato-now-dock__media { border-radius: 11px; }
+  .zukato-now-dock__info strong { font-size: 17px; letter-spacing: -.02em; }
+  .zukato-now-dock__actions button { border-radius: 9px; }
+}
+
+/* Gemeinsame Interaktion für die Workspace-Buttons. Formulare und Player-
+   Regler behalten ihre Größe; Licht, Fokus und Druckgefühl sind einheitlich. */
+.zukato-app {
+  button {
+    background-image: linear-gradient(145deg, rgba(255,255,255,.07), transparent 58%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.12);
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+  }
+  button:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 8px 20px rgba(0,0,0,.22);
+  }
+  button:active:not(:disabled) { transform: scale(.97); }
+  button.zukato-primary {
+    background: linear-gradient(140deg,
+      color-mix(in srgb, var(--zukato-accent) 78%, #fff),
+      var(--zukato-accent) 62%,
+      color-mix(in srgb, var(--zukato-accent) 77%, #000));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.3),
+      0 7px 21px color-mix(in srgb, var(--zukato-accent) 27%, transparent);
+  }
+  button.zukato-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.4),
+      0 12px 27px color-mix(in srgb, var(--zukato-accent) 40%, transparent);
+  }
+  .spotify-toolkit-navigation__primary-item.is-active,
+  .zukato-statistics__periods button.is-active {
+    background: linear-gradient(145deg,
+      color-mix(in srgb, var(--zukato-accent) 24%, var(--zukato-surface-raised)),
+      color-mix(in srgb, var(--zukato-accent) 7%, var(--zukato-surface)));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12),
+      0 5px 15px color-mix(in srgb, var(--zukato-accent) 14%, transparent);
+  }
+  .zukato-dashboard__shortcut,
+  .zukato-now-dock__actions button,
+  .zukato-viz__commandbar-actions button {
+    border: 1px solid color-mix(in srgb, var(--zukato-accent) 12%, var(--zukato-hairline));
+    border-radius: 12px;
+  }
+  .zukato-dashboard__shortcut:hover:not(:disabled),
+  .zukato-now-dock__actions button:hover:not(:disabled),
+  .zukato-viz__commandbar-actions button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--zukato-accent) 70%, #fff);
+  }
+  .zukato-dashboard__now { isolation: isolate; }
+  .zukato-dashboard__now::before {
+    content: ""; position: absolute; z-index: -1; inset: -45%; pointer-events: none;
+    background: radial-gradient(circle at 30% 42%,
+      color-mix(in srgb, var(--zukato-accent) 25%, transparent), transparent 34%);
+    opacity: .65;
+  }
+  .zukato-dashboard__now.is-playing::before { animation: zukato-ambient 9s ease-in-out infinite alternate; }
+  .zukato-dashboard__now .zukato-eyebrow { display: flex; align-items: center; gap: 10px; }
+  .zukato-dashboard__equalizer { display: flex; align-items: center; gap: 2px; height: 15px; }
+  .zukato-dashboard__equalizer i {
+    width: 3px; height: 5px; border-radius: 2px; background: var(--zukato-accent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--zukato-accent) 65%, transparent);
+  }
+  .zukato-dashboard__now.is-playing .zukato-dashboard__equalizer i {
+    animation: zukato-pulse .8s ease-in-out infinite alternate;
+  }
+  .zukato-dashboard__equalizer i:nth-child(2) { animation-delay: -.23s!important; }
+  .zukato-dashboard__equalizer i:nth-child(3) { animation-delay: -.48s!important; }
+  .zukato-dashboard__equalizer i:nth-child(4) { animation-delay: -.14s!important; }
+  .zukato-dashboard__equalizer i:nth-child(5) { animation-delay: -.38s!important; }
+  .zukato-dashboard__cover { border: 1px solid rgba(255,255,255,.26); }
+  .zukato-dashboard__stats > div { position: relative; overflow: hidden; }
+  .zukato-dashboard__stats > div::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--zukato-accent), transparent 85%);
+  }
+  .zukato-dashboard__stats > div::after {
+    content: ""; position: absolute; width: 70px; height: 70px;
+    right: -25px; bottom: -38px; border-radius: 50%; pointer-events: none;
+    background: color-mix(in srgb, var(--zukato-accent) 15%, transparent);
+    filter: blur(16px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button, .zukato-dashboard__now::before,
+    .zukato-dashboard__equalizer i { animation: none!important; transition: none!important; }
+  }
+}
+@keyframes zukato-ambient {
+  from { transform: translate(-5%, -2%) scale(.9); opacity: .45; }
+  to { transform: translate(6%, 3%) scale(1.1); opacity: .9; }
+}
+@keyframes zukato-pulse {
+  from { height: 3px; }
+  to { height: 14px; }
+}

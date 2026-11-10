@@ -45,6 +45,7 @@ export function AppNavigation({
   // Die vollständige Modulliste öffnet sich nur bei Bedarf.
   const [expanded, setExpanded] = ReactRuntime.useState(false);
   const [pins, setPins] = ReactRuntime.useState<FeatureId[]>(readWorkspacePins);
+  const navRef = ReactRuntime.useRef<HTMLElement>(null);
   // Ref verhindert verlorene Änderungen bei zwei sehr schnellen Pin-Klicks.
   const pinsRef = ReactRuntime.useRef(pins);
   const visibleItems = filterWorkspaceNavigation(items, search, (group) => t(`navigation.${group}`));
@@ -53,6 +54,28 @@ export function AppNavigation({
     .map((id) => items.find((item) => item.id === id))
     .filter((item): item is AppNavigationItem => item !== undefined);
   const atPinLimit = pins.length >= WORKSPACE_PIN_LIMIT;
+  const primaryItems = (["dashboard", "visualizer", "settings"] as const)
+    .map((id) => items.find((item) => item.id === id))
+    .filter((item): item is AppNavigationItem => item !== undefined);
+
+  ReactRuntime.useEffect(() => {
+    if (!expanded) return;
+    const closeOutside = (event: PointerEvent): void => {
+      if (event.target instanceof Node && !navRef.current?.contains(event.target)) {
+        setSearch("");
+        setExpanded(false);
+      }
+    };
+    const closeEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape" && !search) setExpanded(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
+  }, [expanded, search]);
 
   function togglePin(featureId: FeatureId): void {
     const next = toggleWorkspacePin(pinsRef.current, featureId);
@@ -74,8 +97,14 @@ export function AppNavigation({
   }
 
   return (
-    <nav className={`spotify-toolkit-navigation${expanded ? " spotify-toolkit-navigation--expanded" : ""}`} aria-label={ariaLabel}>
+    <nav ref={navRef} className={`spotify-toolkit-navigation${expanded ? " spotify-toolkit-navigation--expanded" : ""}`} aria-label={ariaLabel}>
       <div className="spotify-toolkit-navigation__toolbar">
+        <div className="spotify-toolkit-navigation__primary">
+          {primaryItems.map((item) => <button key={item.id} type="button"
+            className={`spotify-toolkit-navigation__primary-item${item.id === activeFeatureId ? " is-active" : ""}`}
+            aria-current={item.id === activeFeatureId ? "page" : undefined}
+            onClick={() => selectItem(item.id)}>{item.title}</button>)}
+        </div>
         {expanded && <label className="spotify-toolkit-navigation__search">
           <span className="zukato-visually-hidden">{t("navigation.search")}</span>
           <input type="search" value={search} placeholder={t("navigation.search")}

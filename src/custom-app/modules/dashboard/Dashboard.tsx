@@ -145,8 +145,12 @@ export function Dashboard({ features, t, onNavigate }: DashboardProps): ReactEle
     {/* Der Modultitel steht bereits im gemeinsamen Seitenkopf. Die Karten
         beginnen sofort mit Musik und Aktionen statt einer zweiten Begrüßung. */}
     <div className="zukato-dashboard__main">
-      <section className="zukato-dashboard__now" aria-label={t("dashboard.nowPlaying")}>
-        <p className="zukato-eyebrow">{t("dashboard.nowPlaying")}</p>
+      <section className={`zukato-dashboard__now${playing ? " is-playing" : ""}`} aria-label={t("dashboard.nowPlaying")}
+        style={cover ? { backgroundImage: `linear-gradient(100deg, rgba(15,17,27,.91), rgba(15,17,27,.76)), url("${cover}")`,
+          backgroundPosition: "center", backgroundSize: "cover" } : undefined}>
+        <p className="zukato-eyebrow"><span className="zukato-dashboard__equalizer" aria-hidden="true">
+          <i /><i /><i /><i /><i />
+        </span>{t("dashboard.nowPlaying")}</p>
         <div className="zukato-dashboard__cover" aria-hidden="true">
           {cover ? <img src={cover} alt="" loading="lazy" /> : <span>♫</span>}
         </div>

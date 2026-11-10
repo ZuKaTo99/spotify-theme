@@ -1,16 +1,36 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.10**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.12**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
 
+## v1.76.0-rc.12 – Visualizer im Popup
+
+- Die Popup-Bühne verwendet jetzt die vollständige Visualizer-Ansicht. Lyrics
+  bleiben sichtbar und das Wallpaper füllt den Platz über der Player-Leiste.
+- Animation, Audioübertragung und Songfortschritt laufen im sichtbaren Popup
+  weiter, wenn das Spotify-Hauptfenster minimiert ist. Video-Ersatzbilder
+  liegen im Hintergrund-Layer und verdecken keine Effekte oder Lyrics.
+- Der Fensterkopf hat einen Schließen-Knopf. Buttons und Dashboard erhalten
+  ein einheitliches Design mit klareren Zuständen und dezenter Bewegung.
+
+## v1.76.0-rc.11 – Ziehbares Popup und klarere Oberfläche
+
+- Der Desktop-Player lässt sich am neuen Kopf mit der Maus verschieben. Das
+  wurde im lokalen Spotify-Client mit laufendem Wallpaper und Player geprüft.
+- Das Dashboard zeigt den laufenden Titel als große Bildfläche und ordnet die
+  Schnellzugriffe kompakt darunter an. Die drei wichtigsten Seiten sind direkt
+  erreichbar; alle weiteren Module erscheinen in einem gut lesbaren Menü.
+- Im Visualizer liegt der Schalter für Originalclips unter „Anpassen“. Dadurch
+  bleiben beim Öffnen die Bühne und die wichtigsten Aktionen im Vordergrund.
+
 ## v1.76.0-rc.10 – Desktop-Player und kompakte Bedienung
 
-- Das verschiebbare Desktop-Popup und das feste Fenster rechts haben jetzt
+- Das Desktop-Popup und das feste Fenster rechts haben jetzt
   Zufallswiedergabe, Wiederholen, Vor/Zurück, Pause und einen Zeitregler.
   Cover/Spotify-Video und das laufende Wallpaper lassen sich direkt umschalten.
 - Importierte HTML-Wallpaper erhalten nach dem Wechsel ins Desktop-Popup weiter

@@ -162,6 +162,7 @@ async function inlineAudioHookCode() {
   const hook = await readFile(new URL("../src/custom-app/modules/visualizer/useMicrophoneSpectrum.ts", import.meta.url), "utf8");
   const helper = await readFile(new URL("../src/custom-app/modules/visualizer/audio-capture.ts", import.meta.url), "utf8");
   const performancePolicy = await readFile(new URL("../src/custom-app/modules/visualizer/audio-performance.ts", import.meta.url), "utf8");
+  const visualizerHost = await readFile(new URL("../src/custom-app/modules/visualizer/visualizer-host.ts", import.meta.url), "utf8");
   const code = stripTypeScriptTypes(hook, { mode: "strip" });
   const helperCode = stripTypeScriptTypes(helper, { mode: "strip" });
   // data:-URL-Module können relative Imports nicht auflösen. Die reinen
@@ -171,7 +172,10 @@ async function inlineAudioHookCode() {
   assert.notEqual(withPolicy, code, "Audio-Performance muss für den Test eingebunden sein.");
   const replaced = withPolicy.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/audio-capture["'];?/, helperCode);
   assert.notEqual(replaced, withPolicy, "Audio-Capture muss für den Test eingebunden sein.");
-  return replaced;
+  const withHost = replaced.replace(/import\s*\{[^}]+\}\s*from\s*["']\.\/visualizer-host["'];?/,
+    stripTypeScriptTypes(visualizerHost, { mode: "strip" }));
+  assert.notEqual(withHost, replaced, "Popup-Fenster-Helfer muss für den Audio-Hook eingebunden sein.");
+  return withHost;
 }
 
 /** Mikrofon wird ausschließlich nach explizitem start() angefordert und dann beendet. */

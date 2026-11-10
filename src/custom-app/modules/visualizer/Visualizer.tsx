@@ -42,6 +42,7 @@ import { loadSongSession, observeSongSession, SONG_SESSION_EVENT } from "../../.
 import { readVisualizerPanel, rememberVisualizerPanel, sourceStatus, VISUALIZER_PANELS, type VisualizerPanel } from "../../../shared/visualizer-workspace";
 import { playerPollDelayMs, sameVisibleSongRun, shouldReadNativeLyrics } from "./visualizer-runtime";
 import { closeVisualizerMiniWindow, miniWindowSupported, openVisualizerMiniWindow } from "./mini-window";
+import { VISUALIZER_HOST_CHANGED_EVENT, visualizerHostHidden, visualizerHostWindow } from "./visualizer-host";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
 
@@ -252,6 +253,7 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
   ReactRuntime.useEffect(() => {
     let stopped = false;
     let timer: number | null = null;
+    let timerHost: Window | null = null;
     const refresh = (): void => setPlayer((previous) => {
       const next = snapshot();
       // Bei unveraendertem Player keine React-Arbeit erzwingen.
@@ -265,17 +267,18 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
     // Seek-Synchronisation waehrend der Wiedergabe einzuschraenken.
     const schedule = (): void => {
       if (stopped) return;
-      timer = window.setTimeout(() => {
+      timerHost = visualizerHostWindow(stageRef.current);
+      timer = timerHost.setTimeout(() => {
         timer = null;
         refresh();
         schedule();
-      }, playerPollDelayMs(Spicetify.Player.isPlaying(), document.hidden));
+      }, playerPollDelayMs(Spicetify.Player.isPlaying(), visualizerHostHidden(stageRef.current)));
     };
     // Player-Events und Tab-Rueckkehr werden NICHT durch den langsameren
     // Hintergrund-Timer verzögert. Bestehenden Timer immer zuerst entsorgen.
     const refreshAndSchedule = (): void => {
       if (stopped) return;
-      if (timer !== null) window.clearTimeout(timer);
+      if (timer !== null) (timerHost ?? window).clearTimeout(timer);
       timer = null;
       refresh();
       schedule();
@@ -283,13 +286,15 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
     Spicetify.Player.addEventListener("songchange", refreshAndSchedule);
     Spicetify.Player.addEventListener("onplaypause", refreshAndSchedule);
     document.addEventListener("visibilitychange", refreshAndSchedule);
+    window.addEventListener(VISUALIZER_HOST_CHANGED_EVENT, refreshAndSchedule);
     refreshAndSchedule();
     return () => {
       stopped = true;
-      if (timer !== null) window.clearTimeout(timer);
+      if (timer !== null) (timerHost ?? window).clearTimeout(timer);
       Spicetify.Player.removeEventListener("songchange", refreshAndSchedule);
       Spicetify.Player.removeEventListener("onplaypause", refreshAndSchedule);
       document.removeEventListener("visibilitychange", refreshAndSchedule);
+      window.removeEventListener(VISUALIZER_HOST_CHANGED_EVENT, refreshAndSchedule);
     };
   }, []);
 
@@ -556,7 +561,7 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
         }}>
           {t(optionsOpen ? "viz.optionsClose" : "viz.optionsOpen")}
         </button>
-        <button type="button" aria-pressed={sceneSettings.mode === "original"}
+        {optionsOpen && <button type="button" aria-pressed={sceneSettings.mode === "original"}
           title={t("viz.originalModeInfo")}
           onClick={() => {
             try {
@@ -568,7 +573,7 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
               setSceneSettings(saveScenePreferences({ ...loadScenePreferences(), mode }));
               setError("");
             } catch (cause) { setError(String(cause)); }
-          }}>{sceneSettings.mode === "original" ? t("viz.switchToWallpapers") : t("viz.switchToOriginals")}</button>
+          }}>{sceneSettings.mode === "original" ? t("viz.switchToWallpapers") : t("viz.switchToOriginals")}</button>}
         <button type="button" aria-pressed={cinemaMode} onClick={() => setCinemaMode((previous) => !previous)}>
           {cinemaMode ? t("viz.cinemaExit") : t("viz.cinemaEnter")}
         </button>

@@ -217,15 +217,15 @@ export function App(): ReactElement {
           {t("quick.open")} <kbd>Ctrl+Shift+F</kbd>
         </button>
       </header>
-      <AppNavigation
-        items={navigationItems}
-        activeFeatureId={
-          visibleFeatureId
-        }
-        ariaLabel={settings.workspaceTitle}
-        t={t}
-        onSelect={navigate}
-      />
+      <div className="zukato-app__navigation-slot">
+        <AppNavigation
+          items={navigationItems}
+          activeFeatureId={visibleFeatureId}
+          ariaLabel={settings.workspaceTitle}
+          t={t}
+          onSelect={navigate}
+        />
+      </div>
       <ModulePage
         title={visibleFeatureTitle}
       >

@@ -26,6 +26,7 @@ class Element {
     this.children.splice(index < 0 ? this.children.length : index, 0, child);
   }
   addEventListener(name, listener) { this.listeners.set(name, listener); }
+  setPointerCapture() {}
   setAttribute(name, value) { this[name] = value; }
   cloneNode() { return new Element(this.tag); }
   querySelector() { return this.frame ?? null; }
@@ -40,6 +41,9 @@ function makePopup() {
   const document = { head: new Element("head"), body: new Element("body"),
     createElement: (tag) => new Element(tag) };
   const popup = { document, listeners, closed: false, focused: false,
+    screenX: 100, screenY: 200,
+    moveTo(left, top) { this.movedTo = [left, top]; },
+    setInterval() { return 1; }, clearInterval() {},
     addEventListener: (name, callback) => listeners.set(name, callback),
     removeEventListener: (name, callback) => { if (listeners.get(name) === callback) listeners.delete(name); },
     focus() { this.focused = true; },
@@ -93,7 +97,15 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
     assert.equal(requests, 1, "PiP wird synchron aus der Nutzergeste angefordert");
     assert.equal(await opening, true);
     const shell = popup.document.body.children[0];
-    assert.equal(shell.children[0].children[0], stage, "Das Wallpaper wird nicht durch ein Cover ersetzt");
+    const header = shell.children[0];
+    assert.equal(header.className, "zukato-mini-window__header", "Das Fenster hat einen sichtbaren Ziehbereich");
+    assert.equal(header.children[2].title, "Fenster schließen");
+    assert.equal(shell.children[1].className, "zukato-viz zukato-viz--popup", "Das Popup zeigt die vollständige Bühne statt der verkleinerten Dock-Ansicht");
+    header.listeners.get("pointerdown")({ button: 0, pointerId: 7, screenX: 200, screenY: 100 });
+    header.listeners.get("pointermove")({ pointerId: 7, screenX: 260, screenY: 150 });
+    assert.deepEqual(popup.movedTo, [160, 250], "Der Fensterkopf verschiebt das PiP-Fenster");
+    header.listeners.get("pointerup")();
+    assert.equal(shell.children[1].children[0], stage, "Das Wallpaper wird nicht durch ein Cover ersetzt");
     const frame = { contentWindow: { postMessage() {} },
       ownerDocument: popup.document };
     stage.frame = frame;
@@ -104,7 +116,7 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
       data: { zukatoProjectMounted: true }, origin: "null" });
     assert.deepEqual(relayed, { zukatoProjectMounted: true }, "Projektbestätigung erreicht Spotify");
     assert.match(popup.document.head.children[0].textContent, /zukato-viz__stage/);
-    const bar = shell.children[2];
+    const bar = shell.children[3];
     const seek = bar.children[1].children[1];
     assert.equal(seek.max, "120000");
     seek.value = "45000"; seek.listeners.get("input")();
@@ -118,15 +130,20 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
     playing = false; listeners.get("onplaypause")();
     assert.equal(actions[2].title, "Wiedergeben");
     actions[5].click();
-    assert.equal(shell.children[0].hidden, true, "Cover/Video ersetzt die Wallpaper-Ansicht");
-    assert.equal(shell.children[1].hidden, false);
+    assert.equal(shell.children[1].hidden, true, "Cover/Video ersetzt die Wallpaper-Ansicht");
+    assert.equal(shell.children[2].hidden, false);
     actions[5].click();
-    assert.equal(shell.children[0].hidden, false, "Wallpaper kann ohne Neustart zurückgeschaltet werden");
+    assert.equal(shell.children[1].hidden, false, "Wallpaper kann ohne Neustart zurückgeschaltet werden");
     actions[6].click();
     assert.equal(mainFocused, true);
     assert.equal(popup.closed, true);
     assert.deepEqual(origin.children, [stage, nextElement], "Beim Schließen kehrt dieselbe Bühne zurück");
     assert.equal(listeners.size, 0);
+    popup = makePopup();
+    assert.equal(await mini.openVisualizerMiniWindow(stage), true);
+    popup.document.body.children[0].children[0].children[2].click();
+    assert.equal(popup.closed, true, "Schließen-Knopf stellt die Bühne wieder her");
+    assert.deepEqual(origin.children, [stage, nextElement]);
     popup = makePopup();
     assert.equal(await mini.openVisualizerMiniWindow(stage, { automatic: true }), true);
     mini.closeAutomaticVisualizerMiniWindow();
