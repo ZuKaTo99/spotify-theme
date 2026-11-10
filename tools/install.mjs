@@ -42,6 +42,11 @@ const customApp = {
   source: path.join(outputDirectory, "custom-app"),
   target: path.join(spicetifyDirectory, "CustomApps", "zukato-workspace"),
 };
+const theme = {
+  name: "ZuKaToTheme",
+  source: path.join(outputDirectory, "theme"),
+  target: path.join(spicetifyDirectory, "Themes", "ZuKaToTheme"),
+};
 
 // -----------------------------------------------------------------------------
 // Hilfsfunktion: Der Build muss existieren, bevor installierte Dateien geändert
@@ -170,13 +175,17 @@ async function main() {
   await assertExists(extension.source, "Extension-Build");
   await assertExists(path.join(customApp.source, "index.js"), "Custom-App-Build");
   await assertExists(path.join(customApp.source, "manifest.json"), "Custom-App-Manifest");
+  await assertExists(path.join(theme.source, "user.css"), "Theme-CSS");
+  await assertExists(path.join(theme.source, "color.ini"), "Theme-Farben");
+  await assertExists(path.join(theme.source, "assets", "aurora-soundscape.png"), "Theme-Hintergrund");
 
   console.log("Bereite abgesichertes Update der ZuKaTo-Dateien vor …");
   await installArtifactsAtomically([
     { source: extension.source, target: extension.target },
     { source: customApp.source, target: customApp.target, recursive: true },
+    { source: theme.source, target: theme.target, recursive: true },
   ], () => {
-    console.log("Aktiviere Extension und Custom App …");
+    console.log("Aktiviere Extension, Custom App und Theme …");
     requireSuccessfulCommand(
       executeSpicetify("config", "extensions", extension.name),
       "Spicetify-Extension-Konfiguration",
@@ -184,6 +193,10 @@ async function main() {
     requireSuccessfulCommand(
       executeSpicetify("config", "custom_apps", customApp.name),
       "Spicetify-Custom-App-Konfiguration",
+    );
+    requireSuccessfulCommand(
+      executeSpicetify("config", "current_theme", theme.name, "color_scheme", "ZuKaTo", "overwrite_assets", "1"),
+      "Spicetify-Theme-Konfiguration",
     );
     applySpicetify();
   });

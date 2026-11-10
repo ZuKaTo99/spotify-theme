@@ -5,7 +5,9 @@
 import type {
   ReactElement,
 } from "react";
-import { applyPalette, loadPalette, type PaletteSelection } from "../shared/appearance";
+import { BACKGROUND_CHANGED_EVENT, applyGlobalBackgroundPalette, applyGlobalPalette,
+  applyPalette, loadBackgroundPalette, loadPalette, paletteColor,
+  type PaletteSelection } from "../shared/appearance";
 
 import {
   getFeatureTitle,
@@ -35,7 +37,9 @@ import {
 import { QuickTrackPanel } from "./components/QuickTrackPanel";
 import { NowPlayingDock, restoreNowPlayingDockStage } from "./components/NowPlayingDock";
 import { Visualizer } from "./modules/visualizer/Visualizer";
-import { closeAutomaticVisualizerMiniWindow, closeVisualizerMiniWindow, openVisualizerMiniWindow } from "./modules/visualizer/mini-window";
+import { automaticMiniWindowAllowed, closeAutomaticVisualizerMiniWindow, closeVisualizerMiniWindow,
+  openVisualizerMiniWindow, resetAutomaticMiniWindowSuppression } from "./modules/visualizer/mini-window";
+import { spotifyMiniPlayerButton } from "./modules/visualizer/native-mini-player";
 import { readWorkspaceFeature, rememberWorkspaceFeature, resolveWorkspaceFeature } from "../shared/workspace-navigation";
 import { shouldToggleQuickTrackPanel } from "../shared/workspace-shortcuts";
 
@@ -58,18 +62,48 @@ export function App(): ReactElement {
     update,
   } = useSettings();
 
-  // Eigene Palette anwenden, ohne CSS anderer Spotify-Seiten zu verändern.
+  // Eine Farbwahl für Workspace und Spotify-Hülle.
   const rootRef = ReactRuntime.useRef<HTMLElement>(null);
+  const [selectedPalette, setSelectedPalette] = ReactRuntime.useState<PaletteSelection>(loadPalette);
+  const [selectedBackground, setSelectedBackground] = ReactRuntime.useState<PaletteSelection>(loadBackgroundPalette);
   const desktopStageRef = ReactRuntime.useRef<HTMLElement | null>(null);
+  const [dockHost] = ReactRuntime.useState(() => {
+    const host = document.createElement("div");
+    host.className = "zukato-now-dock-host";
+    return host;
+  });
   ReactRuntime.useEffect(() => {
-    const refresh = (): void => applyPalette(rootRef.current, loadPalette());
+    const refresh = (): void => {
+      const palette = loadPalette();
+      applyPalette(rootRef.current, palette);
+      applyGlobalPalette(palette);
+      setSelectedPalette(palette);
+      const background = loadBackgroundPalette();
+      applyGlobalBackgroundPalette(background);
+      setSelectedBackground(background);
+    };
     const onPalette = (event: Event): void => {
       const palette = (event as CustomEvent<PaletteSelection>).detail;
-      if (palette) applyPalette(rootRef.current, palette);
+      if (palette) {
+        applyPalette(rootRef.current, palette);
+        applyGlobalPalette(palette);
+        setSelectedPalette(palette);
+      }
+    };
+    const onBackground = (event: Event): void => {
+      const background = (event as CustomEvent<PaletteSelection>).detail;
+      if (background) {
+        applyGlobalBackgroundPalette(background);
+        setSelectedBackground(background);
+      }
     };
     refresh();
     window.addEventListener("zukato-toolkit:appearance-changed", onPalette);
-    return () => window.removeEventListener("zukato-toolkit:appearance-changed", onPalette);
+    window.addEventListener(BACKGROUND_CHANGED_EVENT, onBackground);
+    return () => {
+      window.removeEventListener("zukato-toolkit:appearance-changed", onPalette);
+      window.removeEventListener(BACKGROUND_CHANGED_EVENT, onBackground);
+    };
   }, []);
 
   // Letzten Bereich pro Sitzung merken; abgeschaltete Module nie öffnen.
@@ -144,6 +178,27 @@ export function App(): ReactElement {
     settingsTitle;
 
   const visualizerAvailable = navigationItems.some((item) => item.id === "visualizer");
+  ReactRuntime.useEffect(() => {
+    if (!visualizerAvailable) return;
+    let pending = false;
+    const attach = (): void => {
+      const sidebar = document.getElementById("Desktop_PanelContainer_Id") ??
+        document.querySelector<HTMLElement>('[data-testid="right-sidebar"]');
+      const parent = sidebar ?? document.body;
+      dockHost.classList.toggle("zukato-now-dock-host--floating", !sidebar);
+      if (dockHost.parentElement !== parent) parent.prepend(dockHost);
+    };
+    attach();
+    // Spotify ersetzt die Seitenleiste beim Navigieren. Der Portal-Knoten
+    // bleibt derselbe, damit Player und laufende Wallpaper-Bühne erhalten bleiben.
+    const observer = new MutationObserver(() => {
+      if (pending) return;
+      pending = true;
+      window.requestAnimationFrame(() => { pending = false; attach(); });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => { observer.disconnect(); dockHost.remove(); };
+  }, [visualizerAvailable, dockHost]);
   function openDesktop(automatic: boolean): void {
     const stage = document.querySelector<HTMLElement>(".zukato-viz__stage") ?? desktopStageRef.current;
     if (!stage) return;
@@ -156,9 +211,23 @@ export function App(): ReactElement {
   // fragen. Bei Webviews ohne Auto-PiP bleibt der sichtbare Desktop-Knopf.
   ReactRuntime.useEffect(() => {
     if (!visualizerAvailable) return;
+    const onSpotifyMiniPlayer = (event: MouseEvent): void => {
+      if (!spotifyMiniPlayerButton(event.target) ||
+          !(document.querySelector(".zukato-viz__stage") ?? desktopStageRef.current)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openDesktop(false);
+    };
+    // Im Workspace öffnet auch Spotifys eigener Mini-Player-Knopf dieselbe
+    // ZuKaTo-Ansicht. Außerhalb bleibt Spotifys Originalfunktion erreichbar.
+    document.addEventListener("click", onSpotifyMiniPlayer, true);
     const onVisibility = (): void => {
-      if (document.hidden) openDesktop(true);
-      else closeAutomaticVisualizerMiniWindow();
+      if (document.hidden) {
+        if (automaticMiniWindowAllowed()) openDesktop(true);
+      } else {
+        resetAutomaticMiniWindowSuppression();
+        closeAutomaticVisualizerMiniWindow();
+      }
     };
     document.addEventListener("visibilitychange", onVisibility);
     const mediaSession = navigator.mediaSession as (MediaSession & {
@@ -167,11 +236,14 @@ export function App(): ReactElement {
     let registered = false;
     try {
       if (mediaSession?.setActionHandler) {
-        mediaSession.setActionHandler("enterpictureinpicture", () => openDesktop(true));
+        mediaSession.setActionHandler("enterpictureinpicture", () => {
+          if (automaticMiniWindowAllowed()) openDesktop(true);
+        });
         registered = true;
       }
     } catch { /* Spotify-Webviews können diese Aktion sperren. */ }
     return () => {
+      document.removeEventListener("click", onSpotifyMiniPlayer, true);
       document.removeEventListener("visibilitychange", onVisibility);
       if (registered) {
         try { mediaSession?.setActionHandler("enterpictureinpicture", null); } catch { /* no-op */ }
@@ -211,11 +283,19 @@ export function App(): ReactElement {
         </div>
         {/* Die globale Aktion gehört zum Kopf; eine zweite Textleiste würde
             auf jeder Modulseite Platz vor dem eigentlichen Inhalt verbrauchen. */}
-        <button type="button" className="zukato-primary zukato-app__quick-action"
-          title={`${t("quick.commandHint")} · Ctrl+Shift+F`}
-          onClick={() => setQuickOpen(true)}>
-          {t("quick.open")} <kbd>Ctrl+Shift+F</kbd>
-        </button>
+        <div className="zukato-app__header-actions">
+          {visibleFeatureId === "dashboard" && navigationItems.some((item) => item.id === "theme-studio") &&
+            <button type="button" className="zukato-app__colors" onClick={() => navigate("theme-studio")}
+              title={t("dashboard.actionTheme")}>
+              <span className="zukato-app__color-dot" style={{ background: `linear-gradient(90deg, ${paletteColor(selectedBackground)} 50%, ${paletteColor(selectedPalette)} 50%)` }} />
+              {t("dashboard.actionTheme")}
+            </button>}
+          <button type="button" className="zukato-primary zukato-app__quick-action"
+            title={`${t("quick.commandHint")} · Ctrl+Shift+F`}
+            onClick={() => setQuickOpen(true)}>
+            {t("quick.open")} <kbd>Ctrl+Shift+F</kbd>
+          </button>
+        </div>
       </header>
       <div className="zukato-app__navigation-slot">
         <AppNavigation
@@ -244,7 +324,7 @@ export function App(): ReactElement {
       {visualizerAvailable && visibleFeatureId !== "visualizer" &&
         Spicetify.ReactDOM?.createPortal?.(<NowPlayingDock
           onOpenVisualizer={() => navigate("visualizer")}
-          onOpenDesktop={() => openDesktop(false)} />, document.body)}
+          onOpenDesktop={() => openDesktop(false)} />, dockHost)}
       {quickOpen && <QuickTrackPanel t={t} onClose={closeQuick} />}
     </main>
   );

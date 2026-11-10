@@ -59,3 +59,27 @@ test("24 Presetfarben, alte Preset-IDs und HEX-Schutz", () => {
   assert.equal(appearance.onAccentColor("#ffffff"), "#101410");
   assert.equal(appearance.onAccentColor("#000000"), "#ffffff");
 });
+
+test("Hintergrund und Buttons behalten nach dem Upgrade getrennte Farbwerte", () => {
+  const values = new Map();
+  const storage = new Map([["zukato-toolkit.appearance.v1", "mint"]]);
+  const themed = loadModule("src/shared/appearance.ts", {
+    Spicetify: { Platform: { LocalStorageAPI: {
+      getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value),
+    } } },
+    document: { documentElement: { style: { setProperty: (key, value) => values.set(key, value) } } },
+    window: { dispatchEvent() {} },
+    CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } },
+  });
+  assert.equal(themed.loadBackgroundPalette(), "mint");
+  themed.savePalette("coral");
+  assert.equal(themed.loadPalette(), "coral");
+  assert.equal(themed.loadBackgroundPalette(), "mint");
+  themed.saveBackgroundPalette("sky");
+  assert.equal(themed.loadBackgroundPalette(), "sky");
+  themed.applyGlobalPalette("coral");
+  themed.applyGlobalBackgroundPalette("sky");
+  assert.equal(values.get("--zukato-world-accent"), "#38bdf8");
+  assert.equal(values.get("--zukato-control-accent"), "#fb923c");
+  assert.equal(values.get("--spice-button"), "#fb923c");
+});

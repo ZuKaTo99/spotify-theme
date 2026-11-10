@@ -129,11 +129,13 @@ export function NowPlayingDock({ onOpenVisualizer, onOpenDesktop }: {
         aria-pressed={player.repeat > 0}
         onClick={() => { Spicetify.Player.toggleRepeat(); setPlayer(playerSnapshot()); }}>{player.repeat === 2 ? "↻¹" : "↻"}</button>
     </div>
+    <div className="zukato-now-dock__views" role="group" aria-label="Mini-Player-Ansicht">
+      <button type="button" aria-pressed={!wallpaper} onClick={() => setWallpaper(false)}>Cover/Video</button>
+      <button type="button" aria-pressed={wallpaper} onClick={() => setWallpaper(true)}>Visualizer</button>
+    </div>
     <div className="zukato-now-dock__actions">
-      <button type="button" aria-pressed={wallpaper} onClick={() => setWallpaper(!wallpaper)}>
-        {wallpaper ? "Cover/Video" : "Diashow"}</button>
-      <button type="button" onClick={onOpenVisualizer}>Visualizer öffnen</button>
-      <button type="button" disabled={!miniWindowSupported()} onClick={onOpenDesktop}>Desktop</button>
+      <button type="button" onClick={onOpenVisualizer}>Groß öffnen</button>
+      <button type="button" disabled={!miniWindowSupported()} onClick={onOpenDesktop}>Desktop-Fenster</button>
     </div>
   </aside>;
 }

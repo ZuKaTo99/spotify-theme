@@ -60,6 +60,13 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
   let popup = makePopup();
   const origin = new Element("section");
   const stage = new Element("stage");
+  let frameReloads = 0;
+  const frame = { contentWindow: { postMessage() {} } };
+  Object.defineProperty(frame, "srcdoc", {
+    get: () => "<html></html>", set: () => { frameReloads++; },
+  });
+  stage.frame = frame;
+  stage.querySelectorAll = selector => selector === "iframe[srcdoc]" ? [frame] : [];
   const nextElement = new Element("after-stage");
   origin.append(stage, nextElement);
   const listeners = new Map();
@@ -99,16 +106,15 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
     const shell = popup.document.body.children[0];
     const header = shell.children[0];
     assert.equal(header.className, "zukato-mini-window__header", "Das Fenster hat einen sichtbaren Ziehbereich");
-    assert.equal(header.children[2].title, "Fenster schließen");
-    assert.equal(shell.children[1].className, "zukato-viz zukato-viz--popup", "Das Popup zeigt die vollständige Bühne statt der verkleinerten Dock-Ansicht");
+    assert.equal(header.children[3].title, "Fenster schließen");
+    assert.equal(shell.children[1].children[0].className, "zukato-viz zukato-viz--popup", "Das Popup zeigt die vollständige Bühne statt der verkleinerten Dock-Ansicht");
     header.listeners.get("pointerdown")({ button: 0, pointerId: 7, screenX: 200, screenY: 100 });
     header.listeners.get("pointermove")({ pointerId: 7, screenX: 260, screenY: 150 });
     assert.deepEqual(popup.movedTo, [160, 250], "Der Fensterkopf verschiebt das PiP-Fenster");
     header.listeners.get("pointerup")();
-    assert.equal(shell.children[1].children[0], stage, "Das Wallpaper wird nicht durch ein Cover ersetzt");
-    const frame = { contentWindow: { postMessage() {} },
-      ownerDocument: popup.document };
-    stage.frame = frame;
+    assert.equal(shell.children[1].children[0].children[0], stage, "Die laufende Wallpaper-Bühne bleibt gemountet");
+    assert.equal(shell.children[1].children[1].hidden, false, "Der Mini-Player startet wie Spotify mit Cover oder Video");
+    frame.ownerDocument = popup.document;
     popup.listeners.get("message")({ source: frame.contentWindow,
       data: { zukatoProjectReady: true }, origin: "null" });
     assert.equal(relocated, frame, "Projektstart meldet den versetzten Frame");
@@ -116,7 +122,7 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
       data: { zukatoProjectMounted: true }, origin: "null" });
     assert.deepEqual(relayed, { zukatoProjectMounted: true }, "Projektbestätigung erreicht Spotify");
     assert.match(popup.document.head.children[0].textContent, /zukato-viz__stage/);
-    const bar = shell.children[3];
+    const bar = shell.children[2];
     const seek = bar.children[1].children[1];
     assert.equal(seek.max, "120000");
     seek.value = "45000"; seek.listeners.get("input")();
@@ -129,25 +135,38 @@ test("Desktop-Popup zeigt dieselbe Wallpaper-Bühne, steuert Musik und bringt Sp
     assert.equal(shuffle, true); assert.equal(repeat, 1);
     playing = false; listeners.get("onplaypause")();
     assert.equal(actions[2].title, "Wiedergeben");
+    const viewButtons = header.children[1].children;
+    viewButtons[1].click();
+    assert.equal(shell.children[1].children[1].hidden, true, "Visualizer blendet das Cover aus");
+    assert.equal(shell.children[1].children[0].children[0], stage, "Wallpaper startet beim Umschalten nicht neu");
+    viewButtons[0].click();
+    assert.equal(shell.children[1].children[1].hidden, false, "Cover oder Video kann zurückgeschaltet werden");
     actions[5].click();
-    assert.equal(shell.children[1].hidden, true, "Cover/Video ersetzt die Wallpaper-Ansicht");
-    assert.equal(shell.children[2].hidden, false);
-    actions[5].click();
-    assert.equal(shell.children[1].hidden, false, "Wallpaper kann ohne Neustart zurückgeschaltet werden");
-    actions[6].click();
     assert.equal(mainFocused, true);
     assert.equal(popup.closed, true);
     assert.deepEqual(origin.children, [stage, nextElement], "Beim Schließen kehrt dieselbe Bühne zurück");
+    assert.equal(frameReloads, 2, "HTML-Wallpaper lädt beim Hin- und Rückweg neu");
     assert.equal(listeners.size, 0);
     popup = makePopup();
     assert.equal(await mini.openVisualizerMiniWindow(stage), true);
-    popup.document.body.children[0].children[0].children[2].click();
+    popup.document.body.children[0].children[0].children[3].click();
     assert.equal(popup.closed, true, "Schließen-Knopf stellt die Bühne wieder her");
     assert.deepEqual(origin.children, [stage, nextElement]);
+    assert.equal(mini.automaticMiniWindowAllowed(), false, "Bewusst geschlossenes Popup öffnet bei minimiertem Spotify nicht erneut");
+    popup = makePopup();
+    assert.equal(await mini.openVisualizerMiniWindow(stage, { automatic: true }), false);
+    assert.equal(popup.closed, true);
+    mini.resetAutomaticMiniWindowSuppression();
     popup = makePopup();
     assert.equal(await mini.openVisualizerMiniWindow(stage, { automatic: true }), true);
     mini.closeAutomaticVisualizerMiniWindow();
     assert.equal(popup.closed, true, "Automatisches Fenster schließt bei Rückkehr zu Spotify");
+    assert.equal(mini.automaticMiniWindowAllowed(), true);
+    popup = makePopup();
+    assert.equal(await mini.openVisualizerMiniWindow(stage), true);
+    popup.close();
+    assert.equal(mini.automaticMiniWindowAllowed(), false, "Das native Fenster-X verhindert sofortiges Wiederöffnen");
+    mini.resetAutomaticMiniWindowSuppression();
   } finally {
     if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;
     if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;

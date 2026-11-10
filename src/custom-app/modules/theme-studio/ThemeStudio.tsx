@@ -1,21 +1,28 @@
 // =============================================================================
 // Datei: ThemeStudio.tsx
-// Zweck: 24 Farbvorschläge plus beliebige eigene HEX-Farbe; Live-Vorschau.
-// Alle Farben wirken im ZuKaTo-Workspace und werden im Backup mitgesichert.
+// Zweck: Hintergrund und Bedienelemente unabhängig färben, ohne die häufigsten
+// Farbwelten hinter einer langen Einstellungsseite zu verstecken.
 // =============================================================================
 import type { ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
-import { loadPalette, PALETTES, paletteColor, savePalette, normalizePalette,
+import { loadBackgroundPalette, loadPalette, PALETTES, paletteColor, saveBackgroundPalette,
+  savePalette, normalizePalette,
   type PaletteId, type PaletteSelection } from "../../../shared/appearance";
 const ReactRuntime = Spicetify.React as typeof import("react");
+const FEATURED: PaletteId[] = ["violet", "sky", "emerald", "rose", "coral", "gold"];
 
-export function ThemeStudio({ t }: { t: Translator }): ReactElement {
-  const [selected, setSelected] = ReactRuntime.useState<PaletteSelection>(loadPalette);
-  const [draft, setDraft] = ReactRuntime.useState(paletteColor(loadPalette()));
+interface ColorSectionProps {
+  title: string;
+  selection: PaletteSelection;
+  onChoose: (next: PaletteSelection) => void;
+  t: Translator;
+}
+
+function ColorSection({ title, selection, onChoose, t }: ColorSectionProps): ReactElement {
+  const [draft, setDraft] = ReactRuntime.useState(() => paletteColor(selection));
   const [error, setError] = ReactRuntime.useState("");
   function choose(next: PaletteSelection): void {
-    savePalette(next);
-    setSelected(next);
+    onChoose(next);
     setDraft(paletteColor(next));
     setError("");
   }
@@ -26,49 +33,52 @@ export function ThemeStudio({ t }: { t: Translator }): ReactElement {
     }
     choose(normalizePalette(draft.trim()));
   }
-  const color = paletteColor(selected);
-  return <section className="zukato-panel zukato-theme-studio">
-    <p>{t("appearance.intro")}</p>
-    <h3>{t("appearance.presets")}</h3>
-    <div className="zukato-palette">
-      {(Object.entries(PALETTES) as Array<[PaletteId, { name: string; accent: string }]>).map(([id, palette]) =>
-        <button type="button" className={selected === id ? "is-selected" : ""} key={id}
-          onClick={() => choose(id)} aria-label={`${palette.name} ${palette.accent}`}
-          aria-pressed={selected === id} title={`${palette.name} · ${palette.accent}`}>
-          <span style={{ background: palette.accent }} />{palette.name}
-        </button>)}
+  const color = paletteColor(selection);
+  const choice = (id: PaletteId) => <button type="button" className={selection === id ? "is-selected" : ""} key={id}
+    onClick={() => choose(id)} aria-label={`${title}: ${PALETTES[id].name} ${PALETTES[id].accent}`}
+    aria-pressed={selection === id} title={`${PALETTES[id].name} · ${PALETTES[id].accent}`}>
+    <span style={{ background: PALETTES[id].accent }} />{PALETTES[id].name}
+  </button>;
+  return <section className="zukato-theme-studio__section" aria-label={title}>
+    <div className="zukato-theme-studio__heading">
+      <h3>{title}</h3>
+      <span><i style={{ background: color }} />{selection.startsWith("#") ? color : PALETTES[selection as PaletteId].name}</span>
     </div>
-    <h3>{t("appearance.custom")}</h3>
-    <div className="zukato-custom-color">
-      <label>{t("appearance.picker")}
-        <input type="color" value={/^#[\da-fA-F]{6}$/.test(draft) ? draft : color}
-          onChange={(event) => setDraft(event.currentTarget.value)} />
-      </label>
-      <label>{t("appearance.hex")}
-        <input type="text" maxLength={7} placeholder="#1ed760" value={draft}
-          onChange={(event) => setDraft(event.currentTarget.value)} />
-      </label>
-      <button type="button" onClick={saveHex}>{t("appearance.apply")}</button>
-    </div>
-    {error && <p role="alert" className="zukato-error">{error}</p>}
-    {/* Die Vorschau entspricht den tatsächlichen Workspace-Elementen statt
-        nur einem farbigen Rahmen. Sie ist absichtlich rein dekorativ. */}
-    <div className="zukato-theme-preview zukato-theme-preview--live" style={{ borderColor: color }}>
-      <div className="zukato-theme-preview__caption">
-        <span className="zukato-theme-preview__dot" style={{ background: color }} />
-        <span>{t("appearance.current")} <strong>{selected.startsWith("#") ? color : PALETTES[selected as PaletteId].name}</strong> ({color})</span>
+    <div className="zukato-palette zukato-palette--featured">{FEATURED.map(choice)}</div>
+    <details className="zukato-theme-studio__more">
+      <summary>{t("appearance.more")}</summary>
+      <div className="zukato-palette zukato-palette--more">
+        {(Object.keys(PALETTES) as PaletteId[]).filter((id) => !FEATURED.includes(id)).map(choice)}
       </div>
-      <div className="zukato-theme-preview__example" aria-hidden="true">
-        <div className="zukato-theme-preview__example-heading">
-          <span className="zukato-theme-preview__example-disc" style={{ background: color }}>♫</span>
-          <div><strong>ZuKaTo</strong><small>Music Workspace</small></div>
-        </div>
-        <div className="zukato-theme-preview__example-bars">
-          {[46, 75, 59, 92, 65, 38, 71, 53, 88, 42, 61, 77].map((value, index) =>
-            <span key={index} style={{ background: color, height: `${value}%` }} />)}
-        </div>
-        <div className="zukato-theme-preview__example-button" style={{ background: color, color: "#111" }}>♫</div>
+      <div className="zukato-custom-color">
+        <label>{t("appearance.picker")}
+          <input type="color" value={/^#[\da-fA-F]{6}$/.test(draft) ? draft : color}
+            onChange={(event) => setDraft(event.currentTarget.value)} />
+        </label>
+        <label>{t("appearance.hex")}
+          <input type="text" maxLength={7} placeholder="#1ed760" value={draft}
+            onChange={(event) => setDraft(event.currentTarget.value)} />
+        </label>
+        <button type="button" onClick={saveHex}>{t("appearance.apply")}</button>
       </div>
-    </div>
+      {error && <p role="alert" className="zukato-error">{error}</p>}
+    </details>
   </section>;
+}
+
+export function ThemeStudio({ t }: { t: Translator }): ReactElement {
+  const [background, setBackground] = ReactRuntime.useState<PaletteSelection>(loadBackgroundPalette);
+  const [controls, setControls] = ReactRuntime.useState<PaletteSelection>(loadPalette);
+  function chooseBackground(next: PaletteSelection): void {
+    saveBackgroundPalette(next);
+    setBackground(next);
+  }
+  function chooseControls(next: PaletteSelection): void {
+    savePalette(next);
+    setControls(next);
+  }
+  return <div className="zukato-theme-studio">
+    <ColorSection title={t("appearance.background")} selection={background} onChoose={chooseBackground} t={t} />
+    <ColorSection title={t("appearance.controls")} selection={controls} onChoose={chooseControls} t={t} />
+  </div>;
 }

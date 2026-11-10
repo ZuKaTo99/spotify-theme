@@ -80,7 +80,12 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
   const callback = ReactRuntime.useRef(onError);
   callback.current = onError;
   ReactRuntime.useEffect(() => {
-    const moved = (): void => setHostRevision((previous) => previous + 1);
+    const moved = (): void => {
+      // Jedes Document erzeugt einen neuen sandboxed Frame. Beim Rückweg
+      // muss auch der Projekt-Init-Gate wieder einen Transfer erlauben.
+      frameGate.current = new WallpaperFrameGate();
+      setHostRevision((previous) => previous + 1);
+    };
     window.addEventListener(VISUALIZER_HOST_CHANGED_EVENT, moved);
     return () => window.removeEventListener(VISUALIZER_HOST_CHANGED_EVENT, moved);
   }, []);

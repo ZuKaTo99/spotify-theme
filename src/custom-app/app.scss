@@ -568,8 +568,8 @@
  * ============================================================================= */
 .zukato-app {
   --zukato-radius: 18px;
-  --zukato-surface: color-mix(in srgb, var(--spice-main, #16171b) 93%, #ffffff 7%);
-  --zukato-surface-raised: color-mix(in srgb, var(--spice-main, #16171b) 87%, #ffffff 13%);
+  --zukato-surface: color-mix(in srgb, var(--spice-main, #16171b) 84%, transparent);
+  --zukato-surface-raised: color-mix(in srgb, var(--spice-main, #16171b) 88%, transparent);
   --zukato-muted: var(--spice-subtext, #a8aab0);
   --zukato-hairline: rgba(255,255,255,.095);
   --zukato-gradient: linear-gradient(135deg, color-mix(in srgb, var(--zukato-accent) 14%, transparent), transparent 68%);
@@ -593,6 +593,11 @@
   /* Eine Zeile für Identität und Schnellaktion; die Modulinhalte folgen direkt. */
   &__header { display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 10px 18px; margin: 0 0 12px; padding: 0 4px; }
+  &__header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  &__colors { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px;
+    background: #ffffff12; border-color: #ffffff3b; font-weight: 700; }
+  &__color-dot { width: 15px; height: 15px; flex: none; border-radius: 50%;
+    box-shadow: 0 0 0 2px #ffffff36, 0 0 14px currentColor; }
   &__identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; min-width: 0; }
   &__label { color: var(--zukato-accent); font-size: 10px; font-weight: 750;
     letter-spacing: .11em; text-transform: uppercase; }
@@ -1255,11 +1260,12 @@
 }
 
 .zukato-app.zukato-now-dock {
+  --zukato-accent: var(--zukato-control-accent, #a78bfa);
   position: fixed; right: 12px; bottom: 108px; z-index: 10050;
-  width: min(408px, calc(100vw - 24px)); height: clamp(280px, calc(100vh - 600px), 470px);
-  min-height: 260px; padding: 10px; margin: 0; box-sizing: border-box;
+  width: min(408px, calc(100vw - 24px)); height: clamp(340px, calc(100vh - 500px), 520px);
+  min-height: 300px; padding: 10px; margin: 0; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 9px; overflow: hidden;
-  color: #fff; background: #11131b; border: 1px solid #383d4a; border-radius: 15px;
+  color: #fff; background: #11131b; border: 1px solid var(--zukato-world-accent, #8da2ff); border-radius: 15px;
   box-shadow: 0 14px 35px rgba(0,0,0,.55);
   .zukato-now-dock__media { flex: 1; min-height: 0; position: relative; display: grid;
     place-items: center; overflow: hidden; border-radius: 9px; background: #292b32; }
@@ -1284,21 +1290,46 @@
   .zukato-now-dock__progress { display: flex; align-items: center; gap: 8px;
     font-size: 11px; color: #b9bdc8; font-variant-numeric: tabular-nums; }
   .zukato-now-dock__progress input[type="range"] { flex: 1; min-width: 0; width: 100%;
-    height: 14px; padding: 0; border: 0; background: transparent; accent-color: #df1620; cursor: pointer; }
+    height: 14px; padding: 0; border: 0; background: transparent; accent-color: var(--zukato-control-accent, #8da2ff); cursor: pointer; }
   .zukato-now-dock__progress input[type="range"]:disabled { cursor: default; }
   .zukato-now-dock__transport { display: flex; justify-content: center; align-items: center; gap: 12px; }
   .zukato-now-dock__transport > button { width: 33px; height: 33px; padding: 0;
     border: 0; background: transparent; color: #adb4c4; font-size: 22px; cursor: pointer; }
-  .zukato-now-dock__transport > button.is-active { color: #75bdff; }
+  .zukato-now-dock__transport > button.is-active { color: var(--zukato-control-accent, #8da2ff); }
   .zukato-player-monitor__buttons { justify-content: center; padding: 0; }
   .zukato-player-monitor__control { width: 36px; height: 36px; }
   .zukato-player-monitor__control--primary { width: 42px; height: 42px; }
+  .zukato-player-monitor__control--primary { border-color: var(--zukato-control-accent, #8da2ff);
+    background: linear-gradient(135deg,color-mix(in srgb, var(--zukato-control-accent, #8da2ff) 52%, white),
+      var(--zukato-control-accent, #8da2ff)); }
+  .zukato-now-dock__views { display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 4px; padding: 3px; border: 1px solid #354966; border-radius: 10px; background: #0a1220; }
+  .zukato-now-dock__views button { min-height: 28px; padding: 4px 8px; border: 0;
+    border-radius: 7px; background: transparent; color: #b9cce2; font-size: 11px; }
+  .zukato-now-dock__views button[aria-pressed="true"] { background: color-mix(in srgb, var(--zukato-control-accent, #8da2ff) 32%, #14223d);
+    color: #fff; box-shadow: inset 0 1px 0 #ffffff29; }
   .zukato-now-dock__actions { display: flex; gap: 7px; }
   .zukato-now-dock__actions button { flex: 1; padding: 6px 8px; font-size: 11px; }
 }
 
+/* Eigener Platz in Spotifys rechter Leiste statt einer Überlagerung. */
+.zukato-now-dock-host {
+  position: sticky; top: 0; z-index: 20; width: 100%; flex: none;
+  padding: 8px 11px 11px; box-sizing: border-box;
+  background: linear-gradient(180deg, #10131c 88%, #10131cf0);
+}
+.zukato-now-dock-host > .zukato-app.zukato-now-dock {
+  position: relative; right: auto; bottom: auto; width: 100%;
+  height: clamp(390px, 47vh, 500px); min-height: 0;
+}
+.zukato-now-dock-host--floating {
+  position: fixed; right: 12px; bottom: 108px; top: auto; z-index: 10050;
+  width: min(408px, calc(100vw - 24px)); padding: 0; background: transparent;
+}
+
 /* Die Bühne bleibt auch bei schmaler Spotify-Mittelspalte der Blickfang. */
 .zukato-app {
+  .zukato-dashboard { container-type: inline-size; }
   .zukato-dashboard__now {
     display: grid; grid-template-columns: 76px minmax(0,1fr);
     grid-template-rows: auto auto auto auto; align-content: start;
@@ -1332,9 +1363,204 @@
   .zukato-viz__transport > button:focus-visible { outline: 2px solid #71c8ff; }
 }
 
+/* Dashboard-Atmosphäre: tiefe Farbräume, Lichtkanten und dezente Textur. */
+main.zukato-app.zukato-app--dashboard {
+  background:
+    radial-gradient(ellipse 90% 450px at 38% -60px,
+      color-mix(in srgb, var(--zukato-accent) 25%, transparent), transparent 77%),
+    radial-gradient(ellipse 75% 540px at 104% 47%, rgba(24,119,154,.31), transparent 76%),
+    radial-gradient(ellipse 95% 580px at -18% 95%, rgba(105,45,141,.28), transparent 75%),
+    repeating-linear-gradient(125deg, rgba(255,255,255,.018) 0 1px, transparent 1px 30px),
+    linear-gradient(155deg, #17131d 0%, #0b1020 47%, #17121d 100%);
+  box-shadow: inset 0 1px 0 #ffffff12;
+
+  .zukato-app__header {
+    position: relative; overflow: hidden; padding: 16px 18px;
+    border: 1px solid #ffffff24; border-radius: 20px;
+    background: radial-gradient(circle at 93% 18%,
+      color-mix(in srgb, var(--zukato-accent) 23%, transparent), transparent 42%),
+      linear-gradient(120deg, #211925e8, #111927df);
+    box-shadow: inset 0 1px 0 #ffffff16, 0 18px 36px #0004;
+  }
+  .zukato-app__header::after {
+    content: ""; position: absolute; inset: auto 0 0; height: 1px;
+    background: linear-gradient(90deg, transparent,
+      color-mix(in srgb, var(--zukato-accent) 75%, #fff), transparent);
+  }
+  .zukato-dashboard__shortcuts,
+  .zukato-dashboard__artist-deck,
+  .zukato-dashboard__card {
+    border-color: #ffffff24;
+    box-shadow: inset 0 1px 0 #ffffff0f, 0 18px 38px #0005;
+    backdrop-filter: blur(14px);
+  }
+  .zukato-dashboard__shortcuts,
+  .zukato-dashboard__artist-deck { background: linear-gradient(145deg,#1e2130e8,#111725e8); }
+  .zukato-dashboard__stats > div {
+    background: linear-gradient(145deg,#232536e8,#131927e8);
+    border-color: #ffffff24;
+  }
+  .zukato-dashboard__now {
+    box-shadow: inset 0 1px 0 #ffffff19, 0 24px 52px #0007,
+      0 0 42px color-mix(in srgb, var(--zukato-accent) 10%, transparent);
+  }
+}
+
+/* Die häufigsten Farbwelten sind sofort sichtbar; zusätzliche Farben bleiben optional. */
+.zukato-app .zukato-theme-studio {
+  max-width: 1100px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
+  align-items: start; gap: 13px; padding: 0; border: 0; background: none;
+  .zukato-theme-studio__section { min-width: 0; padding: clamp(16px, 2vw, 24px);
+    border: 1px solid var(--zukato-border); border-radius: 22px;
+    background: linear-gradient(130deg,#111a32d8,#17152ed0);
+    backdrop-filter: blur(18px); }
+  .zukato-theme-studio__heading { display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .zukato-theme-studio__heading h3 { margin: 0; }
+  .zukato-theme-studio__heading > span { display: inline-flex; align-items: center;
+    gap: 8px; font-size: 12px; color: #e0e8ff; }
+  .zukato-theme-studio__heading i { width: 11px; height: 11px; border-radius: 50%; }
+  .zukato-palette--featured { display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+  .zukato-palette--featured button { min-height: 73px; flex-direction: column;
+    justify-content: center; gap: 7px; background: #ffffff0b; }
+  .zukato-palette--featured button span { width: 29px; height: 29px;
+    box-shadow: 0 0 20px currentColor; }
+  .zukato-palette button.is-selected { border-color: var(--zukato-accent);
+    background: color-mix(in srgb, var(--zukato-accent) 15%, #11182b); }
+  .zukato-theme-studio__more { border-top: 1px solid #ffffff25;
+    margin-top: 14px; padding-top: 12px; }
+  .zukato-theme-studio__more summary { cursor: pointer; font-weight: 700; }
+  .zukato-palette--more { margin: 14px 0; }
+  .zukato-palette--more { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  @media (max-width: 900px) { grid-template-columns: minmax(0,1fr); }
+  @media (max-width: 440px) { .zukato-palette--featured { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+}
+
+/* Der Hörverlauf wird als Landschaft und abspielbare Titelspur lesbar. */
+main.zukato-app.zukato-app--dashboard {
+  .zukato-dashboard__activity.zukato-dashboard__card {
+    position: relative; overflow: hidden; min-height: 300px;
+    border-color: #8c68c34a; border-radius: 24px;
+    background: radial-gradient(ellipse 60% 180px at 75% 18%,#703c9066,transparent 84%),
+      linear-gradient(155deg,#191b31,#111a2c 64%,#17121f);
+    box-shadow: inset 0 1px 0 #ffffff26,0 20px 40px #0007;
+  }
+  .zukato-dashboard__activity::before {
+    content: ""; position: absolute; top: -95px; right: -50px;
+    width: 280px; height: 280px; border: 1px solid #ffffff16;
+    border-radius: 50%; box-shadow: 0 0 0 27px #ffffff07,0 0 0 66px #ffffff04;
+    pointer-events: none;
+  }
+  .zukato-dashboard__activity .zukato-dashboard__section-header { position: relative; z-index: 1; }
+  .zukato-dashboard__activity .zukato-dashboard__section-header h3 {
+    font-size: 17px; letter-spacing: -.025em;
+  }
+  .zukato-dashboard__activity .zukato-dashboard__section-header button,
+  .zukato-dashboard__recent[data-view="reel"] .zukato-dashboard__section-header button {
+    color: #e8ddff; font-weight: 650;
+  }
+  .zukato-landscape {
+    position: relative; height: 216px; padding: 6px 0 0;
+    background: repeating-linear-gradient(90deg,transparent 0 calc(14.285% - 1px),
+      #ffffff12 calc(14.285% - 1px) 14.285%);
+  }
+  .zukato-landscape::before {
+    content: ""; position: absolute; inset: 16px 0 38px;
+    background: repeating-linear-gradient(0deg,transparent 0 39px,#ffffff13 39px 40px);
+    pointer-events: none;
+  }
+  .zukato-landscape svg {
+    position: relative; z-index: 1; display: block; width: 100%; height: 176px;
+    overflow: visible;
+  }
+  .zukato-landscape__line {
+    fill: none; stroke: url(#zukato-landscape-line); stroke-width: 3;
+    stroke-linecap: round; vector-effect: non-scaling-stroke;
+    filter: drop-shadow(0 0 7px #a966ff);
+  }
+  .zukato-landscape__point {
+    fill: #fff; stroke: #ed547e; stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+    filter: drop-shadow(0 0 7px #ff527c);
+  }
+  .zukato-landscape__days {
+    position: relative; z-index: 2; display: grid;
+    grid-template-columns: repeat(7,minmax(0,1fr)); gap: 3px;
+  }
+  .zukato-landscape__days > div {
+    display: grid; gap: 0; justify-items: center;
+    font-size: 11px; font-variant-numeric: tabular-nums;
+  }
+  .zukato-landscape__days strong { color: #f4d7ed; font-size: 12px; }
+  .zukato-landscape__days span { color: #abb9d3; }
+  .zukato-dashboard__recent[data-view="reel"] {
+    min-width: 0; overflow: hidden; border-radius: 24px;
+    background: linear-gradient(155deg,#1b1d32,#131825);
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track-list {
+    display: flex; gap: 10px; overflow-x: auto; padding: 0 0 10px;
+    counter-reset: track-reel; scroll-snap-type: x mandatory;
+    scrollbar-color: #78729b #151b2a; scrollbar-width: thin;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track {
+    position: relative; flex: 0 0 clamp(174px,35%,220px);
+    display: flex; flex-direction: column; align-items: flex-start;
+    justify-content: flex-end; gap: 12px; min-height: 194px;
+    overflow: hidden; padding: 16px; scroll-snap-align: start;
+    counter-increment: track-reel;
+    border: 1px solid #ffffff2b; border-radius: 17px;
+    background: radial-gradient(circle at 87% 10%,#ef527677,transparent 56%),
+      linear-gradient(145deg,#30243b,#1c2239);
+    box-shadow: inset 0 1px 0 #ffffff24;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track:nth-child(3n + 2) {
+    background: radial-gradient(circle at 87% 10%,#56a9d077,transparent 56%),
+      linear-gradient(145deg,#20374a,#192134);
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track:nth-child(3n + 3) {
+    background: radial-gradient(circle at 87% 10%,#b28af177,transparent 56%),
+      linear-gradient(145deg,#2b254a,#1a1e35);
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track::before {
+    content: counter(track-reel,decimal-leading-zero);
+    position: absolute; top: -33px; right: 10px;
+    color: #ffffff13; font-size: 107px; font-weight: 900;
+    letter-spacing: -.12em; pointer-events: none;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track::after {
+    content: ""; position: absolute; left: 14px; top: 15px;
+    width: 70px; height: 23px;
+    background: repeating-linear-gradient(90deg,#ffffffad 0 2px,transparent 2px 7px);
+    mask-image: linear-gradient(0deg,transparent,#000 50%,transparent);
+    opacity: .55; pointer-events: none;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track__info {
+    position: relative; z-index: 1; flex: 0 0 auto; width: 100%;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track__info strong {
+    display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; font-size: 14px; line-height: 1.2;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track__info span {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track__actions {
+    position: relative; z-index: 1; width: 100%;
+  }
+  .zukato-dashboard__recent[data-view="reel"] .zukato-track__actions button {
+    display: grid; place-items: center; width: 37px; height: 37px;
+    border-radius: 50%; background: #f7f3ff; color: #131528;
+    box-shadow: 0 5px 18px #0007;
+  }
+}
+
 /* Die Hauptfläche erhält eine feste, kurze Navigation. Die Modulliste liegt
    darüber und nimmt der aktuellen Seite beim Öffnen keinen Platz weg. */
 .zukato-app:not(.zukato-now-dock) {
+  /* Spotifys transparente, feststehende Topbar liegt über dem Custom-App-Scrollbereich.
+     Der erste Inhalt beginnt deshalb erst darunter, auch bei Scrollposition 0. */
+  padding-top: clamp(64px, 4vw, 80px);
   background:
     radial-gradient(ellipse 55% 340px at 80% -80px, color-mix(in srgb, var(--zukato-accent) 12%, transparent), transparent),
     radial-gradient(ellipse 45% 300px at -12% 42%, rgba(82,120,210,.06), transparent);
@@ -1565,4 +1791,497 @@
 @keyframes zukato-pulse {
   from { height: 3px; }
   to { height: 14px; }
+}
+
+/* Musik zuerst: große Cover-Bühne und grafische Rangliste ohne zusätzliche Einstellungen. */
+.zukato-app {
+  .zukato-dashboard__now {
+    min-height: 292px;
+    grid-template-columns: clamp(145px, 26%, 190px) minmax(0,1fr);
+    gap: 12px 24px;
+    background-blend-mode: normal;
+  }
+  .zukato-dashboard__now::after {
+    content: ""; position: absolute; right: -7%; top: 12%; width: 48%; height: 80%;
+    z-index: -1; pointer-events: none; opacity: .25;
+    background: repeating-linear-gradient(90deg, transparent 0 12px,
+      color-mix(in srgb, var(--zukato-accent) 85%, #fff) 12px 15px, transparent 15px 22px);
+    mask-image: radial-gradient(ellipse at center, #000 12%, transparent 71%);
+    transform: skewY(-9deg);
+  }
+  .zukato-dashboard__cover {
+    position: relative; overflow: visible; z-index: 1;
+    border-radius: 20px; transform: rotate(-3deg);
+    box-shadow: 0 24px 55px #0009, 0 0 0 1px #ffffff55;
+  }
+  .zukato-dashboard__cover::before {
+    content: ""; position: absolute; inset: -12%; z-index: -1; border-radius: 50%;
+    background: repeating-radial-gradient(circle, #171923 0 6px, #373943 7px 8px, #11131c 9px 14px);
+    box-shadow: 0 0 0 1px #ffffff2b, 0 20px 38px #0008;
+  }
+  .zukato-dashboard__cover img { box-shadow: 0 10px 24px #0008; }
+  .zukato-dashboard__now-details h3 { font-size: clamp(24px, 2.7vw, 37px); }
+  .zukato-dashboard__shortcut-grid { gap: 9px; }
+  .zukato-dashboard__shortcut {
+    position: relative; overflow: hidden; isolation: isolate;
+    min-height: 87px; padding: 12px; align-content: space-between;
+    grid-template-columns: 1fr auto; grid-template-rows: 1fr auto;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--zukato-accent) 17%, #243249), #171d2b);
+  }
+  .zukato-dashboard__shortcut:nth-child(2) { background: linear-gradient(145deg,#302343,#171c2c); }
+  .zukato-dashboard__shortcut:nth-child(3) { background: linear-gradient(145deg,#193e4c,#17202c); }
+  .zukato-dashboard__shortcut:nth-child(4) { background: linear-gradient(145deg,#373023,#191d29); }
+  .zukato-dashboard__shortcut::before {
+    content: ""; position: absolute; z-index: -1; width: 95px; height: 95px;
+    top: -45px; right: -28px; border: 1px solid #ffffff30; border-radius: 50%;
+    box-shadow: 0 0 0 16px #ffffff0a, 0 0 0 32px #ffffff07;
+    transition: transform .25s ease;
+  }
+  .zukato-dashboard__shortcut:hover::before { transform: translate(-12px, 12px) scale(1.1); }
+  .zukato-dashboard__shortcut-icon { grid-column: 1; grid-row: 1; width: 34px; height: 34px;
+    display: grid; place-items: center; border: 1px solid #ffffff35; border-radius: 11px;
+    background: #ffffff14; color: #fff; font-size: 21px; }
+  .zukato-dashboard__shortcut strong { grid-column: 1 / -1; grid-row: 2; font-size: 12px; }
+  .zukato-dashboard__artist-deck { min-width: 0; padding: 14px;
+    border: 1px solid var(--zukato-hairline); border-radius: var(--zukato-radius);
+    background: linear-gradient(145deg,#1b1e2b,#13151e); }
+  .zukato-dashboard__artist-deck-heading { display: flex; align-items: baseline;
+    justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .zukato-dashboard__artist-deck-heading h3 { margin: 0; font-size: 14px; }
+  .zukato-dashboard__artist-deck-heading span { color: var(--zukato-muted); font-size: 11px; }
+  .zukato-dashboard__artist-deck-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+  .zukato-dashboard__artist-tile { position: relative; min-width: 0; min-height: 82px;
+    display: flex; flex-direction: column; justify-content: end; gap: 4px; overflow: hidden;
+    padding: 10px 12px; border: 1px solid #ffffff24; border-radius: 12px;
+    background: radial-gradient(circle at 92% 10%, #c12b4770, transparent 58%), #292132; }
+  .zukato-dashboard__artist-tile:nth-child(2) { background: radial-gradient(circle at 92% 10%, #219cc475, transparent 58%), #1b2b37; }
+  .zukato-dashboard__artist-tile:nth-child(3) { background: radial-gradient(circle at 92% 10%, #b1883675, transparent 58%), #302b20; }
+  .zukato-dashboard__artist-rank { position: absolute; top: -17px; right: 6px;
+    color: #ffffff12; font-size: 83px; font-weight: 900; line-height: 1; letter-spacing: -.1em; }
+  .zukato-dashboard__artist-tile strong { z-index: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .zukato-dashboard__artist-tile small { z-index: 1; color: #d4d9e1; font-size: 11px; }
+  @container (max-width: 520px) {
+    .zukato-dashboard__now { grid-template-columns: 104px minmax(0,1fr); min-height: 230px; gap: 7px 13px; }
+    .zukato-dashboard__now-details h3 { font-size: 22px; }
+    .zukato-dashboard__shortcut-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  }
+  @container (max-width: 380px) {
+    .zukato-dashboard__artist-deck-grid { grid-template-columns: minmax(0,1fr); }
+    .zukato-dashboard__artist-tile { min-height: 52px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .zukato-dashboard__shortcut::before { transition: none; }
+  }
+}
+
+/* Die Startseite bekommt eine eigene, vom laufenden Cover getragene Musikbühne. */
+main.zukato-app.zukato-app--dashboard {
+  .zukato-dashboard__now[data-layout="orbit"] {
+    position: relative; isolation: isolate; display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(210px,43%);
+    align-items: center; gap: 10px; min-height: 390px;
+    padding: 26px 28px; overflow: hidden; border-radius: 27px;
+    border: 1px solid #ffffff2e;
+    background: linear-gradient(135deg,#111728,#10141e 56%,#1c1320);
+    box-shadow: inset 0 1px 0 #ffffff33, 0 24px 58px #0009,
+      0 0 0 1px color-mix(in srgb, var(--zukato-accent) 12%, transparent);
+  }
+  .zukato-dashboard__now[data-layout="orbit"]::before {
+    content: ""; position: absolute; z-index: 1; inset: -30% -50%;
+    pointer-events: none; border: 0;
+    background: radial-gradient(ellipse 20% 52% at 50% 50%,
+      color-mix(in srgb,var(--zukato-world-accent) 30%,#d9eeff 16%),
+      transparent 78%);
+    filter: blur(20px); mix-blend-mode: screen;
+    animation: zukato-hero-glint 10s ease-in-out infinite;
+  }
+  .zukato-dashboard__now[data-layout="orbit"]::after { content: none; }
+  .zukato-dashboard__art-backdrop {
+    position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none;
+    background: radial-gradient(circle at 79% 45%, #7c4a76a8, transparent 48%),
+      radial-gradient(circle at 10% 90%, #a8294c80, transparent 55%);
+  }
+  .zukato-dashboard__art-backdrop img {
+    width: 100%; height: 100%; object-fit: cover; opacity: .68;
+    filter: blur(42px) saturate(2) brightness(1.18); transform: scale(1.25);
+    animation: zukato-cover-drift 14s ease-in-out infinite alternate;
+  }
+  .zukato-dashboard__art-backdrop::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg,#0a1021bf 0%,#10172572 50%,#0d12225e 100%),
+      radial-gradient(circle at 70% 52%, transparent 0 20%,#0a10208c 80%);
+  }
+  .zukato-dashboard__rhythm {
+    position: absolute; inset: auto 0 0; z-index: 0; height: 115px;
+    display: flex; justify-content: space-around; align-items: end;
+    gap: 4px; padding: 0 12px; opacity: .35; pointer-events: none;
+    mask-image: linear-gradient(to top,#000,transparent 95%);
+  }
+  .zukato-dashboard__rhythm i {
+    display: block; flex: 1; max-width: 6px; border-radius: 6px 6px 0 0;
+    background: linear-gradient(to top, var(--zukato-accent), color-mix(in srgb, var(--zukato-accent) 65%, white) 58%,#7acbff);
+    transform-origin: bottom; box-shadow: 0 0 15px #b9497c55;
+  }
+  .zukato-dashboard__now.is-playing .zukato-dashboard__rhythm i {
+    animation: zukato-rhythm 1.8s ease-in-out infinite alternate;
+  }
+  .zukato-dashboard__now-copy {
+    position: relative; z-index: 2; min-width: 0; min-height: 328px;
+    display: flex; flex-direction: column; align-items: flex-start;
+  }
+  .zukato-dashboard__now-copy .zukato-eyebrow {
+    margin: 0; padding: 6px 10px; border: 1px solid #ffffff31;
+    border-radius: 999px; background: #101829a6; color: #ffc7cf;
+    letter-spacing: .16em; font-size: 10px;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__now-details {
+    width: 100%; min-height: 0; margin: auto 0 21px; padding: 28px 0 0;
+    grid-column: auto; grid-row: auto; align-self: auto;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__now-details h3 {
+    max-width: 100%; margin: 0 0 10px; color: #fff;
+    font-size: clamp(31px, 5.2cqw, 56px); line-height: .98;
+    letter-spacing: -.055em; text-shadow: 0 7px 24px #0009;
+    overflow-wrap: anywhere;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__now-details p {
+    margin: 0; color: #e5e9f5; font-size: 17px; font-weight: 600;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__now-details small {
+    display: block; margin-top: 5px; color: #b7c3d6; font-size: 11px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__controls {
+    display: flex; align-items: center; gap: 7px; width: 100%;
+    margin: 0 0 23px; grid-column: auto; grid-row: auto;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__control {
+    width: 39px; height: 39px; min-height: 39px; flex: none;
+    display: grid; place-items: center; padding: 0;
+    border: 1px solid #ffffff40; border-radius: 50%;
+    background: #17243dc7; color: #eff6ff; font-size: 18px;
+    box-shadow: inset 0 1px 0 #ffffff2c, 0 8px 18px #0006;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__control:hover:not(:disabled) {
+    transform: translateY(-3px); border-color: #b8dbff;
+    background: #29466a; box-shadow: 0 12px 24px #0008;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__control--play {
+    width: 55px; height: 55px; min-height: 55px;
+    border-color: #d5f0ff; background: linear-gradient(145deg,#9de7ff,#499bea 65%,#6754da);
+    color: #071326; font-size: 24px;
+    box-shadow: inset 0 1px 0 #ffffff99, 0 0 30px #4d8ef9a8;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__control--favorite[aria-pressed="true"] {
+    color: #ffb6c1; border-color: #ef657d;
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__control--visualizer { margin-left: auto; }
+  .zukato-dashboard__now-copy .zukato-dashboard__timeline {
+    width: 100%; margin: 0; grid-column: auto; grid-row: auto;
+  }
+  .zukato-dashboard__seek {
+    appearance: none; display: block; width: 100%; height: 6px;
+    min-height: 6px; margin: 0; padding: 0; border: 0; border-radius: 999px;
+    cursor: pointer; outline-offset: 5px;
+    background: linear-gradient(90deg,#ff586d 0 var(--zukato-progress),
+      #ffffff52 var(--zukato-progress) 100%);
+  }
+  .zukato-dashboard__seek::-webkit-slider-thumb {
+    appearance: none; width: 15px; height: 15px; border: 2px solid #fff;
+    border-radius: 50%; background: var(--zukato-accent); box-shadow: 0 0 14px var(--zukato-accent);
+  }
+  .zukato-dashboard__seek::-moz-range-thumb {
+    width: 13px; height: 13px; border: 2px solid #fff;
+    border-radius: 50%; background: var(--zukato-accent);
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__times {
+    display: flex; justify-content: space-between; margin-top: 10px;
+    color: #d1d9e8; font-size: 11px; font-variant-numeric: tabular-nums;
+  }
+  .zukato-dashboard__orbit {
+    position: relative; z-index: 2; grid-column: 2; grid-row: 1;
+    width: 100%; max-width: 320px; aspect-ratio: 1; justify-self: end;
+    display: grid; place-items: center;
+    filter: drop-shadow(0 28px 28px #000a);
+  }
+  .zukato-dashboard__orbit::before {
+    content: ""; position: absolute; inset: 7%; border-radius: 50%;
+    background: repeating-radial-gradient(circle,#141827 0 7px,#303447 8px 9px,#0b1020 10px 16px);
+    box-shadow: inset 0 0 30px #000b, 0 0 0 1px #ffffff38, 0 0 50px #5e65b766;
+  }
+  .zukato-dashboard__orbit-halo {
+    position: absolute; inset: -3%; border-radius: 50%;
+    border: 1px solid #ffffff54;
+    background: conic-gradient(from 20deg,transparent 0 16%,#78c8ff73 19%,transparent 26% 49%,
+      #f74b6c7a 52%,transparent 61% 84%,#aa8dff7a 88%,transparent 94%);
+    mask: radial-gradient(circle, transparent 69%,#000 70% 72%,transparent 74%);
+  }
+  .zukato-dashboard__now.is-playing .zukato-dashboard__orbit-halo {
+    animation: zukato-orbit-spin 18s linear infinite;
+  }
+  .zukato-dashboard__orbit-progress {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    transform: rotate(-90deg); overflow: visible;
+  }
+  .zukato-dashboard__orbit-progress circle { fill: none; stroke-width: 5; }
+  .zukato-dashboard__orbit-track { stroke: #ffffff36; }
+  .zukato-dashboard__orbit-value {
+    stroke: url(#zukato-dashboard-orbit-gradient); stroke-linecap: round;
+    filter: drop-shadow(0 0 6px #ff4267);
+    transition: stroke-dasharray .45s ease;
+  }
+  .zukato-dashboard__orbit .zukato-dashboard__cover {
+    position: absolute; inset: 18%; width: auto; height: auto;
+    aspect-ratio: 1; margin: 0; overflow: hidden; transform: none;
+    border: 4px solid #ffffff69; border-radius: 50%;
+    box-shadow: inset 0 0 26px #0008,0 16px 36px #000a;
+  }
+  .zukato-dashboard__orbit .zukato-dashboard__cover::before { content: none; }
+  .zukato-dashboard__orbit .zukato-dashboard__cover img { border-radius: 50%; }
+  .zukato-dashboard__orbit-dot {
+    position: absolute; top: 3%; left: 50%; width: 11px; height: 11px;
+    transform: translateX(-50%); border-radius: 50%; background: #fff;
+    box-shadow: 0 0 0 4px #f4436780,0 0 20px #f44367;
+  }
+  @container (max-width: 560px) {
+    .zukato-dashboard__now[data-layout="orbit"] {
+      grid-template-columns: minmax(0,1fr) 38%; min-height: 360px;
+      padding: 20px; gap: 0;
+    }
+    .zukato-dashboard__now-copy { min-height: 320px; }
+    .zukato-dashboard__now-copy .zukato-dashboard__now-details h3 { font-size: 30px; }
+    .zukato-dashboard__orbit { width: 120%; max-width: none; margin-right: -25%; }
+  }
+  @container (max-width: 430px) {
+    .zukato-dashboard__now[data-layout="orbit"] { grid-template-columns: minmax(0,1fr); min-height: 430px; }
+    .zukato-dashboard__orbit { position: absolute; top: 32px; right: -22px;
+      width: 190px; opacity: .72; }
+    .zukato-dashboard__now-copy { min-height: 385px; width: 100%; }
+    .zukato-dashboard__now-copy .zukato-dashboard__now-details { max-width: 62%; }
+    .zukato-dashboard__now-copy .zukato-dashboard__controls { margin-top: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .zukato-dashboard__rhythm i,
+    .zukato-dashboard__orbit-halo { animation: none!important; }
+    .zukato-dashboard__orbit-value { transition: none; }
+  }
+}
+@keyframes zukato-orbit-spin { to { transform: rotate(360deg); } }
+@keyframes zukato-rhythm {
+  from { transform: scaleY(.5); opacity: .65; }
+  to { transform: scaleY(1.2); opacity: 1; }
+}
+
+/* Ein zusammenhängender, vom aktuellen Cover geprägter Raum statt einzelner
+   Karten auf einer schwarzen Fläche. Die Bildschicht ist rein dekorativ. */
+main.zukato-app.zukato-app--dashboard {
+  background: linear-gradient(180deg,#10152255 0%,#0a0d1859 70%,#100e1973 100%);
+  .spotify-toolkit-module-page__header {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .zukato-app__header {
+    border: 1px solid #ffffff45; border-radius: 18px; margin-bottom: 10px;
+    padding: 12px 16px 15px;
+    background:
+      radial-gradient(ellipse 45% 130% at 88% 18%,
+        color-mix(in srgb, var(--zukato-world-accent) 24%, transparent), transparent 100%),
+      linear-gradient(105deg,#304064e8,#273654d9 55%,#263b59e5);
+    box-shadow: inset 0 1px 0 #ffffff43, 0 12px 30px #0004;
+    backdrop-filter: blur(18px);
+  }
+  .zukato-app__header::after {
+    height: 1px;
+    background: linear-gradient(90deg,var(--zukato-accent),color-mix(in srgb, var(--zukato-accent) 48%, #7acbff) 37%,transparent 88%);
+  }
+  .zukato-app__identity::before {
+    border-radius: 12px 4px 12px 4px;
+    background: linear-gradient(140deg,color-mix(in srgb, var(--zukato-accent) 72%, white),var(--zukato-accent));
+    box-shadow: 0 0 0 1px #ffffff45,0 0 28px color-mix(in srgb, var(--zukato-accent) 45%, transparent);
+  }
+  .zukato-app__quick-action {
+    color: var(--zukato-on-accent);
+    background: linear-gradient(145deg,
+      color-mix(in srgb, var(--zukato-accent) 70%, white), var(--zukato-accent));
+    border-color: color-mix(in srgb, var(--zukato-accent) 70%, white);
+    box-shadow: inset 0 1px 0 #ffffff8a,
+      0 7px 22px color-mix(in srgb, var(--zukato-accent) 38%, transparent);
+  }
+  .zukato-app__colors {
+    color: #f8faff; background: #ffffff23; border-color: #ffffff74;
+    box-shadow: inset 0 1px 0 #ffffff32;
+  }
+  .zukato-dashboard {
+    position: relative; isolation: isolate;
+  }
+  .zukato-dashboard__ambient {
+    position: absolute; z-index: -1; top: 0; left: -24px; right: -24px;
+    height: 1100px; overflow: hidden; pointer-events: none;
+    mask-image: linear-gradient(to bottom,#000 0 45%,transparent 100%);
+    background: radial-gradient(ellipse 72% 380px at 80% 10%,#7c448a70,transparent 75%),
+      radial-gradient(ellipse 70% 400px at 8% 42%,#15569365,transparent 78%);
+    animation: zukato-ambient-drift 13s ease-in-out infinite alternate;
+  }
+  .zukato-dashboard__ambient img {
+    display: block; width: 100%; height: 640px; object-fit: cover;
+    opacity: .54; filter: blur(58px) saturate(1.7); transform: scale(1.3);
+  }
+  .zukato-dashboard__ambient::before {
+    content: ""; position: absolute; z-index: 1;
+    inset: -14% -38%;
+    background: linear-gradient(110deg,transparent 39%,
+      color-mix(in srgb,var(--zukato-world-accent) 42%,transparent) 47%,
+      #d6ecff52 50%,
+      color-mix(in srgb,var(--zukato-world-accent) 36%,transparent) 53%,
+      transparent 62%);
+    filter: blur(15px); mix-blend-mode: screen;
+    animation: zukato-dashboard-sweep 9s ease-in-out infinite;
+  }
+  .zukato-dashboard__ambient::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 85% 280px at 68% 34%,#5c4fa129,transparent 80%),
+      linear-gradient(180deg,#0b0e1a35 0%,#0b0e194d 55%,#0b0e1cb8 100%);
+  }
+  .zukato-dashboard__main { gap: 0; }
+  .zukato-dashboard__now[data-layout="orbit"] {
+    min-height: 410px; border: 0; border-radius: 28px 28px 12px 12px;
+    background: linear-gradient(100deg,#0b112073,#15152c3d);
+    box-shadow: inset 0 1px 0 #ffffff3e,0 30px 65px #0008;
+  }
+  .zukato-dashboard__shortcuts {
+    position: relative; z-index: 2; margin: -8px 12px 0; padding: 14px;
+    border: 1px solid #ffffff2d; border-radius: 0 0 23px 23px;
+    background: linear-gradient(110deg,#1a243ca8,#171727b4 58%,#1d1729ae);
+    box-shadow: inset 0 1px 0 #ffffff1d,0 18px 32px #0007;
+  }
+  .zukato-dashboard__seek {
+    background: linear-gradient(90deg,var(--zukato-accent) 0 var(--zukato-progress),
+      #ffffff52 var(--zukato-progress) 100%);
+  }
+  .zukato-dashboard__now-copy .zukato-dashboard__control--play {
+    background: linear-gradient(145deg,color-mix(in srgb, var(--zukato-accent) 52%, white),
+      var(--zukato-accent));
+    color: var(--zukato-on-accent);
+    box-shadow: inset 0 1px 0 #ffffff99,0 0 30px color-mix(in srgb, var(--zukato-accent) 56%, transparent);
+  }
+  .zukato-dashboard__orbit-halo {
+    background: conic-gradient(from 20deg,transparent 0 16%,
+      color-mix(in srgb, var(--zukato-accent) 65%, #7acbff) 19%,transparent 26% 49%,
+      var(--zukato-accent) 52%,transparent 61% 84%,
+      color-mix(in srgb, var(--zukato-accent) 60%, white) 88%,transparent 94%);
+  }
+  .zukato-dashboard__orbit-value { filter: drop-shadow(0 0 6px var(--zukato-accent)); }
+  .zukato-dashboard__orbit-dot {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--zukato-accent) 50%, transparent),
+      0 0 20px var(--zukato-accent);
+  }
+  .zukato-dashboard__shortcut-header { margin: 0 0 11px; }
+  .zukato-dashboard__shortcut-header h3 {
+    color: #e9effe; font-size: 11px; font-weight: 800;
+    letter-spacing: .15em; text-transform: uppercase;
+  }
+  .zukato-dashboard__shortcut-grid { gap: 8px; }
+  .zukato-dashboard__shortcut {
+    min-height: 78px; border: 1px solid #ffffff2b; border-radius: 14px;
+    padding: 10px 12px; background: #ffffff0b;
+    box-shadow: inset 0 1px 0 #ffffff15;
+  }
+  .zukato-dashboard__shortcut:nth-child(n) { background: #ffffff0b; }
+  .zukato-dashboard__shortcut::before {
+    top: -51px; right: -32px; width: 110px; height: 110px;
+    border-color: #ffffff48;
+  }
+  .zukato-dashboard__shortcut:hover:not(:disabled) {
+    transform: translateY(-4px); background: #ffffff1b;
+    border-color: #ffffff8a; box-shadow: 0 12px 24px #0006;
+  }
+  .zukato-dashboard__shortcut-icon {
+    width: 34px; height: 34px; font-size: 22px;
+    border-color: #ffffff50; background: #ffffff1c;
+    box-shadow: 0 0 20px #ff477a29;
+  }
+  .zukato-dashboard__shortcut strong { font-size: 12px; }
+  .zukato-dashboard__artist-deck,
+  .zukato-dashboard__card { background: #161b2ad9; }
+  .zukato-dashboard__artist-deck {
+    padding: 11px 0 3px; border: 0; border-radius: 0;
+    background: transparent; box-shadow: none; backdrop-filter: none;
+  }
+  .zukato-dashboard__artist-deck-heading h3,
+  .zukato-dashboard__stats-heading h3 {
+    color: #eef1ff; font-size: 12px; font-weight: 800;
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  .zukato-dashboard__artist-deck-grid {
+    grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px;
+  }
+  .zukato-dashboard__artist-tile {
+    min-height: 91px; padding: 13px 18px; border-radius: 17px;
+    background: linear-gradient(135deg,#251e36,#191e31 65%);
+    box-shadow: inset 0 1px 0 #ffffff27,0 12px 24px #0004;
+  }
+  .zukato-dashboard__artist-tile:first-child {
+    grid-column: 1 / -1; min-height: 145px; padding: 22px 24px;
+    background: radial-gradient(ellipse 65% 180px at 84% 32%,#dc345872,transparent 85%),
+      linear-gradient(120deg,#302039,#161d2d);
+  }
+  .zukato-dashboard__artist-tile:first-child strong {
+    max-width: 79%; font-size: clamp(22px,3.3cqw,34px);
+    line-height: 1.05; letter-spacing: -.04em;
+  }
+  .zukato-dashboard__artist-tile:first-child .zukato-dashboard__artist-rank {
+    top: -26px; right: 17px; font-size: 165px;
+  }
+  .zukato-dashboard__artist-tile:not(:first-child) .zukato-dashboard__artist-rank {
+    top: -9px; right: 12px; font-size: 90px;
+  }
+  .zukato-dashboard__metrics {
+    padding: 6px 0 4px; border: 0; border-radius: 0;
+    background: transparent; box-shadow: none; backdrop-filter: none;
+  }
+  .zukato-dashboard__stats {
+    gap: 0; border-top: 1px solid #ffffff38; border-bottom: 1px solid #ffffff2d;
+  }
+  .zukato-dashboard__metrics .zukato-dashboard__stats > div {
+    border: 0; border-right: 1px solid #ffffff2d; border-radius: 0;
+    padding: 17px 15px; background: transparent; box-shadow: none;
+  }
+  .zukato-dashboard__metrics .zukato-dashboard__stats > div:last-child { border-right: 0; }
+  .zukato-dashboard__stats strong {
+    font-size: clamp(29px,4cqw,43px); font-weight: 800;
+  }
+  .zukato-dashboard__metrics .zukato-discovery__dashboard-link {
+    border: 0; background: transparent; color: #e4ecff; padding-left: 0;
+  }
+  @container (max-width: 430px) {
+    .zukato-dashboard__shortcuts { margin-inline: 5px; }
+    .zukato-dashboard__shortcut-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  }
+}
+
+@keyframes zukato-ambient-drift {
+  from { transform: translate3d(-2%, 0, 0) scale(1); }
+  to { transform: translate3d(2%, 2%, 0) scale(1.06); }
+}
+@keyframes zukato-hero-glint {
+  from, 8% { transform: translate3d(-26%,0,0); opacity: 0; }
+  32%, 68% { opacity: .65; }
+  92%, to { transform: translate3d(26%,0,0); opacity: 0; }
+}
+@keyframes zukato-cover-drift {
+  from { transform: translate3d(-2%,1%,0) scale(1.25); }
+  to { transform: translate3d(2%,-1%,0) scale(1.35); }
+}
+@keyframes zukato-dashboard-sweep {
+  from, 8% { transform: translate3d(-32%,0,0); opacity: 0; }
+  28%, 70% { opacity: .8; }
+  92%, to { transform: translate3d(32%,0,0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  main.zukato-app.zukato-app--dashboard .zukato-dashboard__ambient { animation: none; }
+  main.zukato-app.zukato-app--dashboard .zukato-dashboard__ambient::before { animation: none; opacity: 0; }
+  main.zukato-app.zukato-app--dashboard .zukato-dashboard__now[data-layout="orbit"]::before { animation: none; opacity: 0; }
+  main.zukato-app.zukato-app--dashboard .zukato-dashboard__art-backdrop img { animation: none; }
 }

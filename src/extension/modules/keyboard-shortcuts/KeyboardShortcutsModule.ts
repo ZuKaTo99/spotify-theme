@@ -38,7 +38,7 @@ let activeShortcuts:
 let unsubscribeFromSettings:
   (() => void) | null = null;
 
-// -----------------------------------------------------------------------------
+  // -----------------------------------------------------------------------------
 // Menge aller momentan gedrückten Tastencodes für exaktes Kombinations-Matching.
 // -----------------------------------------------------------------------------
 const pressedCodes =

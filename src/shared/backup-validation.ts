@@ -15,6 +15,7 @@ export interface ToolkitBackupData {
   settings: Record<string, unknown>;
   library: Record<string, unknown>;
   palette?: string;
+  backgroundPalette?: string;
   visualizer?: Record<string, unknown>;
   visualizerPresets?: unknown[];
   trackVisualizerScenes?: unknown[];
@@ -116,6 +117,7 @@ export function validateToolkitBackup(value: unknown): ToolkitBackupData {
   // Fehlende optionale Abschnitte sind bei alten Backups zulässig.
   // Falsche Typen dagegen dürfen niemals die vorhandenen Daten löschen.
   if (value.palette !== undefined && typeof value.palette !== "string") invalid("Farbpalette ungültig");
+  if (value.backgroundPalette !== undefined && typeof value.backgroundPalette !== "string") invalid("Hintergrundfarbe ungültig");
   if (value.visualizer !== undefined) {
     if (!isRecord(value.visualizer)) invalid("Visualizer-Einstellungen ungültig");
     const visualizer = value.visualizer;

@@ -14,6 +14,10 @@ let popup: Window | null = null;
 let opening = false;
 let restorePopup: (() => void) | null = null;
 let openedAutomatically = false;
+let automaticOpeningSuppressed = false;
+
+export function automaticMiniWindowAllowed(): boolean { return !automaticOpeningSuppressed; }
+export function resetAutomaticMiniWindowSuppression(): void { automaticOpeningSuppressed = false; }
 
 export function miniWindowSupported(): boolean {
   return typeof (window as PictureInPictureHost).documentPictureInPicture?.requestWindow === "function";
@@ -32,6 +36,7 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
   try {
     // Der Aufruf bleibt vor dem ersten await innerhalb der Nutzergeste.
     next = await api.requestWindow({ width: 520, height: 400 });
+    if (options.automatic && automaticOpeningSuppressed) { next.close(); return false; }
     popup = next;
     openedAutomatically = Boolean(options.automatic);
     const doc = next.document;
@@ -61,15 +66,20 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
       .zukato-mini-window .zukato-mini-window__close{width:23px;height:23px;display:grid;place-items:center;flex:none;padding:0;border:1px solid #42536c;border-radius:7px;background:#243147;color:#fff;font:17px Arial,sans-serif;line-height:1;cursor:pointer}
       .zukato-mini-window .zukato-mini-window__close:hover{background:#b82231;border-color:#ed5a68}
       .zukato-mini-window .zukato-mini-window__close:focus-visible{outline:2px solid #81ccff;outline-offset:1px}
-      .zukato-mini-window .zukato-viz{flex:1;min-height:0;width:100%;overflow:hidden;position:relative}
+      .zukato-mini-window__viewport{flex:1;min-height:0;position:relative;overflow:hidden;background:#080d17}
+      .zukato-mini-window .zukato-viz{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
       .zukato-app .zukato-mini-window .zukato-viz--popup .zukato-viz__stage{position:absolute;inset:0;width:100%;height:100%;min-height:0;aspect-ratio:auto;border:0;border-radius:0}
       .zukato-app .zukato-mini-window .zukato-viz__track{display:none}
       .zukato-mini-window__mirror{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:7;background:#080d17}
       .zukato-mini-window .zukato-viz__stage-controls,.zukato-mini-window .zukato-viz__mini-actions{display:none!important}
       .zukato-mini-window [hidden]{display:none!important}
-      .zukato-mini-window__media{flex:1;min-height:0;position:relative;display:grid;place-items:center;background:#292b32}
+      .zukato-mini-window__media{position:absolute;inset:0;display:grid;place-items:center;background:#292b32}
       .zukato-mini-window__media img,.zukato-mini-window__media video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
       .zukato-mini-window__media video{background:#111}
+      .zukato-mini-window__views{display:flex;align-items:center;gap:3px;padding:2px;border:1px solid #354966;border-radius:8px;background:#0a1220}
+      .zukato-mini-window .zukato-mini-window__views button{min-height:23px;padding:2px 7px;border:0;border-radius:6px;background:transparent;color:#b9cce2;font:600 10px Arial,sans-serif;cursor:pointer;white-space:nowrap}
+      .zukato-mini-window .zukato-mini-window__views button[aria-pressed=true]{background:linear-gradient(140deg,#375b83,#253952);color:#fff;box-shadow:inset 0 1px 0 #ffffff29}
+      .zukato-mini-window .zukato-mini-window__views button:focus-visible{outline:2px solid #79c7ff;outline-offset:1px}
       .zukato-mini-window__bar{flex:none;display:grid;gap:7px;padding:9px 12px 11px;background:linear-gradient(155deg,#172237,#0a1120);border-top:1px solid #334864;box-sizing:border-box}
       .zukato-mini-window__track{flex:1;min-width:0;display:grid;gap:2px}
       .zukato-mini-window__track strong,.zukato-mini-window__track small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -84,7 +94,6 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
       .zukato-mini-window__bar button:active{transform:scale(.96)}
       .zukato-mini-window__bar button.primary{width:42px;height:42px;border-radius:50%;background:linear-gradient(140deg,#93e3ff,#4099ee 68%,#2869c8);border-color:#a1e6ff;color:#061728;box-shadow:0 5px 18px #2b9dfa88}
       .zukato-mini-window__bar button.active{color:#a5e2ff;border-color:#72c7ff;background:linear-gradient(145deg,#254e76,#1a334d)}
-      .zukato-mini-window__bar button.switch{width:89px;padding:0 5px;font-size:11px}
       .zukato-mini-window__bar button.return{width:81px;padding:0 5px;font-size:11px}
       .zukato-mini-window__bar button:focus-visible{outline:2px solid #79c7ff;outline-offset:2px}`;
     doc.head.append(style);
@@ -111,17 +120,22 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
     header.setAttribute("aria-label", "Fenster hier verschieben");
     const headerTitle = doc.createElement("strong"); headerTitle.textContent = "ZuKaTo Player";
     const headerHandle = doc.createElement("span"); headerHandle.textContent = "⠿";
+    const views = doc.createElement("div"); views.className = "zukato-mini-window__views";
+    views.setAttribute("role", "group"); views.setAttribute("aria-label", "Mini-Player-Ansicht");
     const closeButton = doc.createElement("button");
     closeButton.type = "button"; closeButton.className = "zukato-mini-window__close";
     closeButton.textContent = "×"; closeButton.title = "Fenster schließen";
     closeButton.setAttribute("aria-label", "Fenster schließen");
-    closeButton.addEventListener("click", () => closeVisualizerMiniWindow());
-    header.append(headerTitle, headerHandle, closeButton);
+    closeButton.addEventListener("click", () => {
+      automaticOpeningSuppressed = true;
+      closeVisualizerMiniWindow();
+    });
+    header.append(headerTitle, views, headerHandle, closeButton);
     // Spotify Desktop erlaubt moveTo für sein PiP-Fenster. Pointer Capture
     // hält den Zug auch dann aktiv, wenn das Fenster unter dem Cursor wandert.
     let drag: { pointerId: number; x: number; y: number; left: number; top: number } | null = null;
     header.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || event.target === closeButton || typeof next?.moveTo !== "function") return;
+      if (event.button !== 0 || (event.target as Element | null)?.closest?.("button") || typeof next?.moveTo !== "function") return;
       drag = { pointerId: event.pointerId, x: event.screenX, y: event.screenY,
         left: next.screenX, top: next.screenY };
       header.setPointerCapture(event.pointerId);
@@ -133,6 +147,7 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
     const stopDrag = (): void => { drag = null; };
     header.addEventListener("pointerup", stopDrag);
     header.addEventListener("pointercancel", stopDrag);
+    const viewport = doc.createElement("div"); viewport.className = "zukato-mini-window__viewport";
     const scene = doc.createElement("section"); scene.className = "zukato-viz zukato-viz--popup";
     scene.append(stage);
     // Ein Video verliert beim Document-PiP-Dokumentwechsel oft seinen Decoder.
@@ -145,7 +160,7 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
     mirror.addEventListener("error", () => { mirror.hidden = true; });
     scene.append(mirror);
     const media = doc.createElement("div"); media.className = "zukato-mini-window__media";
-    media.hidden = true;
+    media.hidden = false;
     const cover = doc.createElement("img"); cover.alt = "";
     const clip = doc.createElement("video"); clip.muted = true; clip.loop = true; clip.playsInline = true;
     clip.hidden = true;
@@ -187,24 +202,32 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
     toggle.className = "primary";
     button("Nächster Titel", "⏭", () => Spicetify.Player.next());
     const repeat = button("Wiederholen", "↻", () => { Spicetify.Player.toggleRepeat(); refresh(); });
-    const switchView = button("Cover oder Video anzeigen", "Cover/Video", () => {
-      const showMedia = media.hidden;
-      media.hidden = !showMedia;
-      scene.hidden = showMedia;
-      switchView.textContent = showMedia ? "Wallpaper" : "Cover/Video";
-      switchView.title = showMedia ? "Wallpaper anzeigen" : "Cover oder Video anzeigen";
-      switchView.setAttribute("aria-label", switchView.title);
-      if (!showMedia) clip.pause();
-      else if (!clip.hidden && Spicetify.Player.isPlaying()) void clip.play().catch(() => { clip.hidden = true; });
-    });
-    switchView.className = "switch";
+    const viewButton = (label: string, showMedia: boolean): HTMLButtonElement => {
+      const control = doc.createElement("button");
+      control.type = "button"; control.textContent = label;
+      control.setAttribute("aria-label", label);
+      control.setAttribute("aria-pressed", String(media.hidden !== showMedia));
+      control.addEventListener("click", () => {
+        media.hidden = !showMedia;
+        for (const item of Array.from(views.children)) {
+          (item as HTMLButtonElement).setAttribute("aria-pressed", String(item === control));
+        }
+        if (!showMedia) clip.pause();
+        else if (!clip.hidden && Spicetify.Player.isPlaying()) void clip.play().catch(() => { clip.hidden = true; });
+      });
+      views.append(control);
+      return control;
+    };
+    viewButton("Cover/Video", true);
+    viewButton("Visualizer", false);
     const returnButton = button("Spotify-Fenster öffnen", "Spotify öffnen", () => {
       // focus() aus dem Klick heraus kann das minimierte Hauptfenster anheben.
       window.focus();
       closeVisualizerMiniWindow();
     });
     returnButton.className = "return";
-    shell.append(header, scene, media, bar);
+    viewport.append(scene, media);
+    shell.append(header, viewport, bar);
     doc.body.append(shell);
     window.dispatchEvent(new Event(VISUALIZER_HOST_CHANGED_EVENT));
     // Beim Wechsel in ein anderes Document verwirft Chromium den geladenen
@@ -277,6 +300,10 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
       if (stage.parentNode === scene) {
         originalParent.insertBefore(stage, following?.parentNode === originalParent ? following : null);
         window.dispatchEvent(new Event(VISUALIZER_HOST_CHANGED_EVENT));
+        // Chromium verwirft auch auf dem Rückweg den sandboxed Dokumentinhalt.
+        for (const frame of stage.querySelectorAll<HTMLIFrameElement>('iframe[srcdoc]')) {
+          frame.srcdoc = frame.srcdoc;
+        }
       }
       if (restorePopup === restore) restorePopup = null;
       if (popup === next) { popup = null; openedAutomatically = false; }
@@ -284,7 +311,11 @@ export async function openVisualizerMiniWindow(stage: HTMLElement, options: { au
     restorePopup = restore;
     Spicetify.Player.addEventListener("songchange", refresh);
     Spicetify.Player.addEventListener("onplaypause", refresh);
-    next.addEventListener("pagehide", restore, { once: true });
+    next.addEventListener("pagehide", () => {
+      // Auch das native X des PiP-Fensters ist eine bewusste Entscheidung.
+      if (popup === next) automaticOpeningSuppressed = true;
+      restore();
+    }, { once: true });
     refresh();
     return true;
   } catch {

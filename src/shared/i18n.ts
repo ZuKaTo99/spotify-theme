@@ -190,7 +190,7 @@ const germanTranslations = {
   'stats.artists': 'Häufigste Künstler',
   'stats.tracks': 'Häufigste Titel',
   'stats.empty': 'Noch keine Daten. Die Extension zeichnet ab ihrer Aktivierung neue Titelwechsel auf.',
-  // v1.70: Ehrliche lokale Aktivitätstrends; Zeitraumfilter für Songwechsel.
+  // Hinzugefügt: Ehrliche lokale Aktivitätstrends; Zeitraumfilter für Songwechsel.
   'stats.period': 'Zeitraum auswählen',
   'stats.period.7d': '7 Tage',
   'stats.period.30d': '30 Tage',
@@ -201,7 +201,7 @@ const germanTranslations = {
   'stats.activityHint': 'Nur auf diesem Gerät gespeicherte Songwechsel. Keine Hörzeit oder vollständige Spotify-Statistik.',
   'stats.emptyPeriod': 'In diesem Zeitraum keine Songwechsel erfasst.',
   'stats.dateLocale': 'de-DE',
-  // v1.73: Intelligente Bibliothekswerkzeuge aus lokalem Verlauf.
+  // Hinzugefügt: Intelligente Bibliothekswerkzeuge aus lokalem Verlauf.
   'discovery.heading': 'Musik wiederentdecken',
   'discovery.open': 'Musik wiederentdecken',
   'discovery.intro': 'Häufig gespielte oder länger nicht gehörte Songs aus deinem lokalen Verlauf finden und gesammelt bearbeiten.',
@@ -217,7 +217,7 @@ const germanTranslations = {
   'discovery.details': '{count} Songwechsel · zuletzt {date}',
   'discovery.empty': 'Keine passenden Titel. Passe die Filter an oder höre weitere Songs.',
 
-  // v1.71: Persönliches Dashboard, Schnellzugriffe und einblendbare Bereiche.
+  // Hinzugefügt: Persönliches Dashboard, Schnellzugriffe und einblendbare Bereiche.
   'dashboard.customize': 'Anpassen',
   'dashboard.done': 'Fertig',
   'dashboard.editShortcuts': 'Anordnung deiner Schnellzugriffe',
@@ -255,8 +255,8 @@ const germanTranslations = {
   // Lokale Suche und barrierefreie Seitenbedienung großer Sammlungen.
   // Mehrfachbearbeitung über Suchergebnisse und Seiten hinweg.
   // Spotify-Playlist-Export: ausdrücklich bestätigt, keine stillen Mutationen.
-  // v1.61: Sammelimport und zuletzt verwendete Playlists.
-  // v1.67: Klare, tastaturbedienbare Playlist-Arbeitsbereiche.
+  // Version danach: Sammelimport und zuletzt verwendete Playlists.
+  // Version danach: Klare, tastaturbedienbare Playlist-Arbeitsbereiche.
   'playlistWorkspace.navigation': 'Playlist-Werkzeuge',
   'playlistWorkspace.queue': 'Schnell einreihen',
   'playlistWorkspace.import': 'Links importieren',
@@ -292,7 +292,7 @@ const germanTranslations = {
   'playlistPaste.previous': 'Zurück',
   'playlistPaste.next': 'Weiter',
   'playlistPaste.page': 'Seite {page} von {total}',
-  // v1.64: Playlist-Inhalte nur auf Klick laden; Löschungen ausdrücklich bestätigen.
+  // Hinzugefügt: Playlist-Inhalte nur auf Klick laden; Löschungen ausdrücklich bestätigen.
   'playlistManager.remotePage': 'Spotify-Seite direkt laden (1–{total}, 50 Titel pro Seite)',
   'playlistManager.jump': 'Seite laden',
   'playlistManager.jumpHint': 'Nur diese Seite wird nachgeladen. Die Suche und Auswahl gelten für bereits geladene Titel, nicht die gesamte Playlist.',
@@ -658,7 +658,7 @@ const germanTranslations = {
   'viz.clipPreview': 'Zum Start springen',
   'viz.clipSave': 'Ausschnitt speichern',
   'viz.clipReset': 'Ganzes Video verwenden',
-  // v1.5: Eigene Videos bleiben unangetastet; Effekte + zeitliche Zuordnung.
+  // Hinzugefügt: Eigene Videos bleiben unangetastet; Effekte + zeitliche Zuordnung.
   'viz.videoSync': 'Videosynchronisierung',
   'viz.videoSyncFree': 'Freilaufender Loop',
   'viz.videoSyncSong': 'An Songposition koppeln',
@@ -682,7 +682,7 @@ const germanTranslations = {
   'viz.editorSave': 'LRC für Song speichern',
   'viz.editorExport': 'LRC exportieren',
 
-  // v1.8: Direkte Songsuche statt URI-Pflicht, erweiterte Farbpalette.
+  // Hinzugefügt: Direkte Songsuche statt URI-Pflicht, erweiterte Farbpalette.
   'search.linkTrack': 'Spotify-Titel',
   'search.unknownArtist': 'Details nicht verfügbar',
   'search.heading': 'Songs suchen und hinzufügen',
@@ -699,7 +699,10 @@ const germanTranslations = {
   'search.notes': 'Notiz schreiben',
   'search.alreadyFavorite': 'Song bereits als Favorit gespeichert.',
   'search.saved': 'Song in ZuKaTo gespeichert.',
-  'appearance.presets': '24 fertige Farben',
+  'appearance.presets': 'Farbwelt wählen',
+  'appearance.background': 'Hintergrund',
+  'appearance.controls': 'Buttons & Bedienelemente',
+  'appearance.more': 'Weitere Farben und eigene Farbe',
   'appearance.custom': 'Eigene Farbe',
   'appearance.picker': 'Farbe auswählen',
   'appearance.hex': 'HEX-Farbwert',
@@ -708,7 +711,7 @@ const germanTranslations = {
   'viz.sceneHeadingSimplified': 'HTML-Wallpapers und Wiedergabe',
   'viz.originalToggle': 'Originalvideo-Ausschnitte statt HTML-Wallpapers anzeigen',
   'viz.originalAutoNote': 'Ein/Aus: ZuKaTo versucht das bereits rechts in Spotify sichtbare Canvas im Visualizer anzuzeigen. Ist dessen Videoquelle nicht zugänglich, erscheint das Cover. Kein Download und keine Eingabe einer Video-URL nötig.',
-  'appearance.intro': 'Ändere die Akzentfarbe nur für den ZuKaTo Workspace. Das Spotify-Theme selbst bleibt unverändert.',
+  'appearance.intro': 'Die Farbe wirkt in Spotify und im ZuKaTo-Workspace.',
   'appearance.current': 'Aktuelle Palette:',
 
   // Dashboard-spezifische Live-Informationen.
@@ -1569,7 +1572,10 @@ const englishTranslations:
   'search.notes': 'Write note',
   'search.alreadyFavorite': 'This track is already saved.',
   'search.saved': 'Song saved in ZuKaTo.',
-  'appearance.presets': '24 preset colors',
+  'appearance.presets': 'Choose a color world',
+  'appearance.background': 'Background',
+  'appearance.controls': 'Buttons & controls',
+  'appearance.more': 'More colors and custom color',
   'appearance.custom': 'Custom color',
   'appearance.picker': 'Pick color',
   'appearance.hex': 'HEX color',
@@ -1578,7 +1584,7 @@ const englishTranslations:
   'viz.sceneHeadingSimplified': 'HTML wallpapers and playback',
   'viz.originalToggle': 'Show original video excerpts instead of HTML wallpapers',
   'viz.originalAutoNote': 'One switch: ZuKaTo tries to mirror the Canvas already visible in Spotify Now Playing sidebar. If the video source is inaccessible, the cover is shown. No video URL or download is required.',
-  'appearance.intro': 'Change the accent color in the ZuKaTo workspace only. Your Spotify theme stays unchanged.',
+  'appearance.intro': 'The color applies to Spotify and the ZuKaTo workspace.',
   'appearance.current': 'Current palette:',
 
   // Dashboard-specific live information.

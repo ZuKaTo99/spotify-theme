@@ -140,7 +140,7 @@ function flatten(node, output = []) {
 }
 
 /** Reelle Dashboard-Handler aus TSX, aber React und Spotify vollständig isoliert. */
-function ui({ blocked = false, active = enabled, saved } = {}) {
+function ui({ blocked = false, active = enabled, saved, track = null } = {}) {
   const store = new Map();
   const { mod, window } = preferences(store, blocked);
   if (saved) store.set(mod.DASHBOARD_STORAGE_KEY, JSON.stringify(saved));
@@ -163,9 +163,12 @@ function ui({ blocked = false, active = enabled, saved } = {}) {
     useMemo: fn => fn(),
     useEffect: () => {},
   };
+  const playerCalls = [];
   const mockSpicetify = { React, Player: {
-    data: null, isPlaying: () => false, getProgress: () => 0, getDuration: () => 0,
-    togglePlay() {}, next() {}, addEventListener() {}, removeEventListener() {},
+    data: null, isPlaying: () => false, getProgress: () => 0, getDuration: () => track ? 180000 : 0,
+    togglePlay() { playerCalls.push("toggle"); }, next() { playerCalls.push("next"); },
+    back() { playerCalls.push("back"); }, seek(ms) { playerCalls.push(["seek", ms]); },
+    addEventListener() {}, removeEventListener() {},
   } };
   const output = {};
   runInNewContext(compileTsxForTest(root, "src/custom-app/modules/dashboard/Dashboard.tsx"), {
@@ -176,13 +179,13 @@ function ui({ blocked = false, active = enabled, saved } = {}) {
       if (name.includes("feature-titles")) return { getFeatureTitle: id => id };
       if (name.includes("features")) return { getEnabledFeaturesBySurface: surface =>
         surface === "custom-app" ? active.map(id => ({ id })) : [] };
-      if (name.includes("library")) return { currentTrack: () => null, toggleFavorite: () => false };
+      if (name.includes("library")) return { currentTrack: () => track, toggleFavorite: () => false };
       if (name.includes("dashboard-summary")) return { summarizeDashboard: () =>
         ({ changes: 1, distinct: 1, topArtist: null, latest: [] }) };
       if (name.includes("listening-insights")) return { analyzeListeningHistory: (_history, period) =>
         ({ events: period === "all" ? 123 : period === "30d" ? 30 : 7, unique: 3,
            daily: [], artists: [], tracks: [], today: 0, activeDays: 0 }) };
-      if (name.includes("ListeningActivity")) return { ListeningActivity: () => null };
+      if (name.includes("ListeningLandscape")) return { ListeningLandscape: () => null };
       if (name.includes("artwork")) return { spotifyArtworkUrl: () => null };
       if (name.includes("player-progress")) return { normalizedPlayerProgress: () =>
         ({ percent: 0, elapsed: "0:00", total: "0:00" }) };
@@ -203,8 +206,19 @@ function ui({ blocked = false, active = enabled, saved } = {}) {
   };
   const button = label => render().find(n => n.type === "button" && n.props?.["aria-label"] === label);
   const textButton = label => render().find(n => n.type === "button" && n.props?.children?.includes(label));
-  return { mod, render, button, textButton, storage: store, navigate };
+  return { mod, render, button, textButton, storage: store, navigate, playerCalls };
 }
+
+test("Dashboard-Bühne: Wiedergabetasten und Zeitregler bedienen den Spotify-Player", () => {
+  const app = ui({ track: { uri: "spotify:track:demo", title: "Demo", artist: "Artist" } });
+  app.button("shortcuts.previousTrack").props.onClick();
+  app.button("dashboard.resume").props.onClick();
+  app.button("dashboard.next").props.onClick();
+  const seek = app.render().find(n => n.type === "input" && n.props?.className === "zukato-dashboard__seek");
+  assert.equal(seek.props.disabled, false);
+  seek.props.onChange({ currentTarget: { value: "90000" } });
+  assert.deepEqual(app.playerCalls, ["back", "toggle", "next", ["seek", 90000]]);
+});
 
 test("Dashboard: eigene Schnellzugriffe bearbeiten und in neuer Reihenfolge verwenden", () => {
   const app = ui();

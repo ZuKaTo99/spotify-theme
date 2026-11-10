@@ -4,7 +4,7 @@
 //        und verständlichen Kennzahlen statt einer nackten Modulliste.
 // Änderungen am Layout gehören hierher; Zahlenberechnung: dashboard-summary.ts.
 // =============================================================================
-import type { ReactElement } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import type { FeaturePreferences } from "../../../shared/feature-preferences";
 import type { FeatureId } from "../../../shared/features";
 import { getEnabledFeaturesBySurface } from "../../../shared/features";
@@ -17,7 +17,7 @@ import type { Translator } from "../../../shared/i18n";
 import { currentTrack, toggleFavorite, type TrackInfo } from "../../../shared/library";
 import { summarizeDashboard } from "../../../shared/dashboard-summary";
 import { analyzeListeningHistory } from "../../../shared/listening-insights";
-import { ListeningActivity } from "../../components/ListeningActivity";
+import { ListeningLandscape } from "../../components/ListeningLandscape";
 import { spotifyArtworkUrl } from "../../../shared/artwork";
 import { normalizedPlayerProgress, type PlayerProgress } from "../../../shared/player-progress";
 import { useToolkitData } from "../../hooks/useToolkitData";
@@ -25,6 +25,8 @@ import { TrackList } from "../../components/TrackList";
 import { dashboardProgressDelayMs, sameDashboardProgress } from "./dashboard-polling";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
+const RHYTHM_BARS = Array.from({ length: 38 }, (_, index) =>
+  Math.round(16 + 58 * Math.abs(Math.sin(index * .57) * Math.cos(index * .21 + 1))));
 
 interface DashboardProps {
   features: FeaturePreferences;
@@ -140,51 +142,93 @@ export function Dashboard({ features, t, onNavigate }: DashboardProps): ReactEle
     !features[id].customTitle ? "Visualizer" : getFeatureTitle(id, features[id].customTitle, t);
   const shortcuts = preferences.shortcuts.filter((id) => visible.has(id));
   const availableShortcuts = DASHBOARD_SHORTCUT_IDS.filter((id) => visible.has(id) && !preferences.shortcuts.includes(id));
+  const durationMs = Math.max(0, Spicetify.Player.getDuration() || 0);
 
   return <section className="zukato-dashboard">
+    <div className="zukato-dashboard__ambient" aria-hidden="true">
+      {cover && <img src={cover} alt="" />}
+    </div>
     {/* Der Modultitel steht bereits im gemeinsamen Seitenkopf. Die Karten
         beginnen sofort mit Musik und Aktionen statt einer zweiten Begrüßung. */}
     <div className="zukato-dashboard__main">
-      <section className={`zukato-dashboard__now${playing ? " is-playing" : ""}`} aria-label={t("dashboard.nowPlaying")}
-        style={cover ? { backgroundImage: `linear-gradient(100deg, rgba(15,17,27,.91), rgba(15,17,27,.76)), url("${cover}")`,
-          backgroundPosition: "center", backgroundSize: "cover" } : undefined}>
-        <p className="zukato-eyebrow"><span className="zukato-dashboard__equalizer" aria-hidden="true">
-          <i /><i /><i /><i /><i />
-        </span>{t("dashboard.nowPlaying")}</p>
-        <div className="zukato-dashboard__cover" aria-hidden="true">
-          {cover ? <img src={cover} alt="" loading="lazy" /> : <span>♫</span>}
+      <section className={`zukato-dashboard__now${playing ? " is-playing" : ""}`} data-layout="orbit"
+        aria-label={t("dashboard.nowPlaying")}>
+        <div className="zukato-dashboard__art-backdrop" aria-hidden="true">
+          {cover && <img src={cover} alt="" />}
         </div>
-        <div className="zukato-dashboard__now-details">
-          <h3>{track?.title ?? t("dashboard.noTrack")}</h3>
-          <p>{track?.artist ?? t("dashboard.noTrackHelp")}</p>
-          {track?.album && track.album !== track.title && <small>{track.album}</small>}
+        <div className="zukato-dashboard__rhythm" aria-hidden="true">
+          {RHYTHM_BARS.map((height, index) => <i key={index}
+            style={{ height: `${height}%`, animationDelay: `-${index * 83}ms` }} />)}
         </div>
-        <div className="zukato-dashboard__timeline" aria-label={t("dashboard.progress")}>
-          <div className="zukato-dashboard__progress" role="progressbar" aria-valuemin={0}
-            aria-valuemax={100} aria-valuenow={Math.round(position.percent)} aria-label={t("dashboard.progress")}>
-            <div style={{ width: `${position.percent}%` }} />
+        <div className="zukato-dashboard__now-copy">
+          <p className="zukato-eyebrow"><span className="zukato-dashboard__equalizer" aria-hidden="true">
+            <i /><i /><i /><i /><i />
+          </span>{t("dashboard.nowPlaying")}</p>
+          <div className="zukato-dashboard__now-details">
+            <h3>{track?.title ?? t("dashboard.noTrack")}</h3>
+            <p>{track?.artist ?? t("dashboard.noTrackHelp")}</p>
+            {track?.album && track.album !== track.title && <small>{track.album}</small>}
           </div>
-          <div className="zukato-dashboard__times"><span>{position.elapsed}</span><span>{position.total}</span></div>
+          <div className="zukato-dashboard__controls" role="group" aria-label={t("dashboard.nowPlaying")}>
+            <button type="button" className="zukato-dashboard__control" onClick={() => Spicetify.Player.back()}
+              title={t("shortcuts.previousTrack")} aria-label={t("shortcuts.previousTrack")}>⏮</button>
+            <button type="button" className="zukato-dashboard__control zukato-dashboard__control--play"
+              onClick={() => Spicetify.Player.togglePlay()}
+              title={playing ? t("dashboard.pause") : t("dashboard.resume")}
+              aria-label={playing ? t("dashboard.pause") : t("dashboard.resume")}>{playing ? "Ⅱ" : "▶"}</button>
+            <button type="button" className="zukato-dashboard__control" onClick={() => Spicetify.Player.next()}
+              title={t("dashboard.next")} aria-label={t("dashboard.next")}>⏭</button>
+            <button type="button" className="zukato-dashboard__control zukato-dashboard__control--favorite"
+              disabled={!track} aria-pressed={isFavorite}
+              title={isFavorite ? t("dashboard.removeFavorite") : t("dashboard.saveFavorite")}
+              aria-label={isFavorite ? t("dashboard.removeFavorite") : t("dashboard.saveFavorite")}
+              onClick={() => {
+                if (!track) return;
+                try {
+                  const nowFavorite = toggleFavorite(track);
+                  setMessage(nowFavorite ? t("dashboard.savedFavorite") : t("dashboard.removedFavorite"));
+                } catch (error) {
+                  console.error("[ZuKaTo] Dashboard-Favorit konnte nicht gespeichert werden", error);
+                  setMessage(t("library.actionFailed"));
+                }
+              }}>{isFavorite ? "★" : "☆"}</button>
+            {visible.has("visualizer") && <button type="button" className="zukato-dashboard__control zukato-dashboard__control--visualizer"
+              onClick={() => onNavigate("visualizer")} title={t("dashboard.actionVisualizer")}
+              aria-label={t("dashboard.actionVisualizer")}>◉</button>}
+          </div>
+          <div className="zukato-dashboard__timeline">
+            <input type="range" className="zukato-dashboard__seek" min={0}
+              max={Math.max(1, durationMs)} step={1000}
+              value={Math.round(durationMs * position.percent / 100)}
+              disabled={!track || durationMs <= 0}
+              style={{ "--zukato-progress": `${position.percent}%` } as CSSProperties}
+              aria-label={t("dashboard.progress")} aria-valuetext={position.elapsed}
+              onChange={(event) => {
+                const progress = Number(event.currentTarget.value);
+                Spicetify.Player.seek(progress);
+                setPosition(normalizedPlayerProgress(progress, durationMs));
+              }} />
+            <div className="zukato-dashboard__times"><span>{position.elapsed}</span><span>{position.total}</span></div>
+          </div>
+          {message && <p className="zukato-dashboard__feedback" role="status">{message}</p>}
         </div>
-        <div className="zukato-dashboard__controls">
-          <button type="button" className="zukato-primary" onClick={() => Spicetify.Player.togglePlay()}>
-            {playing ? t("dashboard.pause") : t("dashboard.resume")}
-          </button>
-          <button type="button" onClick={() => Spicetify.Player.next()} aria-label={t("dashboard.next")}>{t("dashboard.next")}</button>
-          <button type="button" disabled={!track} aria-pressed={isFavorite} onClick={() => {
-            if (track) {
-              try {
-                const nowFavorite = toggleFavorite(track);
-                // Der Status wird erst nach erfolgreichem Schreiben angezeigt.
-                setMessage(nowFavorite ? t("dashboard.savedFavorite") : t("dashboard.removedFavorite"));
-              } catch (error) {
-                console.error("[ZuKaTo] Dashboard-Favorit konnte nicht gespeichert werden", error);
-                setMessage(t("library.actionFailed"));
-              }
-            }
-          }}>{isFavorite ? t("dashboard.removeFavorite") : t("dashboard.saveFavorite")}</button>
+        <div className="zukato-dashboard__orbit" aria-hidden="true">
+          <div className="zukato-dashboard__orbit-halo" />
+          <svg viewBox="0 0 320 320" className="zukato-dashboard__orbit-progress">
+            <defs><linearGradient id="zukato-dashboard-orbit-gradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="color-mix(in srgb, var(--zukato-accent) 55%, white)" />
+              <stop offset="48%" stopColor="var(--zukato-accent)" />
+              <stop offset="100%" stopColor="color-mix(in srgb, var(--zukato-accent) 55%, #7acbff)" />
+            </linearGradient></defs>
+            <circle className="zukato-dashboard__orbit-track" cx="160" cy="160" r="145" />
+            <circle className="zukato-dashboard__orbit-value" cx="160" cy="160" r="145" pathLength="100"
+              strokeDasharray={`${position.percent} 100`} />
+          </svg>
+          <div className="zukato-dashboard__cover">
+            {cover ? <img src={cover} alt="" /> : <span>♫</span>}
+          </div>
+          <span className="zukato-dashboard__orbit-dot" />
         </div>
-        {message && <p className="zukato-dashboard__feedback" role="status">{message}</p>}
       </section>
       <section className="zukato-dashboard__shortcuts" aria-labelledby="dashboard-shortcuts-heading">
         <div className="zukato-dashboard__shortcut-header">
@@ -248,6 +292,23 @@ export function Dashboard({ features, t, onNavigate }: DashboardProps): ReactEle
       </section>
     </div>
 
+    {personalInsights.artists.length > 0 && <section className="zukato-dashboard__artist-deck"
+      aria-label={t("stats.artists")}>
+      <div className="zukato-dashboard__artist-deck-heading">
+        <h3>{t("stats.artists")}</h3>
+        <span>{t(`stats.period.${preferences.period}`)}</span>
+      </div>
+      <div className="zukato-dashboard__artist-deck-grid">
+        {personalInsights.artists.slice(0, 3).map((artist, index) => <div
+          className="zukato-dashboard__artist-tile" key={artist.name}
+          aria-label={`${artist.name}: ${artist.count} ${t("stats.changes")}`}>
+          <span className="zukato-dashboard__artist-rank" aria-hidden="true">0{index + 1}</span>
+          <strong>{artist.name}</strong>
+          <small>{artist.count} ×</small>
+        </div>)}
+      </div>
+    </section>}
+
     {/* Karten verwenden eine gemeinsame Reihenfolge aus dem lokalen Speicher.
         Ein deaktiviertes Modul darf über Vorschaukarten nicht zugänglich sein. */}
     <div className="zukato-dashboard__cards" aria-label={t("dashboard.cardOrder")}>
@@ -279,13 +340,12 @@ export function Dashboard({ features, t, onNavigate }: DashboardProps): ReactEle
           case "activity": return <section key={id} className="zukato-dashboard__card zukato-dashboard__activity" aria-labelledby="dashboard-activity-heading">
             <div className="zukato-dashboard__section-header"><div>
               <h3 id="dashboard-activity-heading">{t("stats.activity7")}</h3>
-              <p>{t("dashboard.activitySummary").replace("{count}", String(insights.events))}</p>
             </div>
               {visible.has("statistics") && <button type="button" onClick={() => onNavigate("statistics")}>{t("dashboard.openStatistics")}</button>}
             </div>
-            <ListeningActivity daily={insights.daily} t={t} />
+            <ListeningLandscape daily={insights.daily} t={t} />
           </section>;
-          case "recent": return <section key={id} className="zukato-dashboard__card zukato-dashboard__recent">
+          case "recent": return <section key={id} className="zukato-dashboard__card zukato-dashboard__recent" data-view="reel">
             <div className="zukato-dashboard__section-header"><h3>{t("dashboard.recent")}</h3>
               {visible.has("listening-history") && <button type="button" onClick={() => onNavigate("listening-history")}>{t("dashboard.viewAll")}</button>}
             </div>

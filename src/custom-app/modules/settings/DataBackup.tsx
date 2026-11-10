@@ -4,7 +4,8 @@
 // =============================================================================
 import type { ChangeEvent, ReactElement } from "react";
 import { MAX_BACKUP_BYTES, backupSummary, validateToolkitBackup } from "../../../shared/backup-validation";
-import { loadPalette, savePalette, normalizePalette } from "../../../shared/appearance";
+import { loadBackgroundPalette, loadPalette, saveBackgroundPalette, savePalette,
+  normalizePalette } from "../../../shared/appearance";
 import { loadLibraryStrict, normalizeLibrary, saveLibrary } from "../../../shared/library";
 import { loadSettings, normalizeSettings, saveSettings } from "../../../shared/settings";
 import {
@@ -30,6 +31,7 @@ export function exportBackup(): void {
   const namedCollections = readNamedCollections();
   const backup = { format: "zukato-toolkit-backup", version: 1, createdAt: new Date().toISOString(),
     settings: loadSettings(), library: loadLibraryStrict(), palette: loadPalette(),
+    backgroundPalette: loadBackgroundPalette(),
     visualizer: loadVisualizerConfig(), visualizerPresets: loadVisualizerPresets(),
     trackVisualizerScenes: loadTrackVisualizerScenes(), scenePreferences: loadScenePreferences(),
     ...(namedCollections === undefined ? {} : { namedCollections }) };
@@ -58,6 +60,10 @@ export async function importBackup(file: File): Promise<void> {
   if (data.palette !== undefined && normalizePalette(data.palette).toLowerCase() !== data.palette.toLowerCase()) {
     throw new Error("Backup beschädigt: Unbekannte Farbpalette. Es wurden keine Daten überschrieben.");
   }
+  if (data.backgroundPalette !== undefined &&
+      normalizePalette(data.backgroundPalette).toLowerCase() !== data.backgroundPalette.toLowerCase()) {
+    throw new Error("Backup beschädigt: Unbekannte Hintergrundfarbe. Es wurden keine Daten überschrieben.");
+  }
   // Vor der ersten Änderung ALLE optionalen Blöcke normalisieren. Damit
   // löst ein fehlerhaftes Zusatzfeld keine halbfertige Wiederherstellung aus.
   const next = {
@@ -65,6 +71,10 @@ export async function importBackup(file: File): Promise<void> {
     library: normalizeLibrary(data.library),
     // Alte Backups ohne Palette dürfen die derzeitige Farbe NICHT zurücksetzen.
     palette: data.palette === undefined ? undefined : normalizePalette(data.palette),
+    // Alte Backups hatten eine gemeinsame Farbe; diese für beide Bereiche übernehmen.
+    backgroundPalette: data.backgroundPalette === undefined
+      ? (data.palette === undefined ? undefined : normalizePalette(data.palette))
+      : normalizePalette(data.backgroundPalette),
     visualizer: data.visualizer === undefined ? undefined : normalizeVisualizerConfig(data.visualizer),
     presets: data.visualizerPresets,
     trackScenes: data.trackVisualizerScenes,
@@ -84,6 +94,7 @@ export async function importBackup(file: File): Promise<void> {
   }
   const previous = {
     settings: loadSettings(), library: loadLibraryStrict(), palette: loadPalette(),
+    backgroundPalette: loadBackgroundPalette(),
     visualizer: loadVisualizerConfig(), presets: loadVisualizerPresets(),
     trackScenes: loadTrackVisualizerScenes(), scenePreferences: loadScenePreferences(),
   };
@@ -96,7 +107,8 @@ export async function importBackup(file: File): Promise<void> {
       : `${previousCollectionsCount} → ${namedCollections.collections.length}`}`,
     `Visualizer-Presets: ${data.visualizerPresets === undefined ? "bleiben erhalten" : `${previous.presets.length} → ${counts.presets}`}`,
     `Song-Szenen: ${data.trackVisualizerScenes === undefined ? "bleiben erhalten" : `${previous.trackScenes.length} → ${counts.songScenes}`}`,
-    `Farbpalette: ${data.palette === undefined ? "bleibt erhalten" : "wird ersetzt"}`,
+    `Buttonfarbe: ${data.palette === undefined ? "bleibt erhalten" : "wird ersetzt"}`,
+    `Hintergrundfarbe: ${next.backgroundPalette === undefined ? "bleibt erhalten" : "wird ersetzt"}`,
     `Wallpaper-Zuordnungen: ${data.scenePreferences === undefined ? "bleiben erhalten" : "werden ersetzt"}`,
     "HTML-Wallpapers, Videos und LRC-Dateien sind nicht im JSON-Backup enthalten.",
     "Bitte vor dem Import zuerst einen Export deines aktuellen Stands erstellen.",
@@ -106,6 +118,7 @@ export async function importBackup(file: File): Promise<void> {
   try {
     saveSettings(next.settings);
     saveLibrary(next.library);
+    if (next.backgroundPalette !== undefined) saveBackgroundPalette(next.backgroundPalette);
     if (next.palette !== undefined) savePalette(next.palette);
     if (next.visualizer !== undefined) saveVisualizerConfig(next.visualizer);
     // Bei älteren Backups ohne Presets oder individuelle Song-Szenen keine
@@ -127,6 +140,7 @@ export async function importBackup(file: File): Promise<void> {
       () => saveSettings(previous.settings),
       () => saveLibrary(previous.library),
       () => savePalette(previous.palette),
+      () => saveBackgroundPalette(previous.backgroundPalette),
       () => saveVisualizerConfig(previous.visualizer),
       () => replaceVisualizerPresets(previous.presets),
       () => replaceTrackVisualizerScenes(previous.trackScenes),

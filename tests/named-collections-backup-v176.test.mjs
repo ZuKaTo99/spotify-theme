@@ -53,6 +53,7 @@ function harness(raw = null) {
   const settings = plain({schemaVersion: 3});
   const library = plain({history: [], favorites: [], notes: []});
   const palette = plain("emerald");
+  const background = plain("violet");
   const visualizer = plain({version: 1});
   const scene = plain({playlists: {}});
   const presets = plain([]);
@@ -63,7 +64,10 @@ function harness(raw = null) {
     require: name => {
       if (name.includes("backup-validation")) return validation;
       if (name.includes("named-collections/NamedCollections")) return named.exports;
-      if (name.includes("shared/appearance")) return {loadPalette: palette.load, savePalette: palette.save, normalizePalette: palette.normalize};
+      if (name.includes("shared/appearance")) return {
+        loadPalette: palette.load, savePalette: palette.save, normalizePalette: palette.normalize,
+        loadBackgroundPalette: background.load, saveBackgroundPalette: background.save,
+      };
       if (name.includes("shared/library")) return {loadLibraryStrict: library.load, saveLibrary: library.save, normalizeLibrary: library.normalize};
       if (name.includes("shared/settings")) return {loadSettings: settings.load, saveSettings: settings.save, normalizeSettings: settings.normalize};
       if (name.includes("shared/visualizer-config")) return {

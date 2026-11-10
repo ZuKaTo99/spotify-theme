@@ -41,6 +41,12 @@ test("Alte Backups ohne optionale Visualizer- und Wallpaper-Felder sind erlaubt"
   assert.equal(backupSummary(value).songScenes, 0);
 });
 
+test("Getrennte Hintergrundfarbe ist optional und muss ein Farbwert sein", () => {
+  assert.doesNotThrow(() => validateToolkitBackup({ ...fixture(), backgroundPalette: "sky" }));
+  assert.throws(() => validateToolkitBackup({ ...fixture(), backgroundPalette: { color: "sky" } }),
+    /Hintergrundfarbe ungültig/);
+});
+
 test("Fehlende oder beschädigte Sammlungen werden VOR dem Import verworfen", () => {
   for (const library of [{}, { history: null, favorites: [], notes: [] },
     { history: [], favorites: "leer", notes: [] }, { history: [], favorites: [], notes: {} }]) {

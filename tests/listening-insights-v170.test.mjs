@@ -144,7 +144,7 @@ test("Statistik: echte Zeitraum-Buttons wechseln Anzeige zwischen 7d und all", (
 test("Dashboard bietet Aktivitätsansicht und Link nur für aktivierte Statistik", () => {
   const source = readFileSync(path.join(root, "src/custom-app/modules/dashboard/Dashboard.tsx"), "utf8");
   assert.match(source, /analyzeListeningHistory\(history, "7d"\)/);
-  assert.match(source, /<ListeningActivity daily=\{insights\.daily\}/);
+  assert.match(source, /<ListeningLandscape daily=\{insights\.daily\}/);
   assert.match(source, /visible\.has\("statistics"\).*onNavigate\("statistics"\)/s);
-  assert.match(source, /dashboard\.activitySummary/);
+  assert.doesNotMatch(source, /dashboard\.activitySummary/);
 });

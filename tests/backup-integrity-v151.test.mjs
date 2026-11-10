@@ -116,7 +116,8 @@ test("Alte Backups ohne Farbangabe dürfen bei der Wiederherstellung das Design 
   const component = readFileSync(path.join(root, "src/custom-app/modules/settings/DataBackup.tsx"), "utf8");
   assert.match(component, /palette: data\.palette === undefined \? undefined : normalizePalette\(data\.palette\)/);
   assert.match(component, /if \(next\.palette !== undefined\) savePalette\(next\.palette\)/);
-  assert.match(component, /Farbpalette:.*bleibt erhalten/);
+  assert.match(component, /Buttonfarbe:.*bleibt erhalten/);
+  assert.match(component, /Hintergrundfarbe:.*bleibt erhalten/);
   assert.match(component, /if \(!window\.confirm\(description\)\) return/);
   assert.doesNotThrow(() => validateToolkitBackup(fixture()));
 });

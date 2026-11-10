@@ -1,12 +1,92 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.12**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.20**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
+
+## v1.76.0-rc.20 – Sichtbare Aurora-Bewegung
+
+- Zwei wandernde Lichtschichten machen die Bewegung auf Spotify-Seiten klarer
+  erkennbar. Die Bibliothek und rechte Seitenleiste lassen mehr vom Motiv durch.
+- Im Dashboard bewegen sich die Hintergrundbeleuchtung und die weichgezeichnete
+  Cover-Farbe. Die Schrift bleibt auf kontrastreichen Flächen.
+- Bei systemweit reduzierter Bewegung stehen die neuen Effekte still.
+
+## v1.76.0-rc.19 – Hintergrund und Buttons getrennt
+
+- Im Theme-Studio haben Hintergrund und Bedienelemente jeweils eine eigene
+  Farbwahl. Die bisherige Farbe wird beim Upgrade für beide übernommen;
+  anschließende Änderungen bleiben unabhängig gespeichert.
+- Bewegte Lichtpunkte, feine Kreislinien und ein wanderndes Leuchten ergänzen
+  die Aurora auch hinter dem Dashboard. Reduzierte Bewegung stoppt die Effekte.
+- Neue Backups sichern beide Farben; ältere Backups mit einer gemeinsamen Farbe
+  lassen sich weiter importieren.
+
+## v1.76.0-rc.18 – Bewegte und wählbare Farbwelt
+
+- Die Aurora bewegt sich langsam über Spotifys Hauptbereich. Bei reduzierter
+  Bewegung bleibt sie stehen.
+- Auch hinter dem Dashboard ist das Motiv deutlich sichtbar. Seine Player-Akzente
+  und der feste Mini-Player greifen die gewählte Farbe auf.
+- Über **Farben anpassen** im Dashboard lassen sich sechs Farbwelten direkt
+  wählen. Weitere Presets und ein eigener HEX-Wert bleiben optional. Die Wahl
+  gilt auch für native Spotify-Seiten und wird lokal gespeichert.
+
+## v1.76.0-rc.17 – Aurora in ganz Spotify
+
+- Ein eigenes Aurora-Motiv verbindet Startseite, Playlists, Bibliothek, rechte
+  Seitenleiste und Player. Die Oberfläche nutzt Glasflächen und eine abgestimmte
+  Violett-Blau-Palette; Songtexte und Listen bleiben lesbar.
+- Das Dashboard lässt den globalen Hintergrund dezent durchscheinen.
+- Der Installer aktiviert das ZuKaTo-Theme und kopiert dessen Bilddatei mit
+  Spicetifys `overwrite_assets` in den Client. Das Theme liegt unter
+  `src/theme`; sein Hintergrundbild wurde mit OpenAI ImageGen erzeugt.
+
+## v1.76.0-rc.16 – Hörlandschaft und Titelspur
+
+- Die Aktivität der letzten sieben Tage erscheint als grafische Landschaft
+  aus echten lokalen Songwechseln. Nulltage bleiben auf der Grundlinie.
+- Zuletzt gehörte Titel bilden eine horizontal verschiebbare, direkt
+  abspielbare Spur. Die normale Spotify-Wiedergabe bleibt die Datenquelle.
+- Das aktuelle Cover färbt die Musikbühne stärker; unnötiger Erklärungstext
+  im Aktivitätsbereich entfällt.
+
+## v1.76.0-rc.15 – Musikbühne auf der Startseite
+
+- Der laufende Song bildet den Mittelpunkt der Startseite: Cover-Orbit mit
+  Fortschrittsring, animierte grafische Rhythmusleiste und ein vom Cover
+  geprägter Hintergrund. Die Rhythmusleiste ist dekorativ und zeigt keine
+  gemessenen Audiodaten an.
+- Wiedergabe, Titelsprung, Favorit, Visualizer und Spulen sind direkt in der
+  Bühne bedienbar. Der doppelte Seitentitel entfällt optisch.
+- Schnellzugriffe, Künstler-Rangliste und Kennzahlen erhalten ein
+  zusammenhängendes Layout mit weniger einzelnen Kachelrahmen.
+
+## v1.76.0-rc.14 – Seitenleiste und Atmosphäre
+
+- Der feste Player belegt einen eigenen Platz oben in Spotifys rechter Leiste.
+  Spotifys Seiteninhalte stehen darunter und werden nicht mehr überdeckt.
+  Wenn die rechte Leiste fehlt, bleibt der Player als schwebende Ansicht nutzbar.
+- Das Dashboard erhält einen dunklen Farbverlauf mit Lichtflächen, Textur und
+  glasartigen Karten. Es kommen keine weiteren Einstellungen oder Textblöcke hinzu.
+- HTML-Wallpaper laden nach der Rückkehr aus dem Desktop-Fenster erneut, damit
+  die Visualizer-Ansicht im rechten Player wieder angezeigt wird.
+
+## v1.76.0-rc.13 – Ein Mini-Player
+
+- Spotifys Mini-Player-Knopf öffnet innerhalb der ZuKaTo-Seite den ZuKaTo-Player.
+  Außerhalb der Seite behält Spotify seine eigene Funktion.
+- Der Player startet mit Cover oder Video. Cover/Video und Visualizer sind im
+  Fenster und im rechten Player als klare Ansichten wählbar. Die Wallpaper-Bühne
+  bleibt beim Umschalten gemountet und lädt nicht erneut. Ein bewusst
+  geschlossenes Popup bleibt geschlossen, bis Spotify wieder sichtbar ist.
+- Das Dashboard zeigt größere Cover-Grafik, gestaltete Schnellzugriffe und die
+  drei häufigsten Künstler aus dem lokalen Hörverlauf. Die große Visualizer-
+  Ansicht verwendet wieder ihr vollständiges Layout.
 
 ## v1.76.0-rc.12 – Visualizer im Popup
 

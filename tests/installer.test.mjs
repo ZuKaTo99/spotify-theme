@@ -76,13 +76,19 @@ console.log("Mock-Spicetify-OK:", command);
 
   const extensionsDirectory = path.join(appDataDirectory, "spicetify", "Extensions");
   const installedAppDirectory = path.join(appDataDirectory, "spicetify", "CustomApps", "zukato-workspace");
+  const installedThemeDirectory = path.join(appDataDirectory, "spicetify", "Themes", "ZuKaToTheme");
   const installedExtension = path.join(extensionsDirectory, "zukato-extension.js");
   const installedApp = path.join(installedAppDirectory, "index.js");
+  const installedTheme = path.join(installedThemeDirectory, "user.css");
+  const installedColors = path.join(installedThemeDirectory, "color.ini");
   if (existingFiles) {
     await mkdir(extensionsDirectory, { recursive: true });
     await mkdir(installedAppDirectory, { recursive: true });
+    await mkdir(installedThemeDirectory, { recursive: true });
     await writeFile(installedExtension, "OLD-EXTENSION", "utf8");
     await writeFile(installedApp, "OLD-CUSTOM-APP", "utf8");
+    await writeFile(installedTheme, "OLD-THEME", "utf8");
+    await writeFile(installedColors, "OLD-COLORS", "utf8");
   }
 
   const environment = {
@@ -119,6 +125,8 @@ console.log("Mock-Spicetify-OK:", command);
       calls,
       installedExtension: await readOptional(installedExtension),
       installedApp: await readOptional(installedApp),
+      installedTheme: await readOptional(installedTheme),
+      installedColors: await readOptional(installedColors),
       output: `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
     };
   } finally {
@@ -133,6 +141,7 @@ test("Installer: erfolgreicher Apply ohne Backup-Neuerstellung", async () => {
   assert.deepEqual(calls, [
     ["config", "extensions", "zukato-extension.js"],
     ["config", "custom_apps", "zukato-workspace"],
+    ["config", "current_theme", "ZuKaToTheme", "color_scheme", "ZuKaTo", "overwrite_assets", "1"],
     ["apply"],
   ]);
 });
@@ -143,7 +152,7 @@ test("Installer: Spotify-Backup-Mismatch löst genau einmal backup apply aus", a
   assert.equal(result.status, 0, output);
   assert.deepEqual(calls.at(-2), ["apply"]);
   assert.deepEqual(calls.at(-1), ["backup", "apply"]);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.match(output, /Backup aktualisiert/i);
 });
 
@@ -151,7 +160,7 @@ test("Installer: Spotify-Backup-Mismatch löst genau einmal backup apply aus", a
 test("Installer: Berechtigungsfehler löst KEIN Backup aus", async () => {
   const { result, calls, output } = await runScenario("unexpected");
   assert.equal(result.status, 1, output);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.match(output, /spicetify apply fehlgeschlagen/i);
 });
 
@@ -159,7 +168,7 @@ test("Installer: Berechtigungsfehler löst KEIN Backup aus", async () => {
 test("Installer: gescheiterte Backup-Reparatur endet nach einem Versuch", async () => {
   const { result, calls, output } = await runScenario("repair-fails");
   assert.equal(result.status, 1, output);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.deepEqual(calls.at(-1), ["backup", "apply"]);
   assert.match(output, /spicetify backup apply fehlgeschlagen/i);
 });
@@ -168,7 +177,7 @@ test("Installer: gescheiterte Backup-Reparatur endet nach einem Versuch", async 
 test("Installer: ZUKATO_DISABLE_AUTO_BACKUP verhindert die Reparatur", async () => {
   const { result, calls, output } = await runScenario("mismatch", { disableAutoBackup: true });
   assert.equal(result.status, 1, output);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.match(output, /Automatik deaktiviert/i);
 });
 
@@ -178,6 +187,8 @@ test("Installer: gescheiterter Apply stellt alte App und Extension wieder her", 
   assert.equal(data.result.status, 1, data.output);
   assert.equal(data.installedExtension, "OLD-EXTENSION");
   assert.equal(data.installedApp, "OLD-CUSTOM-APP");
+  assert.equal(data.installedTheme, "OLD-THEME");
+  assert.equal(data.installedColors, "OLD-COLORS");
 });
 
 /** Schon ein Fehler beim Aktivieren der zweiten Komponente muss rückgängig sein. */
@@ -186,6 +197,7 @@ test("Installer: Konfigurationsfehler stellt beide alten Komponenten wieder her"
   assert.equal(data.result.status, 1, data.output);
   assert.equal(data.installedExtension, "OLD-EXTENSION");
   assert.equal(data.installedApp, "OLD-CUSTOM-APP");
+  assert.equal(data.installedTheme, "OLD-THEME");
   assert.equal(data.calls.length, 2, "Nach config-Fehler kein apply ausführen");
 });
 
@@ -195,6 +207,7 @@ test("Installer: fehlgeschlagene Neuinstallation hinterlässt keine beschädigte
   assert.equal(data.result.status, 1, data.output);
   assert.equal(data.installedExtension, null);
   assert.equal(data.installedApp, null);
+  assert.equal(data.installedTheme, null);
 });
 
 /** Erfolgreiches Update ersetzt tatsächlich den alten Code statt ihn zu behalten. */
@@ -203,5 +216,8 @@ test("Installer: erfolgreiche Installation tauscht alte Komponenten aus", async 
   assert.equal(data.result.status, 0, data.output);
   assert.notEqual(data.installedExtension, "OLD-EXTENSION");
   assert.notEqual(data.installedApp, "OLD-CUSTOM-APP");
+  assert.notEqual(data.installedTheme, "OLD-THEME");
+  assert.match(data.installedTheme, /aurora-soundscape\.png/);
+  assert.match(data.installedColors, /\[ZuKaTo\]/);
   assert.match(data.installedApp, /function render|ZuKaToCustomApp|Spicetify/);
 });
