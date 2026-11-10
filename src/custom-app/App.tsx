@@ -33,7 +33,9 @@ import {
   ModulePage,
 } from "./components/ModulePage";
 import { QuickTrackPanel } from "./components/QuickTrackPanel";
+import { NowPlayingDock, restoreNowPlayingDockStage } from "./components/NowPlayingDock";
 import { Visualizer } from "./modules/visualizer/Visualizer";
+import { closeAutomaticVisualizerMiniWindow, closeVisualizerMiniWindow, openVisualizerMiniWindow } from "./modules/visualizer/mini-window";
 import { readWorkspaceFeature, rememberWorkspaceFeature, resolveWorkspaceFeature } from "../shared/workspace-navigation";
 import { shouldToggleQuickTrackPanel } from "../shared/workspace-shortcuts";
 
@@ -58,7 +60,7 @@ export function App(): ReactElement {
 
   // Eigene Palette anwenden, ohne CSS anderer Spotify-Seiten zu verändern.
   const rootRef = ReactRuntime.useRef<HTMLElement>(null);
-  const miniHostRef = ReactRuntime.useRef<HTMLDivElement>(null);
+  const desktopStageRef = ReactRuntime.useRef<HTMLElement | null>(null);
   ReactRuntime.useEffect(() => {
     const refresh = (): void => applyPalette(rootRef.current, loadPalette());
     const onPalette = (event: Event): void => {
@@ -78,6 +80,10 @@ export function App(): ReactElement {
   const closeQuick = ReactRuntime.useCallback(() => setQuickOpen(false), []);
 
   function navigate(feature: FeatureId): void {
+    if (feature === "visualizer") {
+      closeVisualizerMiniWindow();
+      restoreNowPlayingDockStage();
+    }
     setActiveFeatureId(feature);
     rememberWorkspaceFeature(feature);
   }
@@ -138,28 +144,40 @@ export function App(): ReactElement {
     settingsTitle;
 
   const visualizerAvailable = navigationItems.some((item) => item.id === "visualizer");
-
-  // Spotify kann "fixed" auf die mittlere Webview statt den Bildschirm
-  // beziehen. Die gemessene Kante richtet das Dock am rechten Fensterende aus.
-  ReactRuntime.useLayoutEffect(() => {
-    const host = miniHostRef.current;
-    const root = rootRef.current;
-    if (!host || !root || !visualizerAvailable || visibleFeatureId === "visualizer") return;
-    const position = (): void => {
-      host.style.right = "18px";
-      const actualRight = host.getBoundingClientRect().right;
-      host.style.right = `${18 - (window.innerWidth - 18 - actualRight)}px`;
+  function openDesktop(automatic: boolean): void {
+    const stage = document.querySelector<HTMLElement>(".zukato-viz__stage") ?? desktopStageRef.current;
+    if (!stage) return;
+    desktopStageRef.current = stage;
+    void openVisualizerMiniWindow(stage, { automatic }).then((opened) => {
+      if (!opened && !automatic) Spicetify.showNotification(t("viz.miniWindowFailed"), true);
+    });
+  }
+  // Chromium kann die Media-Session beim Verbergen automatisch nach PiP
+  // fragen. Bei Webviews ohne Auto-PiP bleibt der sichtbare Desktop-Knopf.
+  ReactRuntime.useEffect(() => {
+    if (!visualizerAvailable) return;
+    const onVisibility = (): void => {
+      if (document.hidden) openDesktop(true);
+      else closeAutomaticVisualizerMiniWindow();
     };
-    position();
-    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(position) : null;
-    observer?.observe(root);
-    window.addEventListener("resize", position);
+    document.addEventListener("visibilitychange", onVisibility);
+    const mediaSession = navigator.mediaSession as (MediaSession & {
+      setActionHandler(action: "enterpictureinpicture", handler: (() => void) | null): void;
+    }) | undefined;
+    let registered = false;
+    try {
+      if (mediaSession?.setActionHandler) {
+        mediaSession.setActionHandler("enterpictureinpicture", () => openDesktop(true));
+        registered = true;
+      }
+    } catch { /* Spotify-Webviews können diese Aktion sperren. */ }
     return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", position);
-      host.style.removeProperty("right");
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (registered) {
+        try { mediaSession?.setActionHandler("enterpictureinpicture", null); } catch { /* no-op */ }
+      }
     };
-  }, [visibleFeatureId, visualizerAvailable]);
+  }, [visualizerAvailable]);
 
   // Sicherer Fallback, falls ein Modul in den Einstellungen deaktiviert wurde.
   ReactRuntime.useEffect(() => {
@@ -181,7 +199,7 @@ export function App(): ReactElement {
 
   return (
     <main
-      className="zukato-app"
+      className={`zukato-app zukato-app--${visibleFeatureId}`}
       ref={rootRef}
       lang={resolvedLocale}
     >
@@ -218,11 +236,15 @@ export function App(): ReactElement {
           onSettingsChange={update}
           onNavigate={navigate}
         />}
-        {visualizerAvailable && <div ref={miniHostRef} className={`zukato-viz-host${visibleFeatureId === "visualizer" ? "" : " zukato-viz-host--mini"}`}>
+        {visualizerAvailable && <div className={`zukato-viz-host${visibleFeatureId === "visualizer" ? "" : " zukato-viz-host--mini"}`}>
           <Visualizer t={t} compact={visibleFeatureId !== "visualizer"}
             onOpenFull={() => navigate("visualizer")} />
         </div>}
       </ModulePage>
+      {visualizerAvailable && visibleFeatureId !== "visualizer" &&
+        Spicetify.ReactDOM?.createPortal?.(<NowPlayingDock
+          onOpenVisualizer={() => navigate("visualizer")}
+          onOpenDesktop={() => openDesktop(false)} />, document.body)}
       {quickOpen && <QuickTrackPanel t={t} onClose={closeQuick} />}
     </main>
   );

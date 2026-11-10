@@ -15,9 +15,9 @@ const settingsFor = (storage) => loadPureSharedModule(root, "src/shared/settings
 const shortcuts = loadPureSharedModule(root, "src/shared/workspace-shortcuts.ts");
 const STORE_KEY = "zukato-toolkit.settings.last-section.v1";
 
-test("Einstellungen: alle sechs sichtbaren Bereiche sind gültig", () => {
+test("Einstellungen: alle fünf sichtbaren Bereiche sind gültig", () => {
   assert.deepEqual(Array.from(settings.SETTINGS_SECTIONS), [
-    "overview", "general", "wallpapers", "modules", "shortcuts", "data",
+    "general", "wallpapers", "modules", "shortcuts", "data",
   ]);
   assert.equal(settings.validSettingsSection("data"), true);
   assert.equal(settings.validSettingsSection("__proto__"), false);
@@ -43,17 +43,17 @@ test("Einstellungen: kaputter oder gesperrter Session-Speicher darf nicht abstü
   api.rememberSettingsSection("unknown");
   assert.equal(api.readSettingsSection(), "shortcuts");
   const blocked = settingsFor({ get getItem() { throw Error("SecurityError"); } });
-  assert.equal(blocked.readSettingsSection(), "overview");
+  assert.equal(blocked.readSettingsSection(), "general");
 });
 
 test("Einstellungen: Pfeiltasten springen zyklisch, Home/End an die Ränder", () => {
-  assert.equal(settings.nextSettingsSection("overview", "ArrowUp"), "data");
-  assert.equal(settings.nextSettingsSection("data", "ArrowDown"), "overview");
+  assert.equal(settings.nextSettingsSection("general", "ArrowUp"), "data");
+  assert.equal(settings.nextSettingsSection("data", "ArrowDown"), "general");
   assert.equal(settings.nextSettingsSection("general", "ArrowRight"), "wallpapers");
-  assert.equal(settings.nextSettingsSection("general", "ArrowLeft"), "overview");
-  assert.equal(settings.nextSettingsSection("modules", "Home"), "overview");
-  assert.equal(settings.nextSettingsSection("overview", "End"), "data");
-  assert.equal(settings.nextSettingsSection("overview", "Enter"), null);
+  assert.equal(settings.nextSettingsSection("general", "ArrowLeft"), "data");
+  assert.equal(settings.nextSettingsSection("modules", "Home"), "general");
+  assert.equal(settings.nextSettingsSection("general", "End"), "data");
+  assert.equal(settings.nextSettingsSection("general", "Enter"), null);
 });
 
 const baseEvent = { code: "KeyF", ctrlKey: true, shiftKey: true, altKey: false,

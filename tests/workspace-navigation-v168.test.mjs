@@ -152,6 +152,7 @@ test("UI: zwei schnelle Pin-Klicks behalten beide Ziele", () => {
 
 test("UI: deaktivierte Ziele dürfen auch mit gespeichertem Pin nicht geöffnet werden", () => {
   const h = ui({ initial: '["visualizer","favorites"]' });
+  h.expand();
   assert.equal(nodes(h.render().find(node => node.props?.className === "spotify-toolkit-navigation__pinned-list")?.props.children).filter(node => node.type === "button").length, 2);
   h.setAvailable(items.filter(item => item.id !== "visualizer"));
   const buttons = h.render().filter(node => node.type === "button" && node.props?.children?.includes?.("Visualizer"));
@@ -162,15 +163,17 @@ test("UI: deaktivierte Ziele dürfen auch mit gespeichertem Pin nicht geöffnet 
 
 test("UI: Schnellzugriff navigiert ohne eine zweite Modulinstanz zu erzeugen", () => {
   const h = ui({ initial: '["favorites"]' });
+  h.expand();
   const pinnedContainer = h.render().find(node => node.props?.className === "spotify-toolkit-navigation__pinned-list");
   nodes(pinnedContainer.props.children).find(node => node.type === "button").props.onClick();
   assert.deepEqual(h.visited, ["favorites"]);
 });
 
-test("UI: Suche öffnet eingeklappte Navigation und Escape löscht nur Suchtext", () => {
+test("UI: Modulsuche bleibt bis zur Auswahl geöffnet und Escape löscht Suchtext", () => {
   const h = ui();
-  // Die Arbeitsfläche bleibt beim Start frei; eine Suche öffnet Treffer direkt.
+  // Die Arbeitsfläche bleibt beim Start frei; die Suche öffnet der Modulknopf.
   assert.equal(h.render().find(node => node.props?.id === "zukato-workspace-navigation-groups"), undefined);
+  h.expand();
   h.input().props.onChange({ target: { value: "visual" } });
   assert.ok(h.render().find(node => node.props?.id === "zukato-workspace-navigation-groups"));
   assert.equal(h.button("navigation.pin/Favoriten"), undefined);
@@ -182,6 +185,7 @@ test("UI: Suche öffnet eingeklappte Navigation und Escape löscht nur Suchtext"
 
 test("UI: unbekannte Suche zeigt verständlichen Leerstaat ohne Navigationseffekt", () => {
   const h = ui();
+  h.expand();
   h.input().props.onChange({ target: { value: "kein-modul-123" } });
   const status = h.render().find(node => node.type === "p" && node.props?.role === "status");
   assert.ok(status);
@@ -201,12 +205,13 @@ test("UI: das sechste Modul lässt sich nicht still anheften", () => {
 
 test("UI: Enter öffnet genau einen Suchtreffer ohne Spotify-Suchshortcut", () => {
   const h = ui();
+  h.expand();
   h.input().props.onChange({ target: { value: "Visualizer" } });
   let prevented = 0;
   h.input().props.onKeyDown({ key: "Enter", preventDefault() { prevented++; } });
   assert.deepEqual(h.visited, ["visualizer"]);
   assert.equal(prevented, 1);
-  assert.equal(h.input().props.value, "");
+  assert.equal(h.input(), undefined);
   assert.equal(h.render().find(node => node.props?.id === "zukato-workspace-navigation-groups"), undefined);
 });
 

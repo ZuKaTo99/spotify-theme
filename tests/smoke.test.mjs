@@ -17,6 +17,7 @@ function makeMockEnvironment() {
   const events = new Map();
   const notifications = [];
   const queued = [];
+  const seeks = [];
   const intervals = new Map();
   let lastInterval = 0;
   class CustomEventMock { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } }
@@ -53,7 +54,7 @@ function makeMockEnvironment() {
     getDuration: () => 180000, getProgress: () => 30000,
     isPlaying: () => true, getVolume: () => .5,
     formatTime: (value) => `${Math.floor(value / 1000)}s`,
-    pause() {}, play() {}, next() {}, back() {}, togglePlay() {},
+    pause() {}, play() {}, next() {}, back() {}, togglePlay() {}, seek(position) { seeks.push(position); },
   };
   const React = {
     createElement(type, props, ...children) { return { type, props: { ...props, children } }; },
@@ -63,7 +64,7 @@ function makeMockEnvironment() {
     useRef(value) { return { current: value }; },
   };
   const Spicetify = {
-    React, Player: player,
+    React, ReactDOM: { createPortal: (element) => element }, Player: player,
     Platform: { LocalStorageAPI: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) } },
     Menu: { Item: FakeMenu, SubMenu: FakeSubMenu },
     ContextMenu: { Item: FakeContext },
@@ -73,7 +74,7 @@ function makeMockEnvironment() {
   const context = vm.createContext({ Spicetify, window, document, CustomEvent: CustomEventMock,
     console: { info() {}, warn() {}, error() {} }, navigator: { languages: ["de-DE"], language: "de-DE", clipboard: { async writeText() {} } },
     setTimeout() {}, HTMLElement: class {}, Element: class {} });
-  return { context, storage, player, listeners, menus, contexts, notifications, intervals, window, queued };
+  return { context, storage, player, listeners, menus, contexts, notifications, intervals, window, queued, seeks };
 }
 
 /** Ist der Bundle-Einstieg global erreichbar und wirft er zur Laufzeit keine Fehler? */
@@ -193,10 +194,16 @@ test("Visualizer: Workspace-Router zeigt Bühne sofort und lädt Regler erst bei
     typeof node.props?.className === "string" && node.props.className.includes("zukato-viz-host--mini"));
   assert.ok(miniHost, "Auf dem Dashboard bleibt die laufende Visualizer-Bühne als Mini-Ansicht eingebunden");
   assert.ok(find(miniHost, (node) => node.type?.name === "Visualizer"));
+  assert.ok(find(appTree, (node) => node.type?.name === "NowPlayingDock"),
+    "Ein eigenes Player-Fenster wird außerhalb der mittleren Webview angezeigt");
   const visualizer = module.type({ ...module.props, featureId: "visualizer" });
   assert.equal(visualizer.type.name, "Visualizer");
   const stage = visualizer.type(visualizer.props);
   assert.ok(find(stage, (node) => node.props?.className === "zukato-viz__stage"));
+  const seek = find(stage, (node) => node.type === "input" && node.props?.["aria-label"] === "Wiedergabeposition");
+  assert.ok(seek, "Die Vollbild-Bühne zeigt eine verschiebbare Song-Zeitleiste");
+  seek.props.onChange({ currentTarget: { value: "60000" } });
+  assert.equal(mock.seeks[0], 60000);
   const fileInputs = [];
   function collect(node) {
     if (Array.isArray(node)) { node.forEach(collect); return; }

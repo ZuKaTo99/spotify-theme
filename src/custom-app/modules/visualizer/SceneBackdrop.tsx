@@ -81,6 +81,21 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
   // Wallpaper darf keine Spotify-Daten lesen; nur ein neutraler Status geht
   // in Gegenrichtung an die React-Oberfläche.
   ReactRuntime.useEffect(() => {
+    const relocated = (event: Event): void => {
+      if ((event as CustomEvent<HTMLIFrameElement>).detail === frameRef.current) {
+        // Die PiP-Sandbox sendet Ready an ihr neues Parent. Diese explizite
+        // Nutzeraktion bekommt genau einen frischen Transfer der Projektdaten.
+        frameGate.current = new WallpaperFrameGate();
+        const current = contentRef.current;
+        const frame = frameRef.current?.contentWindow;
+        if (!current?.runtime || current.key !== activeKeyRef.current || !frame) return;
+        try {
+          frame.postMessage({ zukatoProjectInit: true, ...current.runtime,
+            storage: loadWallpaperPrefs(current.sceneId!),
+            sessionStorage: loadWallpaperPrefs(current.sceneId!, "session") }, "*");
+        } catch { callback.current("HTML-Wallpaper-Dateien konnten nicht an das Desktop-Fenster übertragen werden."); }
+      }
+    };
     const receive = (event: MessageEvent): void => {
       if (event.source !== frameRef.current?.contentWindow) return;
       if (event.data?.zukatoProjectReady === true) {
@@ -139,7 +154,11 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
       }
     };
     window.addEventListener("message", receive);
-    return () => window.removeEventListener("message", receive);
+    window.addEventListener("zukato-toolkit:wallpaper-relocated", relocated);
+    return () => {
+      window.removeEventListener("message", receive);
+      window.removeEventListener("zukato-toolkit:wallpaper-relocated", relocated);
+    };
   }, []);
 
   // Die Vorschau verwendet dieselbe Szenen-ID. Änderungen dort werden beim
@@ -191,7 +210,10 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
             // die Objekt-URLs IN der Sandbox. Direktes srcDoc=rendered.html
             // würde die Asset-Platzhalter niemals auflösen.
             const frame = sceneFramePayload(rendered);
-            srcDoc = frame.srcDoc;
+            // Im Document-PiP ist der iframe-Parent das neue Fenster. Die
+            // Player-Nachrichten kommen weiter aus dem Spotify-Hauptfenster.
+            srcDoc = frame.srcDoc.replace(/__ZUKATO_PARENT_ORIGIN__/g,
+              encodeURIComponent(window.location.origin));
             runtime = { ...frame.runtime,
               storageToken: typeof crypto !== "undefined" && crypto.randomUUID
                 ? crypto.randomUUID() : `${Date.now()}:${Math.random()}` };

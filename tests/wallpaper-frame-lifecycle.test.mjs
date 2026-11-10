@@ -53,7 +53,8 @@ test("Sandbox: 100 Assets werden nur einmal ersetzt; bereits typisierte Blobs we
   const objects = [];
   // Ein echter Browser entfernt bei document.open() ALLE Window-Listener.
   // Der Test emuliert das: Der Bootstrap muss StorageSync danach neu anbinden.
-  const document = { html: "", open() { listeners.clear(); }, write(value) { this.html = value; }, close() {} };
+  const document = { html: "", baseURI: "https://xpui.app.spotify.com/index.html",
+    open() { listeners.clear(); }, write(value) { this.html = value; }, close() {} };
   const parent = { postMessage(message) { sent.push(message); } };
   class Image { }
   class Media { }
@@ -61,14 +62,17 @@ test("Sandbox: 100 Assets werden nur einmal ersetzt; bereits typisierte Blobs we
   class Element { setAttribute() { } }
   class Request { }
   class XHR { open() { } }
+  class FakeURL extends URL {
+    static createObjectURL(blob) { objects.push(blob); return `blob:local/${objects.length}`; }
+    static revokeObjectURL() {}
+  }
   const sandbox = {
     window: {
       parent, addEventListener(type, handler) { listeners.set(type, handler); },
       removeEventListener(type, handler) { if (listeners.get(type) === handler) listeners.delete(type); },
       fetch() { return Promise.resolve({ ok: true }); },
     },
-    document, URL: { createObjectURL(blob) { objects.push(blob); return `blob:local/${objects.length}`; },
-      revokeObjectURL() { } },
+    document, URL: FakeURL,
     Blob, HTMLElement: Element, Element,
     HTMLImageElement: Image, HTMLMediaElement: Media, HTMLSourceElement: Source,
     XMLHttpRequest: XHR, Date, Math, Object, String, Array, Promise,
@@ -81,7 +85,9 @@ test("Sandbox: 100 Assets werden nur einmal ersetzt; bereits typisierte Blobs we
     mime: "image/png", blob: new Blob([new Uint8Array([i])], { type: "image/png" }),
   }));
   const html = `<html>${files.map((file) => `<img src="${file.marker}">`).join("")}</html>`;
-  listeners.get("message")({ source: parent, data: { zukatoProjectInit: true, html,
+  // Nach dem Umzug ins Desktop-PiP ist Spotify nicht mehr window.parent.
+  listeners.get("message")({ source: {}, origin: "https://xpui.app.spotify.com",
+    data: { zukatoProjectInit: true, html,
     entry: "index.html", assets: files, modules: [] } });
   assert.equal(objects.length, 100);
   assert.equal(objects[0], files[0].blob);

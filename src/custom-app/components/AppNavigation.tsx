@@ -42,8 +42,7 @@ export function AppNavigation({
   onSelect,
 }: AppNavigationProps): ReactElement {
   const [search, setSearch] = ReactRuntime.useState("");
-  // Die Suche bleibt immer sichtbar. Die vollständige Modulliste öffnet sich
-  // erst bei Bedarf oder beim Suchen und verdeckt so nicht jede Arbeitsseite.
+  // Die vollständige Modulliste öffnet sich nur bei Bedarf.
   const [expanded, setExpanded] = ReactRuntime.useState(false);
   const [pins, setPins] = ReactRuntime.useState<FeatureId[]>(readWorkspacePins);
   // Ref verhindert verlorene Änderungen bei zwei sehr schnellen Pin-Klicks.
@@ -67,17 +66,17 @@ export function AppNavigation({
     if (value.trim()) setExpanded(true);
   }
 
-  /** Nach einem Suchtreffer wird der Platz für die gewählte Seite frei.
-   * Manuell geöffnete Modullisten bleiben dagegen bis zum Einklappen offen. */
+  /** Nach jeder Auswahl bekommt die gewählte Seite wieder den ganzen Platz. */
   function selectItem(featureId: FeatureId): void {
-    if (search.trim()) { setSearch(""); setExpanded(false); }
+    setSearch("");
+    setExpanded(false);
     onSelect(featureId);
   }
 
   return (
-    <nav className="spotify-toolkit-navigation" aria-label={ariaLabel}>
+    <nav className={`spotify-toolkit-navigation${expanded ? " spotify-toolkit-navigation--expanded" : ""}`} aria-label={ariaLabel}>
       <div className="spotify-toolkit-navigation__toolbar">
-        <label className="spotify-toolkit-navigation__search">
+        {expanded && <label className="spotify-toolkit-navigation__search">
           <span className="zukato-visually-hidden">{t("navigation.search")}</span>
           <input type="search" value={search} placeholder={t("navigation.search")}
             onChange={(event) => updateSearch(event.target.value)}
@@ -101,15 +100,15 @@ export function AppNavigation({
                 }
               }
             }} />
-        </label>
+        </label>}
         <button type="button" className="spotify-toolkit-navigation__toggle"
           aria-expanded={expanded} aria-controls="zukato-workspace-navigation-groups"
-          onClick={() => setExpanded((open) => !open)}>
+          onClick={() => { if (expanded) setSearch(""); setExpanded(!expanded); }}>
           {expanded ? t("navigation.collapse") : t("navigation.expand")}
         </button>
       </div>
 
-      {pinnedItems.length > 0 && (
+      {expanded && pinnedItems.length > 0 && (
         <div className="spotify-toolkit-navigation__pinned" aria-label={t("navigation.pinned")}>
           <span className="spotify-toolkit-navigation__group-label">{t("navigation.pinned")}</span>
           <div className="spotify-toolkit-navigation__pinned-list">

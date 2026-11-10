@@ -1,17 +1,45 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.8**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.10**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
 
+## v1.76.0-rc.10 – Desktop-Player und kompakte Bedienung
+
+- Das verschiebbare Desktop-Popup und das feste Fenster rechts haben jetzt
+  Zufallswiedergabe, Wiederholen, Vor/Zurück, Pause und einen Zeitregler.
+  Cover/Spotify-Video und das laufende Wallpaper lassen sich direkt umschalten.
+- Importierte HTML-Wallpaper erhalten nach dem Wechsel ins Desktop-Popup weiter
+  die aktuellen Titel- und Playerdaten. Der zuvor schwarze Hintergrund wurde
+  im lokalen Spotify-Desktop-Client behoben und visuell geprüft.
+- Beim Minimieren öffnete der getestete Spotify-Client das Popup automatisch;
+  „Spotify öffnen“ brachte das Hauptfenster zurück.
+- Dashboard, Modulnavigation und Visualizer sind kompakter. Die doppelte
+  Einstellungs-Übersicht entfällt; der Wallpaper-Quellenschalter steht unter
+  „Wallpapers“. Gespeicherte Einstellungen bleiben erhalten.
+
+## v1.76.0-rc.9 – Fester rechter Player und Zeitleiste
+
+- Auf anderen Workspace-Seiten sitzt ein eigenes Player-Fenster fest am rechten
+  Bildschirmrand. Es zeigt Cover oder verfügbares Spotify-Video, Songdaten,
+  Fortschritt und Wiedergabetasten. Die Wallpaper-Bühne bleibt im Hintergrund
+  gemountet und startet beim Wechsel zurück zum Visualizer nicht neu.
+- Im Desktop-Fenster wechselt „Cover/Video“ ohne Neustart der Bühne zum
+  Albumcover oder verfügbaren Spotify-Video; „Wallpaper“ führt zurück.
+- Beim Minimieren fragt die App automatisch ein Desktop-Popup an. Spotify-
+  Webviews, die Chromiums automatisches Document-PiP erlauben, öffnen es ohne
+  zusätzlichen Klick. Sonst bleibt die Schaltfläche „Desktop-Fenster“ verfügbar.
+- Im Vollbild und Kinomodus zeigt die Bühne verstrichene Zeit und Gesamtdauer.
+  Der Regler spult über Spotifys Player-API vor und zurück.
+
 ## v1.76.0-rc.8 – Visualizer rechts und Wallpaper auf dem Desktop
 
-- Die kleine Ansicht ist 400 px breit und fest am rechten Bildschirmrand. Sie
-  kann innerhalb von Spotify nicht verschoben oder skaliert werden.
+- Der erste 400-px-Overlay-Ansatz für die rechte Seite wurde in rc.9 durch das
+  feste Player-Fenster ersetzt.
 - „Desktop“ öffnet das laufende Wallpaper mit Zurück, Pause/Wiedergabe und Weiter
   als verschiebbares Document-PiP-Fenster. „Spotify öffnen“ bringt das Hauptfenster
   zurück und setzt dieselbe Bühne an ihren Platz. Das Fenster muss per Klick vor

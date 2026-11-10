@@ -5,6 +5,28 @@
  * ============================================================================= */
 @use "../extension/modules/playlist-tools/named-collections/NamedCollectionsPanel.css";
 .zukato-app {
+  .zukato-app__header { display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin: 0 0 12px; }
+  .zukato-app__identity { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .zukato-app__identity h1 { font-size: clamp(20px, 2vw, 27px); line-height: 1.2;
+    margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .zukato-app__label { display: none; }
+  &:not(.zukato-app--dashboard) .zukato-app__greeting { display: none; }
+  .zukato-app__quick-action { white-space: nowrap; }
+  .zukato-app__quick-action kbd { display: none; }
+  @media (max-width: 620px) {
+    .zukato-app__header { flex-wrap: wrap; }
+    .zukato-app__identity { flex-basis: 100%; }
+    .zukato-app__greeting { display: none; }
+  }
+  .spotify-toolkit-navigation:not(.spotify-toolkit-navigation--expanded) {
+    width: max-content; max-width: 100%; padding: 3px; border-color: transparent;
+    background: transparent; margin-bottom: 10px;
+  }
+  .spotify-toolkit-navigation:not(.spotify-toolkit-navigation--expanded) .spotify-toolkit-navigation__toggle {
+    min-height: 32px; padding: 5px 10px;
+  }
+  .zukato-viz--simple .zukato-viz__commandbar-info { display: none; }
   --zukato-accent: #1ed760;
   --zukato-on-accent: #101410;
   --zukato-panel: rgba(128, 128, 128, .09);
@@ -395,12 +417,20 @@
   .zukato-viz__timeline > div { height: 100%; background: var(--zukato-accent); }
   .zukato-viz__stage-controls {
     position: absolute; z-index: 5; left: 50%; bottom: clamp(18px, 4vh, 42px);
-    transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+    transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px;
+    width: min(650px, calc(100% - 28px));
     padding: 8px 14px; border-radius: 18px; background: rgba(8, 14, 26, .78);
     border: 1px solid rgba(200, 225, 255, .24); backdrop-filter: blur(12px);
     box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
   }
   .zukato-viz__stage-controls .zukato-player-monitor__buttons { padding: 0; }
+  .zukato-viz__transport { display: flex; align-items: center; justify-content: center; gap: 12px; }
+  .zukato-viz__seek { display: flex; align-items: center; gap: 10px; width: 100%;
+    font-size: 12px; font-variant-numeric: tabular-nums; }
+  .zukato-viz__seek span { min-width: 36px; text-align: center; }
+  .zukato-viz__seek input[type="range"] { flex: 1; min-width: 80px; width: 100%;
+    padding: 0; border: 0; background: transparent; accent-color: var(--zukato-accent); cursor: pointer; }
+  .zukato-viz__seek input[type="range"]:disabled { cursor: default; }
   .zukato-viz__stage-controls .zukato-player-monitor__control { width: 44px; height: 44px; }
   .zukato-viz__stage-controls .zukato-player-monitor__control--primary { width: 52px; height: 52px; }
   .zukato-viz__exit-fullscreen { display: none; white-space: nowrap; }
@@ -612,7 +642,7 @@
     margin: 0 0 7px; font-size: 17px; letter-spacing: -.015em; }
   .zukato-dashboard__shortcut-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
   .zukato-dashboard__shortcuts { container-type: inline-size; }
-  @container (max-width: 520px) {
+  @container (max-width: 380px) {
     .zukato-dashboard__shortcut-grid { grid-template-columns: minmax(0,1fr); }
   }
   .zukato-dashboard__shortcut { display: grid; grid-template-columns: auto 1fr auto; align-items: center;
@@ -665,6 +695,14 @@
   .zukato-preferences__content .zukato-settings__field { padding: 12px 0; margin: 0;
     border-bottom: 1px solid var(--zukato-hairline); }
   .zukato-preferences__content .zukato-settings__field:last-child { border-bottom: 0; }
+  .zukato-wallpaper-settings__source h4 { margin: 0 0 11px; font-size: 15px; }
+  .zukato-wallpaper-settings__choices { display: flex; flex-wrap: wrap; gap: 7px; }
+  .zukato-wallpaper-settings__choices button { flex: 1 1 150px; min-height: 40px;
+    padding: 8px 12px; text-align: center; }
+  .zukato-wallpaper-settings__choices button.is-active { background: var(--zukato-accent);
+    color: var(--zukato-on-accent); border-color: var(--zukato-accent); font-weight: 750; }
+  .zukato-wallpaper-settings__source-hint { color: var(--zukato-muted); font-size: 12px;
+    margin: 11px 0 14px; }
   .zukato-preferences__content .zukato-settings input:not([type=checkbox]),
   .zukato-preferences__content .zukato-settings select { width: min(100%,430px); }
   .zukato-preferences__content .zukato-modules,
@@ -1005,10 +1043,9 @@
   .zukato-app .spotify-toolkit-navigation__group { width: 100%; margin-bottom: 9px; }
   .zukato-app .spotify-toolkit-navigation__buttons,
   .zukato-app .spotify-toolkit-navigation__pinned-list {
-    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain;
-    scrollbar-width: thin; padding: 2px 0 5px;
+    flex-wrap: wrap; overflow: visible; padding: 2px 0 5px;
   }
-  .zukato-app .spotify-toolkit-navigation__entry { flex: 0 0 auto; }
+  .zukato-app .spotify-toolkit-navigation__entry { flex: 0 1 auto; max-width: 100%; }
   .zukato-app .spotify-toolkit-navigation__pinned { display: block; }
   .zukato-app .spotify-toolkit-navigation__pinned-list { margin-top: 4px; }
 }
@@ -1176,9 +1213,10 @@
 // iframe und video bleiben dieselben DOM-Elemente und spielen weiter.
 .zukato-app {
   .zukato-viz-host--mini {
-    position: fixed; right: 18px; bottom: 112px;
-    width: min(400px, calc(100vw - 36px)); z-index: 800;
-    filter: drop-shadow(0 12px 26px rgba(0,0,0,.56));
+    // Die echte Bühne bleibt gemountet, während das separate Dock rechts
+    // den Song zeigt. So startet das Wallpaper beim Seitenwechsel nicht neu.
+    position: fixed; left: -10000px; top: 0; width: 400px;
+    opacity: 0; pointer-events: none;
   }
   .zukato-viz--mini > :not(.zukato-viz__stage) { display: none !important; }
   .zukato-viz--mini .zukato-viz__stage {
@@ -1193,9 +1231,10 @@
   .zukato-viz--mini .zukato-viz__track span { font-size: 10px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
   .zukato-viz--mini .zukato-viz__stage-controls {
-    display: flex; bottom: 8px; gap: 5px; padding: 4px 7px;
+    display: flex; bottom: 8px; gap: 5px; padding: 4px 7px; width: auto;
     border-radius: 12px;
   }
+  .zukato-viz--mini .zukato-viz__seek { display: none; }
   .zukato-viz--mini .zukato-viz__stage-controls .zukato-player-monitor__control,
   .zukato-viz--mini .zukato-viz__stage-controls .zukato-player-monitor__control--primary {
     width: 32px; height: 32px;
@@ -1210,7 +1249,85 @@
   }
   .zukato-viz--mini .zukato-viz__mini-actions button:disabled { opacity: .45; cursor: default; }
   @media (max-width: 600px) {
-    .zukato-viz-host--mini { width: min(300px, calc(100vw - 36px)); bottom: 102px; }
+    .zukato-viz-host--mini { width: 300px; }
     .zukato-viz--mini .zukato-viz__track { display: none; }
   }
+}
+
+.zukato-app.zukato-now-dock {
+  position: fixed; right: 12px; bottom: 108px; z-index: 10050;
+  width: min(408px, calc(100vw - 24px)); height: clamp(280px, calc(100vh - 600px), 470px);
+  min-height: 260px; padding: 10px; margin: 0; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 9px; overflow: hidden;
+  color: #fff; background: #11131b; border: 1px solid #383d4a; border-radius: 15px;
+  box-shadow: 0 14px 35px rgba(0,0,0,.55);
+  .zukato-now-dock__media { flex: 1; min-height: 0; position: relative; display: grid;
+    place-items: center; overflow: hidden; border-radius: 9px; background: #292b32; }
+  .zukato-now-dock__media img, .zukato-now-dock__media video {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .zukato-now-dock__media > .zukato-viz__stage {
+    position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; aspect-ratio: auto;
+    border: 0; border-radius: 0; z-index: 1;
+  }
+  .zukato-now-dock__media .zukato-viz__lyrics,
+  .zukato-now-dock__media .zukato-viz__stage-controls,
+  .zukato-now-dock__media .zukato-viz__mini-actions,
+  .zukato-now-dock__media .zukato-viz__overlay,
+  .zukato-now-dock__media .zukato-viz__timeline { display: none; }
+  .zukato-now-dock__media video { background: #111; }
+  .zukato-now-dock__media > span { font-size: 48px; }
+  .zukato-now-dock__info { display: grid; gap: 2px; min-width: 0; }
+  .zukato-now-dock__info strong, .zukato-now-dock__info span {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .zukato-now-dock__info strong { font-size: 15px; }
+  .zukato-now-dock__info span { font-size: 12px; color: #b9bdc8; }
+  .zukato-now-dock__progress { display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: #b9bdc8; font-variant-numeric: tabular-nums; }
+  .zukato-now-dock__progress input[type="range"] { flex: 1; min-width: 0; width: 100%;
+    height: 14px; padding: 0; border: 0; background: transparent; accent-color: #df1620; cursor: pointer; }
+  .zukato-now-dock__progress input[type="range"]:disabled { cursor: default; }
+  .zukato-now-dock__transport { display: flex; justify-content: center; align-items: center; gap: 12px; }
+  .zukato-now-dock__transport > button { width: 33px; height: 33px; padding: 0;
+    border: 0; background: transparent; color: #adb4c4; font-size: 22px; cursor: pointer; }
+  .zukato-now-dock__transport > button.is-active { color: #75bdff; }
+  .zukato-player-monitor__buttons { justify-content: center; padding: 0; }
+  .zukato-player-monitor__control { width: 36px; height: 36px; }
+  .zukato-player-monitor__control--primary { width: 42px; height: 42px; }
+  .zukato-now-dock__actions { display: flex; gap: 7px; }
+  .zukato-now-dock__actions button { flex: 1; padding: 6px 8px; font-size: 11px; }
+}
+
+/* Die Bühne bleibt auch bei schmaler Spotify-Mittelspalte der Blickfang. */
+.zukato-app {
+  .zukato-dashboard__now {
+    display: grid; grid-template-columns: 76px minmax(0,1fr);
+    grid-template-rows: auto auto auto auto; align-content: start;
+    align-items: center; column-gap: 14px; row-gap: 10px;
+  }
+  .zukato-dashboard__now .zukato-eyebrow,
+  .zukato-dashboard__timeline,
+  .zukato-dashboard__controls,
+  .zukato-dashboard__feedback { grid-column: 1 / -1; }
+  .zukato-dashboard__now .zukato-eyebrow { margin: 0; }
+  .zukato-dashboard__cover { width: 76px; height: 76px; margin: 0; border-radius: 12px; }
+  .zukato-dashboard__now-details { width: auto; min-height: 0; margin: 0; }
+  .zukato-dashboard__now-details h3 { font-size: clamp(18px, 1.6vw, 23px); }
+  .zukato-dashboard__now-details small { display: none; }
+  .zukato-dashboard__timeline { margin-top: 0; }
+  .zukato-dashboard__controls { margin-top: 0; }
+  .zukato-dashboard__shortcuts { align-self: start; }
+  .zukato-dashboard__shortcut-grid { gap: 6px; }
+  .zukato-dashboard__shortcut { min-height: 42px; padding: 6px 9px; gap: 5px; }
+  .zukato-dashboard__shortcut-icon { width: 20px; font-size: 18px; }
+  .zukato-viz__commandbar { padding: 3px 0 10px; }
+  .zukato-viz__commandbar-actions { gap: 6px; }
+  .zukato-viz__commandbar-actions button { padding: 7px 9px; font-size: 12px; }
+  .zukato-viz__stage { container-type: inline-size; }
+  .zukato-viz__lyrics p { font-size: clamp(18px, 3cqw, 42px); line-height: 1.25; margin: 6px 0; }
+  .zukato-viz__transport > button:not(.zukato-viz__exit-fullscreen) {
+    width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%;
+    background: transparent; color: #c9d4e2; font-size: 24px;
+  }
+  .zukato-viz__transport > button.is-active { color: #71c8ff; }
+  .zukato-viz__transport > button:focus-visible { outline: 2px solid #71c8ff; }
 }

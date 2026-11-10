@@ -229,15 +229,25 @@ export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" con
   var initialized=false;
   var activeUrls=[];
   var notices=Object.create(null);
+  // Im Desktop-PiP stammt postMessage aus dem Spotify-Hauptfenster, während
+  // window.parent das neue PiP-Dokument ist. Beide teilen denselben Origin.
+  // srcdoc kann nach dem Wechsel ins PiP eine andere baseURI erhalten.
+  // Der Host trägt seinen Origin bereits beim Erzeugen des Frames ein.
+  var hostOrigin=decodeURIComponent('__ZUKATO_PARENT_ORIGIN__');
+  if(hostOrigin==='__ZUKATO_PARENT_ORIGIN__'){
+    try{hostOrigin=new URL(document.baseURI).origin;}catch(error){hostOrigin='';}
+  }
+  function fromHost(event){return event.source===window.parent||(!!hostOrigin&&event.origin===hostOrigin);}
   function report(code){
     if(notices[code])return;
     notices[code]=true;
     window.parent.postMessage({zukatoProjectError:true,code:code},'*');
   }
   window.addEventListener('message',function(event){
-    if(initialized||event.source!==window.parent||!event.data||event.data.zukatoProjectInit!==true)return;
+    if(initialized||!fromHost(event)||!event.data||event.data.zukatoProjectInit!==true)return;
     initialized=true;
     var data=event.data, documentHtml=String(data.html||'');
+    documentHtml=documentHtml.replace(/__ZUKATO_HOST_ORIGIN__/g,encodeURIComponent(hostOrigin));
     var resources=Array.isArray(data.assets)?data.assets:[];
     var modules=Array.isArray(data.modules)?data.modules:[];
     var entry=String(data.entry||'index.html');
@@ -318,7 +328,7 @@ export const PROJECT_BOOTSTRAP = `<meta http-equiv="Content-Security-Policy" con
       Object.defineProperty(window,'sessionStorage',{configurable:true,get:function(){return createSession;}});
     }catch(error){report('PROJECT_STORAGE_UNAVAILABLE');}
     function synchronizeProjectStorage(update){
-      if(update.source!==window.parent||!update.data||update.data.zukatoProjectStorageSync!==true||
+      if(!fromHost(update)||!update.data||update.data.zukatoProjectStorageSync!==true||
         update.data.storageToken!==storageToken)return;
       // Ein Update enthält BEIDE Kanäle. Alte Nachrichten ohne session-Feld
       // überschreiben keinen bereits gespeicherten sessionStorage-Stand.
@@ -705,7 +715,33 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
     }
     html = replaceReferences(html, project.entry);
     const policy = `<meta http-equiv="Content-Security-Policy" content="${PROJECT_CSP}">`;
-    const bridge = `<style>html.zukato-wallpaper-paused *,html.zukato-wallpaper-paused *::before,html.zukato-wallpaper-paused *::after{animation-play-state:paused!important}</style><script>window.addEventListener('message',function(e){if(e.source!==window.parent||!e.data||e.data.zukatoWallpaper!==true)return;var d=e.data;var paused=!d.playing;document.documentElement.classList.toggle('zukato-wallpaper-paused',paused);if(window.__zukatoLastPaused!==paused){window.__zukatoLastPaused=paused;document.querySelectorAll('video').forEach(function(v){v.muted=true;if(paused)v.pause();else v.play().catch(function(){});});}window.dispatchEvent(new CustomEvent('zukato:player',{detail:{playing:!!d.playing,run:Number(d.run)||0,positionMs:Math.max(0,Number(d.positionMs)||0),durationMs:Math.max(0,Number(d.durationMs)||0)}}));});document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('video').forEach(function(v){v.muted=true;});});</script>`;
+    const bridge = `<meta name="zukato-host-origin" content="__ZUKATO_HOST_ORIGIN__"><style>html.zukato-wallpaper-paused *,html.zukato-wallpaper-paused *::before,html.zukato-wallpaper-paused *::after{animation-play-state:paused!important}</style><script>
+window.addEventListener('message',function(e){
+  var host=document.querySelector('meta[name="zukato-host-origin"]');
+  if(!host||!e.data)return;
+  // Ein importiertes Wallpaper erwartet häufig window.parent als Absender.
+  // Nach dem Umzug ist das PiP-Fenster Parent, Spotify sendet aber weiter.
+  if(e.source!==window.parent){
+    if(e.origin!==decodeURIComponent(host.content))return;
+    if(e.data.zukatoWallpaper===true||e.data.zukatoWallpaperAudio===true)
+      window.dispatchEvent(new MessageEvent('message',{data:e.data,origin:e.origin,source:window.parent}));
+    return;
+  }
+  if(e.data.zukatoWallpaper!==true)return;
+  var d=e.data,paused=!d.playing;
+  document.documentElement.classList.toggle('zukato-wallpaper-paused',paused);
+  if(window.__zukatoLastPaused!==paused){
+    window.__zukatoLastPaused=paused;
+    document.querySelectorAll('video').forEach(function(v){v.muted=true;if(paused)v.pause();else v.play().catch(function(){});});
+  }
+  window.dispatchEvent(new CustomEvent('zukato:player',{detail:{
+    title:String(d.title||''),artist:String(d.artist||''),playing:!!d.playing,
+    run:Number(d.run)||0,positionMs:Math.max(0,Number(d.positionMs)||0),
+    durationMs:Math.max(0,Number(d.durationMs)||0)
+  }}));
+});
+document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('video').forEach(function(v){v.muted=true;});});
+</script>`;
     html = /<head\b[^>]*>/i.test(html)
       ? html.replace(/<head\b[^>]*>/i, (tag) => `${tag}${policy}${bridge}`)
       : `${policy}${bridge}${html}`;

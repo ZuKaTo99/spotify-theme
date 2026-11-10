@@ -7,13 +7,13 @@
 
 /** Die Reihenfolge ist identisch mit der sichtbaren Navigation. */
 export const SETTINGS_SECTIONS = [
-  "overview", "general", "wallpapers", "modules", "shortcuts", "data",
+  "general", "wallpapers", "modules", "shortcuts", "data",
 ] as const;
 export type SettingsSection = typeof SETTINGS_SECTIONS[number];
 
 const STORE_KEY = "zukato-toolkit.settings.last-section.v1";
 /** Bei gesperrtem sessionStorage wird die Auswahl für diese Laufzeit gemerkt. */
-let currentSection: SettingsSection = "overview";
+let currentSection: SettingsSection = "general";
 
 /** Unbekannte/alte gespeicherte Werte dürfen keine leere Einstellungen-Seite erzeugen. */
 export function validSettingsSection(value: unknown): value is SettingsSection {

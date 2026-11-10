@@ -136,7 +136,8 @@ export function Dashboard({ features, t, onNavigate }: DashboardProps): ReactEle
     "song-notes": t("dashboard.actionNotes"),
     "settings": t("dashboard.actionSettings"),
   };
-  const shortcutTitle = (id: FeatureId): string => getFeatureTitle(id, features[id].customTitle, t);
+  const shortcutTitle = (id: FeatureId): string => id === "visualizer" &&
+    !features[id].customTitle ? "Visualizer" : getFeatureTitle(id, features[id].customTitle, t);
   const shortcuts = preferences.shortcuts.filter((id) => visible.has(id));
   const availableShortcuts = DASHBOARD_SHORTCUT_IDS.filter((id) => visible.has(id) && !preferences.shortcuts.includes(id));
 

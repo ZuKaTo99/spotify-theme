@@ -5,7 +5,7 @@
 import { build } from "esbuild";
 import { bundleFallback } from "./bundle-fallback.mjs";
 import * as sass from "sass";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { installArtifactsAtomically } from "./atomic-deployment.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -78,6 +78,7 @@ async function compileScss(inputFile, outputFile) {
   });
 
   await writeFile(outputFile, result.css, "utf8");
+  return result.css;
 }
 
 // -----------------------------------------------------------------------------
@@ -170,10 +171,14 @@ async function buildCustomApp() {
     await bundleFallback(paths.customApp.source, paths.customApp.output, { app: true });
   }
 
-  await compileScss(
+  const appCss = await compileScss(
     paths.customApp.stylesSource,
     paths.customApp.stylesOutput,
   );
+  // Document-PiP lädt die Custom-App-Styles nicht zuverlässig über den
+  // Spotify-Dokumentkopf. Das identische CSS liegt deshalb auch im Bundle.
+  await appendFile(paths.customApp.output,
+    `\n;window.__zukatoCustomAppCss=${JSON.stringify(appCss)};\n`, "utf8");
 
   await cp(
     paths.customApp.manifestSource,

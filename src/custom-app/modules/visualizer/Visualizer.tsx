@@ -54,6 +54,8 @@ interface PlayerSnapshot {
   duration: number;
   progress: number;
   playing: boolean;
+  shuffle: boolean;
+  repeat: number;
 }
 
 /** Aktueller Stand des Spotify-Players; keine Roh-Audiodaten werden behauptet. */
@@ -67,6 +69,8 @@ function snapshot(): PlayerSnapshot {
     duration: Math.max(0, Spicetify.Player.getDuration() || 0),
     progress: Math.max(0, Spicetify.Player.getProgress() || 0),
     playing: Spicetify.Player.isPlaying(),
+    shuffle: Spicetify.Player.getShuffle?.() ?? false,
+    repeat: Spicetify.Player.getRepeat?.() ?? 0,
   };
 }
 
@@ -612,12 +616,32 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
       {/* Die Bühne selbst wird vollflächig angezeigt. Deshalb müssen die
           Player-Tasten innerhalb dieses Elements bleiben. */}
       <div className="zukato-viz__stage-controls">
-        <PlayerControls playing={player.playing} disabled={!player.uri}
-          onPrevious={() => Spicetify.Player.back()}
-          onToggle={() => Spicetify.Player.togglePlay()}
-          onNext={() => Spicetify.Player.next()} />
-        <button type="button" className="zukato-viz__exit-fullscreen"
-          onClick={() => void document.exitFullscreen?.()}>Vollbild verlassen</button>
+        <div className="zukato-viz__transport">
+          <button type="button" className={player.shuffle ? "is-active" : ""}
+            aria-label="Zufallswiedergabe" title="Zufallswiedergabe" aria-pressed={player.shuffle}
+            disabled={!player.uri}
+            onClick={() => { Spicetify.Player.toggleShuffle(); setPlayer(snapshot()); }}>⤨</button>
+          <PlayerControls playing={player.playing} disabled={!player.uri}
+            onPrevious={() => Spicetify.Player.back()}
+            onToggle={() => Spicetify.Player.togglePlay()}
+            onNext={() => Spicetify.Player.next()} />
+          <button type="button" className={player.repeat ? "is-active" : ""}
+            aria-label={player.repeat === 2 ? "Einen Titel wiederholen" : player.repeat === 1 ? "Alle wiederholen" : "Wiederholen aus"}
+            title={player.repeat === 2 ? "Einen Titel wiederholen" : player.repeat === 1 ? "Alle wiederholen" : "Wiederholen aus"}
+            aria-pressed={player.repeat > 0} disabled={!player.uri}
+            onClick={() => { Spicetify.Player.toggleRepeat(); setPlayer(snapshot()); }}>{player.repeat === 2 ? "↻¹" : "↻"}</button>
+          <button type="button" className="zukato-viz__exit-fullscreen"
+            onClick={() => void document.exitFullscreen?.()}>Vollbild verlassen</button>
+        </div>
+        <div className="zukato-viz__seek">
+          <span>{Spicetify.Player.formatTime(player.progress)}</span>
+          <input type="range" min={0} max={Math.max(1, player.duration)} step={1000}
+            value={Math.min(player.progress, Math.max(1, player.duration))}
+            disabled={!player.uri || player.duration <= 0}
+            aria-label="Wiedergabeposition" aria-valuetext={Spicetify.Player.formatTime(player.progress)}
+            onChange={(event) => Spicetify.Player.seek(Number(event.currentTarget.value))} />
+          <span>{Spicetify.Player.formatTime(player.duration)}</span>
+        </div>
       </div>
       {compact && <div className="zukato-viz__mini-actions">
         <button type="button" onClick={onOpenFull} title={t("viz.miniExpandHint")}>{t("viz.miniExpand")}</button>

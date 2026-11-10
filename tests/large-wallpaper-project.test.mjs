@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
-import { Script } from "node:vm";
+import { Script, runInNewContext } from "node:vm";
 
 async function loadSource(path, replace = (value) => value) {
   let code = await readFile(new URL(path, import.meta.url), "utf8");
@@ -63,6 +63,54 @@ test("Wallpaper: CSS-Imports, verschachtelte Bilder und Player-Brücke bleiben l
   assert.equal(result.assets.length, 88);
   assert.equal(result.assets.find((a) => a.mime === "image/png")?.blob.size, 13 * 1024 * 1024);
   assert.ok(result.assets.every((a) => a.marker.startsWith("zukato-asset:")));
+  result.dispose();
+});
+
+test("Wallpaper-Brücke stellt Player-Nachrichten nach dem PiP-Umzug zu", async () => {
+  const source = project.prepareWallpaperProject([
+    asFile("Wallpaper/index.html", "<html><head></head><body></body></html>"),
+  ]);
+  const result = await project.renderWallpaperProject(source);
+  const script = result.html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Script(script));
+  const parent = {};
+  const listeners = new Map();
+  const received = [];
+  const fakeWindow = {
+    parent,
+    addEventListener(type, callback) {
+      const group = listeners.get(type) ?? [];
+      group.push(callback);
+      listeners.set(type, group);
+    },
+    dispatchEvent(event) {
+      received.push(event);
+      for (const callback of listeners.get(event.type) ?? []) callback(event);
+    },
+  };
+  class FakeMessageEvent {
+    constructor(type, values) { Object.assign(this, { type }, values); }
+  }
+  class FakeCustomEvent {
+    constructor(type, values) { Object.assign(this, { type }, values); }
+  }
+  const fakeDocument = {
+    querySelector: () => ({ content: "https%3A%2F%2Fxpui.app.spotify.com" }),
+    querySelectorAll: () => [],
+    documentElement: { classList: { toggle() {} } },
+    addEventListener() {},
+  };
+  runInNewContext(script, { window: fakeWindow, document: fakeDocument,
+    MessageEvent: FakeMessageEvent, CustomEvent: FakeCustomEvent, decodeURIComponent });
+  const packet = { zukatoWallpaper: true, title: "Song", artist: "Artist",
+    playing: false, run: 1, positionMs: 1234, durationMs: 3000 };
+  for (const callback of listeners.get("message")) callback({
+    source: {}, origin: "https://xpui.app.spotify.com", data: packet,
+  });
+  assert.ok(received.some((event) => event.type === "message" && event.source === parent && event.data === packet));
+  assert.ok(received.some((event) => event.type === "zukato:player" &&
+    event.detail.title === "Song" && event.detail.artist === "Artist"));
   result.dispose();
 });
 

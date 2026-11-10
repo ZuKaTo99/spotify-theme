@@ -14,8 +14,6 @@ import { KeyboardShortcutsSettings } from "./KeyboardShortcutsSettings";
 import { SettingsPanel } from "./SettingsPanel";
 import { DataBackup } from "./DataBackup";
 import { WallpaperSettings } from "./WallpaperSettings";
-import { getEnabledFeaturesBySurface } from "../../../shared/features";
-import { useToolkitData } from "../../hooks/useToolkitData";
 import { nextSettingsSection, readSettingsSection, rememberSettingsSection, SETTINGS_SECTIONS, type SettingsSection } from "../../../shared/settings-navigation";
 
 const ReactRuntime = Spicetify.React as typeof import("react");
@@ -47,9 +45,7 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
     const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button[data-settings-section]");
     buttons?.[index]?.focus();
   }
-  const library = useToolkitData();
   const tabs: Array<{ id: SettingsView; title: string; description: string }> = [
-    { id: "overview", title: t("settings.tabOverview"), description: t("settings.tabOverviewHelp") },
     { id: "general", title: t("settings.tabGeneral"), description: t("settings.tabGeneralHelp") },
     { id: "wallpapers", title: t("settings.tabWallpapers"), description: t("settings.tabWallpapersHelp") },
     { id: "modules", title: t("settings.tabModules"), description: t("settings.tabModulesHelp") },
@@ -77,15 +73,6 @@ export function SettingsModule({ settings, t, onChange }: SettingsModuleProps): 
         <header className="zukato-preferences__section-heading">
           <h3>{current.title}</h3>
         </header>
-        {view === "overview" && <div className="zukato-preferences__overview">
-          <WallpaperSettings t={t} simpleOnly />
-          <p className="zukato-preferences__summary" aria-live="polite">
-            {t("settings.overviewStats", {
-              modules: getEnabledFeaturesBySurface("custom-app", settings.features).length,
-              favorites: library.favorites.length, notes: library.notes.length,
-            })}
-          </p>
-        </div>}
         {view === "general" && <SettingsPanel
           workspaceTitle={settings.workspaceTitle} displayName={settings.displayName}
           showGreeting={settings.showGreeting} locale={settings.locale}

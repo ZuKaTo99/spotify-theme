@@ -222,7 +222,7 @@ test("Dashboard: schnelle Änderungen an zwei Schnellzugriffen verlieren keine A
   const app = ui();
   app.textButton("dashboard.customize").props.onClick();
   const remove1 = app.button("dashboard.removeShortcut:favorites");
-  const remove2 = app.button("dashboard.removeShortcut:visualizer");
+  const remove2 = app.button("dashboard.removeShortcut:Visualizer");
   remove1.props.onClick();
   remove2.props.onClick();
   assert.deepEqual(JSON.parse(app.storage.get(app.mod.DASHBOARD_STORAGE_KEY)).shortcuts,
