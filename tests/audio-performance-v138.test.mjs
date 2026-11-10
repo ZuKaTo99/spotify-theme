@@ -30,6 +30,14 @@ test("Nur eine spielende Audiofreigabe benoetigt 20-Hz-Polling", () => {
   assert.equal(policy.shouldPollWallpaperAudio(false, false), false);
 });
 
+test("Große Vollbildbühnen begrenzen Canvas-Pixel und Zeichentakt", () => {
+  assert.equal(policy.spectrumCanvasScale(320, 180, 2), 2);
+  assert.equal(policy.spectrumCanvasScale(1920, 1080, 1), 1);
+  assert.equal(policy.spectrumCanvasScale(3840, 2160, 2), 2 / 3);
+  assert.equal(policy.spectrumFrameIntervalMs(3840, 2160), 1000 / 30);
+  assert.equal(policy.spectrumFrameIntervalMs(320, 180), 1000 / 60);
+});
+
 test("Audio-Buffer bleiben ueber Animation, Signalpruefung und Wallpaper hinweg wiederverwendbar", () => {
   assert.match(session, /frequencyBytes: new Uint8Array\(analyser\.frequencyBinCount\)/);
   assert.match(session, /waveformBytes: new Uint8Array\(analyser\.fftSize\)/);

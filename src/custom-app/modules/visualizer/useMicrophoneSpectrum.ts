@@ -15,7 +15,7 @@
 // =============================================================================
 import type { RefObject } from "react";
 import type { SpectrumStyle } from "../../../shared/visualizer-config";
-import { shouldDrawSpectrum } from "./audio-performance";
+import { shouldDrawSpectrum, spectrumCanvasScale, spectrumFrameIntervalMs } from "./audio-performance";
 import { type CaptureSource, hasMeasuredAudioSignal, spectrum64FromByteBins } from "./audio-capture";
 import { getAudioCaptureSession, type AudioResources } from "./audio-session";
 import { VISUALIZER_HOST_CHANGED_EVENT, visualizerHostHidden, visualizerHostWindow } from "./visualizer-host";
@@ -54,6 +54,7 @@ export function useMicrophoneSpectrum(
   const resourcesRef = ReactRuntime.useRef<AudioResources | null>(initial.resources);
   const frameRef = ReactRuntime.useRef<number | null>(null);
   const frameHostRef = ReactRuntime.useRef<Window | null>(null);
+  const lastDrawAtRef = ReactRuntime.useRef(0);
   const startedAtRef = ReactRuntime.useRef(initial.startedAt);
   // Signalzustand ist von den gezeichneten Balken unabhängig.
   // Bei ausgeblendetem Overlay läuft nur diese günstige 700-ms-Prüfung.
@@ -74,6 +75,7 @@ export function useMicrophoneSpectrum(
     }
     frameRef.current = null;
     frameHostRef.current = null;
+    lastDrawAtRef.current = 0;
   };
   const scheduleFrame = (callback: FrameRequestCallback): void => {
     const host = visualizerHostWindow(canvasRef.current);
@@ -134,7 +136,13 @@ export function useMicrophoneSpectrum(
       scheduleFrame(draw);
       return;
     }
-    const ratio = Math.min(visualizerHostWindow(canvas).devicePixelRatio || 1, 2);
+    const now = performance.now();
+    if (lastDrawAtRef.current && now - lastDrawAtRef.current < spectrumFrameIntervalMs(width, height)) {
+      scheduleFrame(draw);
+      return;
+    }
+    lastDrawAtRef.current = now;
+    const ratio = spectrumCanvasScale(width, height, visualizerHostWindow(canvas).devicePixelRatio);
     const targetW = Math.floor(width * ratio);
     const targetH = Math.floor(height * ratio);
     if (canvas.width !== targetW || canvas.height !== targetH) {
@@ -148,7 +156,7 @@ export function useMicrophoneSpectrum(
       // Beide Buffer werden innerhalb der Audiofreigabe wiederverwendet.
       const buffer = config.style === "wave" ? resources.waveformBytes : resources.frequencyBytes;
       const barCount = config.bars;
-      const frameTime = config.style === "particles" ? performance.now() : 0;
+      const frameTime = config.style === "particles" ? now : 0;
       const tint = /^#[0-9a-f]{6}$/i.test(config.color) ? config.color : "#1ed760";
       ctx.save();
       ctx.globalAlpha = Math.min(1, Math.max(0.1, config.opacity / 100));

@@ -23,3 +23,14 @@ export function shouldDrawSpectrum(style: SpectrumStyle, playing: boolean, hidde
 export function shouldPollWallpaperAudio(playing: boolean, captureActive: boolean): boolean {
   return playing && captureActive;
 }
+
+/** Vollbild-Canvas höchstens in 2560 × 1440 malen; CSS skaliert die Effekte. */
+export function spectrumCanvasScale(width: number, height: number, deviceRatio: number): number {
+  if (width <= 0 || height <= 0) return 1;
+  return Math.min(Math.max(1, deviceRatio || 1), 2, 2560 / width, 1440 / height);
+}
+
+/** Große Bühnen brauchen konstante 30 Zeichenbilder/s; kleine bleiben bei 60. */
+export function spectrumFrameIntervalMs(width: number, height: number): number {
+  return width * height >= 1_000_000 ? 1000 / 30 : 1000 / 60;
+}

@@ -24,7 +24,8 @@ html, body, #main { background-color: #0b1230 !important; }
   background-position: center, center, center, 50% 50%;
   background-repeat: no-repeat !important;
   background-blend-mode: screen, normal, soft-light, normal !important;
-  animation: zukato-world-breathe 22s ease-in-out infinite alternate;
+  /* Bildposition auf einer Vollfensterfläche würde jedes Bild neu malen.
+     Die beweglichen Sternen-/Lichtschichten liefern weiterhin Bewegung. */
 }
 
 /* Spotifys erste Layoutfläche ist sonst vollständig deckend und verdeckt
@@ -47,6 +48,7 @@ html, body, #main { background-color: #0b1230 !important; }
   background-position: 23px 41px, 105px 17px, 66px 91px;
   mix-blend-mode: screen;
   opacity: .48;
+  transform: scale(1.12);
   animation: zukato-stars-drift 28s linear infinite alternate,
     zukato-stars-twinkle 4.6s ease-in-out infinite alternate;
 }
@@ -87,11 +89,8 @@ body::before {
   animation: zukato-meteor-fall 10.5s linear -4.5s infinite;
 }
 
-@keyframes zukato-world-breathe {
-  to { background-position: center, center, center, 54% 46%; }
-}
 @keyframes zukato-stars-drift {
-  to { background-position: 54px 78px, 70px 56px, 94px 42px; }
+  to { transform: translate3d(1.2%, 1.6%, 0) scale(1.12); }
 }
 @keyframes zukato-stars-twinkle {
   to { opacity: .8; }
@@ -155,7 +154,7 @@ body::before {
   background-attachment: scroll !important;
   background-repeat: no-repeat !important;
   background-blend-mode: screen, screen, normal !important;
-  animation: zukato-soundscape-drift 18s ease-in-out infinite alternate;
+  /* Aurora und Lichtbahn bewegen sich als eigene Ebenen ohne Flächen-Repaint. */
 }
 
 /* Eigenständige Lichtschicht: Transform-Bewegung bleibt auch bei scrollenden
@@ -215,8 +214,13 @@ body::before {
   92%, to { transform: translate3d(34%, 0, 0); opacity: 0; }
 }
 
-@keyframes zukato-soundscape-drift {
-  to { background-position: 55% 44%, 120% 76%, center; }
+/* Im echten Vollbild liegt die Bühne über der Spotify-Hülle. Unsichtbare
+   Hüllen-Animationen verbrauchen dort sonst GPU-Zeit ohne sichtbaren Nutzen. */
+body:has(.zukato-viz__stage:fullscreen) {
+  &::before, &::after { animation-play-state: paused; }
+  #main::before, .main-view-container::before, .main-view-container::after {
+    animation-play-state: paused;
+  }
 }
 
 #Desktop_LeftSidebar_Id,
