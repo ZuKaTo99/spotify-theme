@@ -63,8 +63,10 @@ test("Visualizer-Konfiguration: ungültige Werte werden normalisiert", () => {
   const olderSettings = config.normalizeVisualizerConfig({dim: 75, videoSaturation: 40, blur: 15, vignette: 90});
   assert.deepEqual(config.effectiveBackdropColorSettings(olderSettings, true),
     {dim: 0, blur: 0, saturation: 100, hue: 0, vignette: 0});
+  assert.equal(config.backdropNeedsColorFilter(config.effectiveBackdropColorSettings(olderSettings, true)), false);
   assert.deepEqual(config.effectiveBackdropColorSettings(olderSettings, false),
     {dim: 75, blur: 15, saturation: 40, hue: 0, vignette: 90});
+  assert.equal(config.backdropNeedsColorFilter(config.effectiveBackdropColorSettings(olderSettings, false)), true);
   const customTint = config.normalizeVisualizerConfig({...olderSettings, preserveSceneAppearance: false});
   assert.equal(config.effectiveBackdropColorSettings(customTint, true).dim, 75);
   assert.equal(result.transitionMs, 700, "Ältere v1.1-Einstellungen bekommen einen Standard-Crossfade.");
@@ -521,11 +523,11 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
     navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
     raf: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame,
   };
-  let frame = null; let count = 0; let spectrumRead = 0; let fillColor = ""; let opacity = 0;
+  let frame = null; let count = 0; let fills = 0; let spectrumRead = 0; let fillColor = ""; let opacity = 0;
   const track = { readyState: "live", stop() {}, addEventListener() {}, removeEventListener() {} };
   const context2d = {
     setTransform() {}, clearRect() {}, save() {}, restore() {}, beginPath() {},
-    arc() { count += 1; }, fill() { fillColor = this.fillStyle; opacity = this.globalAlpha; },
+    arc() { count += 1; }, fill() { fills += 1; fillColor = this.fillStyle; opacity = this.globalAlpha; },
   };
   try {
     globalThis.Spicetify = { React: {
@@ -559,6 +561,7 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
     frame();
     assert.equal(spectrumRead, beforePaint + 1);
     assert.equal(count, 20, "Ein visualisiertes Partikel pro Frequenzbereich");
+    assert.equal(fills, 1, "Ein gemeinsamer Leuchteffekt statt 20 teurer Einzelzeichnungen");
     assert.equal(fillColor, "#12ab34");
     assert.equal(opacity, 0.45);
     controls.stop();

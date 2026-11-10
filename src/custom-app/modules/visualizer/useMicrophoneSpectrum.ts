@@ -178,6 +178,9 @@ export function useMicrophoneSpectrum(
         ctx.stroke();
       } else {
         resources.analyser.getByteFrequencyData(buffer);
+        // Ein gemeinsamer Pfad pro Bild erspart bis zu barCount teure
+        // Shadow-Blur-Operationen. Farbe, Position und Größe bleiben gleich.
+        ctx.beginPath();
         for (let index = 0; index < barCount; index += 1) {
           const position = (index / Math.max(1, barCount - 1)) ** 1.7;
           const bin = Math.min(buffer.length - 1, Math.floor(position * buffer.length * 0.62));
@@ -185,7 +188,7 @@ export function useMicrophoneSpectrum(
           if (config.style === "bars") {
             const slot = width / barCount;
             const barHeight = Math.max(2, intensity * height * 0.7);
-            ctx.fillRect(index * slot + slot * 0.18, height - barHeight - 12, slot * 0.64, barHeight);
+            ctx.rect(index * slot + slot * 0.18, height - barHeight - 12, slot * 0.64, barHeight);
           } else {
             const angle = (index / barCount) * Math.PI * 2 - Math.PI / 2;
             const radius = Math.min(width, height) * 0.18;
@@ -195,17 +198,19 @@ export function useMicrophoneSpectrum(
             if (config.style === "particles") {
               const orbit = (index / barCount) * Math.PI * 2 + frameTime * 0.00012;
               const distance = radius + intensity * Math.min(width, height) * 0.3;
-              ctx.beginPath();
-              ctx.arc(cx + Math.cos(orbit) * distance, cy + Math.sin(orbit) * distance, 1.2 + intensity * 7, 0, Math.PI * 2);
-              ctx.fill();
+              const px = cx + Math.cos(orbit) * distance;
+              const py = cy + Math.sin(orbit) * distance;
+              const particleRadius = 1.2 + intensity * 7;
+              ctx.moveTo(px + particleRadius, py);
+              ctx.arc(px, py, particleRadius, 0, Math.PI * 2);
             } else {
-              ctx.beginPath();
               ctx.moveTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
               ctx.lineTo(cx + Math.cos(angle) * (radius + length), cy + Math.sin(angle) * (radius + length));
-              ctx.stroke();
             }
           }
         }
+        if (config.style === "ring") ctx.stroke();
+        else ctx.fill();
       }
       ctx.restore();
     }

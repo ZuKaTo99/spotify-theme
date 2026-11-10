@@ -24,10 +24,10 @@ export function shouldPollWallpaperAudio(playing: boolean, captureActive: boolea
   return playing && captureActive;
 }
 
-/** Vollbild-Canvas höchstens in 2560 × 1440 malen; CSS skaliert die Effekte. */
+/** Vollbild-Canvas höchstens in 1600 × 900 malen; CSS skaliert die Effekte. */
 export function spectrumCanvasScale(width: number, height: number, deviceRatio: number): number {
   if (width <= 0 || height <= 0) return 1;
-  return Math.min(Math.max(1, deviceRatio || 1), 2, 2560 / width, 1440 / height);
+  return Math.min(Math.max(1, deviceRatio || 1), 2, 1600 / width, 900 / height);
 }
 
 /** Große Bühnen brauchen konstante 30 Zeichenbilder/s; kleine bleiben bei 60. */

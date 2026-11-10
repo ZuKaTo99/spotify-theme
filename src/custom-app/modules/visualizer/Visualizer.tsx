@@ -8,7 +8,8 @@ import type { ChangeEvent, CSSProperties, ReactElement } from "react";
 import type { Translator } from "../../../shared/i18n";
 import { currentTrack } from "../../../shared/library";
 import {
-  loadVisualizerConfig, saveVisualizerConfig, effectiveBackdropColorSettings, VISUALIZER_CONFIG_CHANGED_EVENT,
+  loadVisualizerConfig, saveVisualizerConfig, effectiveBackdropColorSettings, backdropNeedsColorFilter,
+  VISUALIZER_CONFIG_CHANGED_EVENT,
   loadTrackVisualizerScene, saveTrackVisualizerScene, deleteTrackVisualizerScene,
   VISUALIZER_TRACK_SCENES_CHANGED_EVENT, type VisualizerConfig,
 } from "../../../shared/visualizer-config";
@@ -528,6 +529,7 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
   // oder Farbfilter anwenden – viele Wallpaper haben eigene Licht-/Wettereffekte.
   // Der Schalter in den Feinoptionen erlaubt absichtlich wieder ZuKaTo-Filter.
   const displayColors = effectiveBackdropColorSettings(config, chosenScene.kind === "scene");
+  const backdropFiltered = backdropNeedsColorFilter(displayColors);
   const stageStyle = { "--zukato-video-dim": displayColors.dim / 100,
     "--zukato-video-blur": `${displayColors.blur}px`,
     "--zukato-video-saturation": `${displayColors.saturation}%`,
@@ -583,7 +585,8 @@ export function Visualizer({ t, compact = false, onOpenFull }: {
         <button type="button" onClick={enterFullscreen}>{t("viz.fullscreen")}</button>
       </div>
     </div>
-    <div className="zukato-viz__stage" ref={stageRef} style={stageStyle}>
+    <div className={`zukato-viz__stage${backdropFiltered ? " zukato-viz__stage--filtered" : ""}`}
+      ref={stageRef} style={stageStyle}>
       {chosenScene.kind === "missing-original" ? <SpotifyCanvasBackdrop title={player.title} artist={player.artist} trackUri={player.uri} retryToken={canvasRetry}
         playing={player.playing} artwork={artwork} fit={config.wallpaperFit}
         onAvailability={setCanvasAvailability} onDiagnostic={setCanvasDiagnostic} /> : chosenScene.kind === "legacy" ? <WallpaperBackdrop uri={player.uri} revision={mediaRevision} playing={player.playing}

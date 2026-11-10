@@ -158,6 +158,11 @@ export function effectiveBackdropColorSettings(config: VisualizerConfig, isScene
   };
 }
 
+/** Neutrale Farbwerte dürfen kein Vollbild-Video/iframe durch einen CSS-Filter schicken. */
+export function backdropNeedsColorFilter(settings: { blur: number; saturation: number; hue: number }): boolean {
+  return settings.blur !== 0 || settings.saturation !== 100 || settings.hue !== 0;
+}
+
 /** Settings liegen in der kleinen synchronen Spicetify-Storage-API. */
 export function loadVisualizerConfig(): VisualizerConfig {
   try {
