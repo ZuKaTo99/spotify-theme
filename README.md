@@ -1,12 +1,22 @@
 # ZuKaTo Spicetify
 
 Kommentierte Spicetify-Erweiterung mit Workspace, Songverwaltung und einem
-Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.20**.
+Visualizer für eigene **vollständige HTML-Wallpaper-Projekte**. Entwicklungsstand: **v1.76.0-rc.21**.
 
 Die automatischen Tests prüfen den Quellcode und seine Browser-Sandbox. **Nicht
 alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
+
+## v1.76.0-rc.21 – Durchgehende Aurora und Sternschnuppen
+
+- Ein einziges Aurora-Motiv erstreckt sich über das gesamte Spotify-Fenster.
+  Seitenleisten, Hauptbereich und Player liegen als durchscheinende Glasflächen
+  darüber; die gewählte Hintergrundfarbe tönt das Motiv weiter.
+- Ein bewegtes Sternenfeld und diagonal fallende Sternschnuppen ergänzen die
+  Lichtbahnen. Die kleinen Sterne liegen hinter den Inhalten, damit Schrift und
+  Cover klar bleiben.
+- Bei reduzierter Bewegung ruhen die Sterne und Sternschnuppen verschwinden.
 
 ## v1.76.0-rc.20 – Sichtbare Aurora-Bewegung
 

@@ -1303,7 +1303,7 @@
     background: linear-gradient(135deg,color-mix(in srgb, var(--zukato-control-accent, #8da2ff) 52%, white),
       var(--zukato-control-accent, #8da2ff)); }
   .zukato-now-dock__views { display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
-    gap: 4px; padding: 3px; border: 1px solid #354966; border-radius: 10px; background: #0a1220; }
+    gap: 4px; padding: 3px; border: 1px solid #354966; border-radius: 10px; background: rgba(10,18,32,.3); }
   .zukato-now-dock__views button { min-height: 28px; padding: 4px 8px; border: 0;
     border-radius: 7px; background: transparent; color: #b9cce2; font-size: 11px; }
   .zukato-now-dock__views button[aria-pressed="true"] { background: color-mix(in srgb, var(--zukato-control-accent, #8da2ff) 32%, #14223d);
@@ -1316,7 +1316,8 @@
 .zukato-now-dock-host {
   position: sticky; top: 0; z-index: 20; width: 100%; flex: none;
   padding: 8px 11px 11px; box-sizing: border-box;
-  background: linear-gradient(180deg, #10131c 88%, #10131cf0);
+  background: linear-gradient(180deg, rgba(16,19,28,.08) 88%, rgba(16,19,28,.14));
+  backdrop-filter: blur(5px) saturate(1.12);
 }
 .zukato-now-dock-host > .zukato-app.zukato-now-dock {
   position: relative; right: auto; bottom: auto; width: 100%;
@@ -1694,7 +1695,7 @@ main.zukato-app.zukato-app--dashboard {
 
 .zukato-app.zukato-now-dock {
   border-color: color-mix(in srgb, var(--zukato-accent) 32%, #383d4a);
-  background: linear-gradient(155deg, #192132, #0e121d 65%);
+  background: linear-gradient(155deg, rgba(25,33,50,.38), rgba(14,18,29,.32) 65%);
   box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04) inset;
   .zukato-now-dock__media { border-radius: 11px; }
   .zukato-now-dock__info strong { font-size: 17px; letter-spacing: -.02em; }

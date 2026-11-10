@@ -4,19 +4,102 @@
 :root {
   --zukato-world-accent: #a78bfa;
   --zukato-control-accent: #a78bfa;
-  --zukato-shell-glass: rgba(13, 19, 42, .58);
+  --zukato-shell-glass: rgba(13, 19, 42, .13);
   --zukato-shell-edge: rgba(174, 187, 255, .24);
 }
 
 html, body, #main { background-color: #0b1230 !important; }
 
 #main {
+  position: relative;
+  isolation: isolate;
   background-image:
-    linear-gradient(115deg, rgba(4, 9, 28, .26), rgba(7, 9, 32, .13) 52%, rgba(6, 9, 28, .32)),
+    radial-gradient(ellipse 70% 68% at 54% 22%,
+      color-mix(in srgb, var(--zukato-world-accent) 23%, transparent), transparent 82%),
+    linear-gradient(115deg, rgba(4, 9, 28, .15), rgba(7, 9, 32, .05) 52%, rgba(6, 9, 28, .18)),
+    linear-gradient(color-mix(in srgb, var(--zukato-world-accent) 58%, transparent),
+      color-mix(in srgb, var(--zukato-world-accent) 58%, transparent)),
     url("aurora-soundscape.png") !important;
-  background-size: cover !important;
-  background-position: center !important;
+  background-size: cover, cover, cover, 112% 112% !important;
+  background-position: center, center, center, 50% 50%;
   background-repeat: no-repeat !important;
+  background-blend-mode: screen, normal, soft-light, normal !important;
+  animation: zukato-world-breathe 22s ease-in-out infinite alternate;
+}
+
+/* Spotifys erste Layoutfläche ist sonst vollständig deckend und verdeckt
+   das gemeinsame Motiv samt Sternschnuppen. */
+#main > .Root > div:first-child { background-color: transparent !important; }
+#main > .Root { position: relative; z-index: 1; }
+
+/* Ein Sternenfeld gehört zum ganzen Fenster, nicht zu einzelnen Spalten. */
+#main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.86) 0 1px, transparent 2.5px),
+    radial-gradient(circle, color-mix(in srgb, var(--zukato-world-accent) 58%, white) 0 1px, transparent 3px),
+    radial-gradient(circle, rgba(173,222,255,.62) 0 .7px, transparent 2px);
+  background-size: 173px 157px, 251px 213px, 97px 119px;
+  background-position: 23px 41px, 105px 17px, 66px 91px;
+  mix-blend-mode: screen;
+  opacity: .48;
+  animation: zukato-stars-drift 28s linear infinite alternate,
+    zukato-stars-twinkle 4.6s ease-in-out infinite alternate;
+}
+
+/* Zwei versetzte Sternschnuppen-Wellen liegen über der gesamten Spotify-UI.
+   So laufen die Spuren auch über Glasleisten hinweg, ohne Klicks abzufangen. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: -65% -30%;
+  z-index: 30;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 6px rgba(201,230,255,.68));
+  mix-blend-mode: screen;
+  transform: rotate(34deg) translate3d(0,-18%,0);
+}
+
+body::after {
+  background-image:
+    linear-gradient(to bottom, transparent, rgba(197,231,255,.28) 52%, rgba(255,255,255,.95)),
+    linear-gradient(to bottom, transparent, color-mix(in srgb, var(--zukato-world-accent) 60%, transparent) 56%, rgba(255,255,255,.85)),
+    linear-gradient(to bottom, transparent, rgba(183,222,255,.26) 53%, rgba(255,255,255,.85)),
+    linear-gradient(to bottom, transparent, color-mix(in srgb, var(--zukato-world-accent) 48%, transparent) 57%, rgba(255,255,255,.9));
+  background-size: 2px 165px, 2px 120px, 1px 145px, 2px 110px;
+  background-position: 78% 2%, 32% 31%, 91% 57%, 54% 79%;
+  animation: zukato-meteor-fall 8.5s linear infinite;
+}
+
+body::before {
+  background-image:
+    linear-gradient(to bottom, transparent, rgba(175,225,255,.24) 55%, rgba(255,255,255,.9)),
+    linear-gradient(to bottom, transparent, color-mix(in srgb, var(--zukato-world-accent) 52%, transparent) 58%, rgba(255,255,255,.82)),
+    linear-gradient(to bottom, transparent, rgba(175,225,255,.22) 50%, rgba(255,255,255,.9));
+  background-size: 1px 135px, 2px 105px, 1px 150px;
+  background-position: 17% 17%, 62% 47%, 42% 74%;
+  animation: zukato-meteor-fall 10.5s linear -4.5s infinite;
+}
+
+@keyframes zukato-world-breathe {
+  to { background-position: center, center, center, 54% 46%; }
+}
+@keyframes zukato-stars-drift {
+  to { background-position: 54px 78px, 70px 56px, 94px 42px; }
+}
+@keyframes zukato-stars-twinkle {
+  to { opacity: .8; }
+}
+@keyframes zukato-meteor-fall {
+  0%, 8% { transform: rotate(34deg) translate3d(0,-18%,0); opacity: 0; }
+  15%, 75% { opacity: .82; }
+  92%, 100% { transform: rotate(34deg) translate3d(0,18%,0); opacity: 0; }
 }
 
 /* Die drei Spotify-Spalten lassen das Lichtbild durchscheinen. */
@@ -29,7 +112,7 @@ html, body, #main { background-color: #0b1230 !important; }
   border: 1px solid var(--zukato-shell-edge);
   border-radius: 17px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 22px 48px rgba(4,6,23,.32);
-  backdrop-filter: blur(22px) saturate(1.28);
+  backdrop-filter: blur(4px) saturate(1.18);
 }
 
 /* Scrollflächen und Spotifys innere Paneele dürfen das Bild nicht verdecken. */
@@ -42,24 +125,36 @@ html, body, #main { background-color: #0b1230 !important; }
   background-color: transparent !important;
 }
 
+/* Spotify zeichnet innerhalb der Seitenleisten und unter dem Player noch
+   deckende Flächen. Nur diese Hüllen öffnen, nicht Cover oder Bedienelemente. */
+#Desktop_LeftSidebar_Id nav > div,
+#main .Root div:has(> div > div > div > #Desktop_PanelContainer_Id),
+#main div:has(> [data-testid="now-playing-bar"]) {
+  background-color: transparent !important;
+}
+
+#Desktop_LeftSidebar_Id .YourLibraryX {
+  background-color: rgba(12, 20, 45, .38) !important;
+}
+
+#Desktop_PanelContainer_Id > div:not(.zukato-now-dock-host) {
+  background-color: rgba(12, 20, 45, .22) !important;
+}
+
 .main-view-container {
   position: relative;
   isolation: isolate;
   background-image:
-    radial-gradient(circle at center, rgba(255,255,255,.58) 0 1px, transparent 3px),
-    radial-gradient(circle at center, color-mix(in srgb, var(--zukato-world-accent) 68%, white) 0 1px, transparent 3px),
     repeating-radial-gradient(circle at center, transparent 0 93px,
       color-mix(in srgb, var(--zukato-world-accent) 14%, transparent) 94px 96px,
       transparent 97px 153px),
     radial-gradient(ellipse at center, color-mix(in srgb, var(--zukato-world-accent) 28%, transparent), transparent 72%),
-    linear-gradient(180deg, rgba(9, 14, 39, .48), rgba(8, 12, 36, .59)),
-    linear-gradient(var(--zukato-world-accent), var(--zukato-world-accent)),
-    url("aurora-soundscape.png") !important;
-  background-size: 163px 139px, 227px 181px, 150% 150%, 70% 82%, cover, cover, auto 128% !important;
-  background-position: 0 0, 0 0, 50% 50%, -25% 20%, center, center, 16% 50%;
+    linear-gradient(180deg, rgba(9, 14, 39, .10), rgba(8, 12, 36, .21)) !important;
+  background-size: 150% 150%, 70% 82%, cover !important;
+  background-position: 50% 50%, -25% 20%, center;
   background-attachment: scroll !important;
-  background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat !important;
-  background-blend-mode: screen, screen, screen, screen, normal, hue, normal !important;
+  background-repeat: no-repeat !important;
+  background-blend-mode: screen, screen, normal !important;
   animation: zukato-soundscape-drift 18s ease-in-out infinite alternate;
 }
 
@@ -121,7 +216,7 @@ html, body, #main { background-color: #0b1230 !important; }
 }
 
 @keyframes zukato-soundscape-drift {
-  to { background-position: 126px 86px, -125px 112px, 55% 44%, 120% 76%, center, center, 84% 46%; }
+  to { background-position: 55% 44%, 120% 76%, center; }
 }
 
 #Desktop_LeftSidebar_Id,
@@ -129,13 +224,9 @@ html, body, #main { background-color: #0b1230 !important; }
   background-image:
     radial-gradient(ellipse 80% 38% at 8% 7%, color-mix(in srgb, var(--zukato-world-accent) 31%, transparent), transparent 100%),
     radial-gradient(ellipse 82% 42% at 94% 94%, rgba(45, 170, 229, .24), transparent 100%),
-    linear-gradient(160deg, rgba(16, 23, 55, .58), rgba(9, 17, 45, .66)),
-    linear-gradient(var(--zukato-world-accent), var(--zukato-world-accent)),
-    url("aurora-soundscape.png") !important;
-  background-size: cover, cover, cover, cover, cover !important;
-  background-position: center, center, center, center, left center !important;
-  background-attachment: scroll, scroll, scroll, scroll, fixed !important;
-  background-blend-mode: normal, normal, normal, hue, normal !important;
+    linear-gradient(160deg, rgba(16, 23, 55, .18), rgba(9, 17, 45, .25)) !important;
+  background-size: cover !important;
+  background-blend-mode: screen, screen, normal !important;
 }
 
 #Desktop_PanelContainer_Id,
@@ -143,20 +234,16 @@ html, body, #main { background-color: #0b1230 !important; }
   background-image:
     radial-gradient(ellipse 88% 38% at 90% 2%, color-mix(in srgb, var(--zukato-world-accent) 25%, transparent), transparent 100%),
     radial-gradient(ellipse 85% 46% at 12% 94%, rgba(34, 178, 231, .22), transparent 100%),
-    linear-gradient(200deg, rgba(19, 17, 50, .60), rgba(10, 18, 46, .69)),
-    linear-gradient(var(--zukato-world-accent), var(--zukato-world-accent)),
-    url("aurora-soundscape.png") !important;
-  background-size: cover, cover, cover, cover, cover !important;
-  background-position: center, center, center, center, right center !important;
-  background-attachment: scroll, scroll, scroll, scroll, fixed !important;
-  background-blend-mode: normal, normal, normal, hue, normal !important;
+    linear-gradient(200deg, rgba(19, 17, 50, .19), rgba(10, 18, 46, .26)) !important;
+  background-size: cover !important;
+  background-blend-mode: screen, screen, normal !important;
 }
 
 /* Kopfzeile und Player sind Teil derselben Glasfläche. */
 #global-nav-bar,
 .main-topBar-container,
 [data-testid="topbar"] {
-  background: linear-gradient(90deg,rgba(12,18,43,.89),color-mix(in srgb, var(--zukato-world-accent) 23%, #101a38),rgba(12,18,43,.89)) !important;
+  background: linear-gradient(90deg,rgba(12,18,43,.58),color-mix(in srgb, var(--zukato-world-accent) 17%, #101a38 54%),rgba(12,18,43,.58)) !important;
   border-bottom: 1px solid rgba(180,180,255,.18);
   backdrop-filter: blur(18px);
 }
@@ -164,7 +251,7 @@ html, body, #main { background-color: #0b1230 !important; }
 #Desktop_NowPlayingBar,
 .main-nowPlayingBar-nowPlayingBar,
 [data-testid="now-playing-bar"] {
-  background: linear-gradient(100deg,rgba(12,19,49,.94),color-mix(in srgb, var(--zukato-world-accent) 20%, #141b3b) 50%,rgba(12,21,47,.94)) !important;
+  background: linear-gradient(100deg,rgba(12,19,49,.57),color-mix(in srgb, var(--zukato-world-accent) 15%, #141b3b 55%) 50%,rgba(12,21,47,.58)) !important;
   border-top: 1px solid rgba(170,173,255,.37);
   box-shadow: 0 -12px 35px rgba(5,7,28,.38), inset 0 1px 0 rgba(255,255,255,.1);
   backdrop-filter: blur(18px);
@@ -189,6 +276,8 @@ a:focus-visible { outline-color: #b2c8ff !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #main, #main::before { animation: none; }
+  body::before, body::after { animation: none; opacity: 0; }
   .main-view-container { animation: none; }
   .main-view-container::before { animation: none; transform: none; }
   .main-view-container::after { animation: none; opacity: 0; }
