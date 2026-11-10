@@ -79,6 +79,16 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
   getSpectrumRef.current = getSpectrum;
   const callback = ReactRuntime.useRef(onError);
   callback.current = onError;
+  // Die importierte HTML-Szene bleibt auch im Vollbild dieselbe iframe-Instanz.
+  // Nur der isolierten Sandbox mitteilen, ob ihre zusätzlichen CSS-Animationen
+  // neben den eigenen Canvas-Layern gerade Pixelarbeit verursachen sollen.
+  const sendFullscreenPerformance = (): void => {
+    const frame = frameRef.current;
+    const stage = frame?.closest(".zukato-viz__stage");
+    if (!frame || !stage || contentRef.current?.key !== activeKeyRef.current) return;
+    frame.contentWindow?.postMessage({ zukatoWallpaperPerformance: true,
+      fullscreen: stage.ownerDocument.fullscreenElement === stage }, "*");
+  };
   ReactRuntime.useEffect(() => {
     const moved = (): void => {
       // Jedes Document erzeugt einen neuen sandboxed Frame. Beim Rückweg
@@ -137,6 +147,7 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
         audioGate.current.reset();
         const packet = audioGate.current.next(getSpectrumRef.current(), playerPacketRef.current.playing);
         if (packet) frame.postMessage(packet, "*");
+        sendFullscreenPerformance();
         return;
       }
       // Niemals sceneId aus der Sandbox akzeptieren. Der Parent bestimmt die
@@ -196,6 +207,14 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
   // Noch laufende asynchrone DB-Ladevorgänge dürfen das alte Wallpaper nach
   // einem Songwechsel niemals auch nur für einen Render-Takt anzeigen.
   const visibleContent = currentWallpaper(content, key, "key");
+  ReactRuntime.useEffect(() => {
+    const hostDocument = frameRef.current?.ownerDocument ?? document;
+    hostDocument.addEventListener("fullscreenchange", sendFullscreenPerformance);
+    // Beim Umzug ins Desktop-Fenster gibt es kein fullscreenchange im neuen
+    // Dokument. Den Zustand deshalb beim erneuten Binden direkt abgleichen.
+    sendFullscreenPerformance();
+    return () => hostDocument.removeEventListener("fullscreenchange", sendFullscreenPerformance);
+  }, [visibleContent?.key, hostRevision]);
   const range = choice.kind === "original" ? choice.range : { start: 0, end: null };
 
   ReactRuntime.useEffect(() => {
@@ -333,6 +352,7 @@ export function SceneBackdrop({ choice, songRun, playing, title, artist, getSpec
           const packet = audioGate.current.next(
             getSpectrumRef.current(), playerPacketRef.current.playing);
           if (packet) frame.postMessage(packet, "*");
+          sendFullscreenPerformance();
         }
       }} />}
     {visibleContent?.kind === "video" && <video key={visibleContent.key} ref={videoRef}

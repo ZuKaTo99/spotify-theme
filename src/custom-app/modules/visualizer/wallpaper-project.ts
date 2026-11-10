@@ -161,6 +161,37 @@ function safeStyle(text: string): string { return text.replace(/<\/style/gi, "<\
 function safeScript(text: string): string { return text.replace(/<\/script/gi, "<\\/script"); }
 
 /**
+ * Die zwei lokalen Nebula-Engine-Varianten zeichnen bei jedem Bild hunderte
+ * einzelne Canvas-Pfade und schreiben CSS-Variablen selbst dann erneut, wenn
+ * sich deren Wert nicht ändert. Nur ihr bekanntes Skript wird zur Laufzeit
+ * entlastet; die importierten Original-Blobs in IndexedDB bleiben unverändert.
+ * Sobald eine Signatur abweicht, wird das Skript exakt unverändert ausgeführt.
+ */
+export function optimizeKnownNebulaEngine(path: string, source: string): string {
+  if (!/(^|\/)js\/engine\.js$/i.test(path) ||
+      !source.includes("function drawVisualizer(ctx)") ||
+      !source.includes("window.wallpaperPropertyListener")) return source;
+  const normalized = source.replace(/\r\n/g, "\n");
+  const large = "window.innerWidth>=1000";
+  const replacements: Array<[string, string]> = [
+    ["const n=160;", `const n=${large}?112:160;`],
+    ["for (let s=0;s<=160;s++) {\n          const u=s/160;",
+      `const steps=${large}?96:160;\n        for (let s=0;s<=steps;s++) {\n          const u=s/steps;`],
+    ["const power=settings.intensity/100;\n    if(power===0) return;",
+      `const power=settings.intensity/100;\n    if(power===0) return;\n    const economy=${large};`],
+    ["const y=p.y*h;", "const y=p.y*h;\n      if(economy && i%3===0) continue;"],
+    ["root.style.setProperty('--pulse',audio.beat.toFixed(3));",
+      "if(now-(updateAudio.lastCssAt||0)>=80){updateAudio.lastCssAt=now;root.style.setProperty('--pulse',audio.beat.toFixed(3));}"],
+    ["root.style.setProperty('--pointer-x',`${x.toFixed(2)}px`);\n    root.style.setProperty('--pointer-y',`${y.toFixed(2)}px`);",
+      "const px=`${x.toFixed(2)}px`,py=`${y.toFixed(2)}px`;\n    if(updatePointer.lastX!==px){updatePointer.lastX=px;root.style.setProperty('--pointer-x',px);}\n    if(updatePointer.lastY!==py){updatePointer.lastY=py;root.style.setProperty('--pointer-y',py);}"],
+  ];
+  // Keine halbe Transformation: ein unbekannter Engine-Stand läuft im Original.
+  if (replacements.some(([before]) => normalized.indexOf(before) < 0 ||
+      normalized.indexOf(before) !== normalized.lastIndexOf(before))) return source;
+  return replacements.reduce((code, [before, after]) => code.replace(before, after), normalized);
+}
+
+/**
  * Die Blob-URLs gehören in den Sandbox-Origin! Eine parent-seitig angelegte
  * blob:https://spotify...-URL ist in einem iframe ohne allow-same-origin oft
  * nicht lesbar (Chromium blockiert sie). Die origin-isolierte Startseite
@@ -677,7 +708,8 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
           await prepareModule(path);
           html = html.replace(script, `<script type="module">import "${localModuleSpecifier(path)}";</script>`);
         } else {
-          const code = replaceReferences(await files.get(path)!.text(), path);
+          const code = optimizeKnownNebulaEngine(path,
+            replaceReferences(await files.get(path)!.text(), path));
           // src-Attribut entfernen, sonst lädt Chromium gegen Spotify.
           const attrs = open.replace(/\s+src\s*=\s*["'][^"']+["']/i, "");
           html = html.replace(script, `${attrs}${safeScript(code)}</script>`);
@@ -715,7 +747,7 @@ export async function renderWallpaperProject(project: PreparedProject): Promise<
     }
     html = replaceReferences(html, project.entry);
     const policy = `<meta http-equiv="Content-Security-Policy" content="${PROJECT_CSP}">`;
-    const bridge = `<meta name="zukato-host-origin" content="__ZUKATO_HOST_ORIGIN__"><style>html.zukato-wallpaper-paused *,html.zukato-wallpaper-paused *::before,html.zukato-wallpaper-paused *::after{animation-play-state:paused!important}</style><script>
+    const bridge = `<meta name="zukato-host-origin" content="__ZUKATO_HOST_ORIGIN__"><style>html.zukato-wallpaper-paused *,html.zukato-wallpaper-paused *::before,html.zukato-wallpaper-paused *::after,html.zukato-wallpaper-economy,html.zukato-wallpaper-economy *,html.zukato-wallpaper-economy *::before,html.zukato-wallpaper-economy *::after{animation-play-state:paused!important}</style><script>
 window.addEventListener('message',function(e){
   var host=document.querySelector('meta[name="zukato-host-origin"]');
   if(!host||!e.data)return;
@@ -723,8 +755,16 @@ window.addEventListener('message',function(e){
   // Nach dem Umzug ist das PiP-Fenster Parent, Spotify sendet aber weiter.
   if(e.source!==window.parent){
     if(e.origin!==decodeURIComponent(host.content))return;
-    if(e.data.zukatoWallpaper===true||e.data.zukatoWallpaperAudio===true)
+    if(e.data.zukatoWallpaper===true||e.data.zukatoWallpaperAudio===true||e.data.zukatoWallpaperPerformance===true)
       window.dispatchEvent(new MessageEvent('message',{data:e.data,origin:e.origin,source:window.parent}));
+    return;
+  }
+  if(e.data.zukatoWallpaperPerformance===true){
+    // Mehrere Canvas-Layer liefern bereits die sichtbare Bewegung. Im Vollbild
+    // kosten daneben laufende CSS-Animationen bei großen Web-Wallpapers viele
+    // GPU-Zyklen. Reine CSS-Wallpapers bleiben vollständig animiert.
+    document.documentElement.classList.toggle('zukato-wallpaper-economy',
+      e.data.fullscreen===true&&document.querySelectorAll('canvas').length>=2);
     return;
   }
   if(e.data.zukatoWallpaper!==true)return;

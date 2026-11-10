@@ -526,7 +526,7 @@ test("Audioeffekte: Partikelzeichnung nutzt Analyser-Buffer und Benutzerfarben",
   let frame = null; let count = 0; let fills = 0; let spectrumRead = 0; let fillColor = ""; let opacity = 0;
   const track = { readyState: "live", stop() {}, addEventListener() {}, removeEventListener() {} };
   const context2d = {
-    setTransform() {}, clearRect() {}, save() {}, restore() {}, beginPath() {},
+    setTransform() {}, clearRect() {}, save() {}, restore() {}, beginPath() {}, moveTo() {},
     arc() { count += 1; }, fill() { fills += 1; fillColor = this.fillStyle; opacity = this.globalAlpha; },
   };
   try {

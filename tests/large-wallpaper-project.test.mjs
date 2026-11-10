@@ -39,6 +39,24 @@ function largeFiles() {
   return files;
 }
 
+test("Nebula-Performance: nur vollständig erkannte Engine im großen Viewer entlasten", () => {
+  const source = `window.wallpaperPropertyListener={};
+function drawVisualizer(ctx) { const n=160; }
+for (let s=0;s<=160;s++) {\n          const u=s/160;
+}
+const power=settings.intensity/100;\n    if(power===0) return;
+const y=p.y*h;
+root.style.setProperty('--pulse',audio.beat.toFixed(3));
+root.style.setProperty('--pointer-x',\`\${x.toFixed(2)}px\`);\n    root.style.setProperty('--pointer-y',\`\${y.toFixed(2)}px\`);`;
+  assert.equal(project.optimizeKnownNebulaEngine("other.js", source), source);
+  assert.equal(project.optimizeKnownNebulaEngine("js/engine.js", source.replace("const n=160;", "const n=120;")),
+    source.replace("const n=160;", "const n=120;"), "unbekannte Fassungen bleiben unangetastet");
+  const optimized = project.optimizeKnownNebulaEngine("js/engine.js", source);
+  assert.match(optimized, /window\.innerWidth>=1000\?112:160/);
+  assert.match(optimized, /if\(economy && i%3===0\) continue/);
+  assert.match(optimized, /updatePointer\.lastX/);
+});
+
 test("Wallpaper: 92 Dateien und über 12 MiB ohne Base64-Zwang", () => {
   const prepared = project.prepareWallpaperProject(largeFiles());
   assert.equal(prepared.files.length, 92);
@@ -77,6 +95,8 @@ test("Wallpaper-Brücke stellt Player-Nachrichten nach dem PiP-Umzug zu", async 
   const parent = {};
   const listeners = new Map();
   const received = [];
+  const classes = new Set();
+  let canvasCount = 3;
   const fakeWindow = {
     parent,
     addEventListener(type, callback) {
@@ -97,8 +117,10 @@ test("Wallpaper-Brücke stellt Player-Nachrichten nach dem PiP-Umzug zu", async 
   }
   const fakeDocument = {
     querySelector: () => ({ content: "https%3A%2F%2Fxpui.app.spotify.com" }),
-    querySelectorAll: () => [],
-    documentElement: { classList: { toggle() {} } },
+    querySelectorAll: (selector) => selector === "canvas" ? Array(canvasCount).fill({}) : [],
+    documentElement: { classList: { toggle(name, enabled) {
+      if (enabled) classes.add(name); else classes.delete(name);
+    } } },
     addEventListener() {},
   };
   runInNewContext(script, { window: fakeWindow, document: fakeDocument,
@@ -111,6 +133,18 @@ test("Wallpaper-Brücke stellt Player-Nachrichten nach dem PiP-Umzug zu", async 
   assert.ok(received.some((event) => event.type === "message" && event.source === parent && event.data === packet));
   assert.ok(received.some((event) => event.type === "zukato:player" &&
     event.detail.title === "Song" && event.detail.artist === "Artist"));
+  const performance = (fullscreen) => ({ source: {}, origin: "https://xpui.app.spotify.com",
+    data: { zukatoWallpaperPerformance: true, fullscreen } });
+  for (const callback of listeners.get("message")) callback(performance(true));
+  assert.equal(classes.has("zukato-wallpaper-economy"), true,
+    "mehrschichtige Canvas-Szenen pausieren im Vollbild zusätzliche CSS-Animationen");
+  for (const callback of listeners.get("message")) callback(performance(false));
+  assert.equal(classes.has("zukato-wallpaper-economy"), false,
+    "außerhalb des Vollbilds laufen CSS-Animationen wieder");
+  canvasCount = 1;
+  for (const callback of listeners.get("message")) callback(performance(true));
+  assert.equal(classes.has("zukato-wallpaper-economy"), false,
+    "Szenen mit nur einem Canvas behalten ihre CSS-Bewegungen");
   result.dispose();
 });
 
