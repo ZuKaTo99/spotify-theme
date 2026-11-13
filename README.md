@@ -8,6 +8,16 @@ alle Funktionen sind im echten Spotify-Desktop-Client abgenommen:** Insbesondere
 Canvas-Quellen, Spotify-interne Lyrics, digitale Audioanalyse und spezielle
 Wallpaper-Engine-JavaScript-APIs bleiben abhängig vom Client bzw. Originalprojekt.
 
+## Spotify ohne Entwicklungsumgebung starten
+
+Nach `npm run install:spicetify` sind ZuKaTo-App, Extension und Theme in Spotify
+installiert. Spotify startet danach über seine normale Verknüpfung ohne npm oder
+Visual Studio. Für automatische Spicetify-Reparatur nach Spotify-Updates kann
+`tools/setup-spotify-launcher.ps1` einmalig die Desktop- und Startmenü-Verknüpfung
+auf `spicetify auto` umstellen. Die ursprünglichen Verknüpfungen werden gesichert;
+mit `-Restore` lassen sie sich wiederherstellen. Neue Änderungen am ZuKaTo-Code
+brauchen weiterhin `npm run install:spicetify`.
+
 ## v1.76.0-rc.21 – Durchgehende Aurora und Sternschnuppen
 
 - Ein einziges Aurora-Motiv erstreckt sich über das gesamte Spotify-Fenster.
